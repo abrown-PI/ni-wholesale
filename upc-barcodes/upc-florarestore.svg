@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="230" height="140" viewBox="0 0 230 140">
+  <rect width="100%" height="100%" fill="white"/>
+  <text x="115.0" y="16" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333">FloraRestore</text>
+  <rect x="20" y="22" width="2" height="90" fill="black"/>
+  <rect x="24" y="22" width="2" height="90" fill="black"/>
+  <rect x="28" y="22" width="2" height="80" fill="black"/>
+  <rect x="30" y="22" width="2" height="80" fill="black"/>
+  <rect x="34" y="22" width="2" height="80" fill="black"/>
+  <rect x="36" y="22" width="2" height="80" fill="black"/>
+  <rect x="38" y="22" width="2" height="80" fill="black"/>
+  <rect x="44" y="22" width="2" height="80" fill="black"/>
+  <rect x="46" y="22" width="2" height="80" fill="black"/>
+  <rect x="52" y="22" width="2" height="80" fill="black"/>
+  <rect x="56" y="22" width="2" height="80" fill="black"/>
+  <rect x="58" y="22" width="2" height="80" fill="black"/>
+  <rect x="60" y="22" width="2" height="80" fill="black"/>
+  <rect x="62" y="22" width="2" height="80" fill="black"/>
+  <rect x="66" y="22" width="2" height="80" fill="black"/>
+  <rect x="72" y="22" width="2" height="80" fill="black"/>
+  <rect x="74" y="22" width="2" height="80" fill="black"/>
+  <rect x="80" y="22" width="2" height="80" fill="black"/>
+  <rect x="86" y="22" width="2" height="80" fill="black"/>
+  <rect x="92" y="22" width="2" height="80" fill="black"/>
+  <rect x="94" y="22" width="2" height="80" fill="black"/>
+  <rect x="102" y="22" width="2" height="80" fill="black"/>
+  <rect x="104" y="22" width="2" height="80" fill="black"/>
+  <rect x="108" y="22" width="2" height="80" fill="black"/>
+  <rect x="112" y="22" width="2" height="90" fill="black"/>
+  <rect x="116" y="22" width="2" height="90" fill="black"/>
+  <rect x="120" y="22" width="2" height="80" fill="black"/>
+  <rect x="122" y="22" width="2" height="80" fill="black"/>
+  <rect x="124" y="22" width="2" height="80" fill="black"/>
+  <rect x="130" y="22" width="2" height="80" fill="black"/>
+  <rect x="134" y="22" width="2" height="80" fill="black"/>
+  <rect x="144" y="22" width="2" height="80" fill="black"/>
+  <rect x="148" y="22" width="2" height="80" fill="black"/>
+  <rect x="150" y="22" width="2" height="80" fill="black"/>
+  <rect x="152" y="22" width="2" height="80" fill="black"/>
+  <rect x="158" y="22" width="2" height="80" fill="black"/>
+  <rect x="162" y="22" width="2" height="80" fill="black"/>
+  <rect x="166" y="22" width="2" height="80" fill="black"/>
+  <rect x="176" y="22" width="2" height="80" fill="black"/>
+  <rect x="178" y="22" width="2" height="80" fill="black"/>
+  <rect x="180" y="22" width="2" height="80" fill="black"/>
+  <rect x="186" y="22" width="2" height="80" fill="black"/>
+  <rect x="190" y="22" width="2" height="80" fill="black"/>
+  <rect x="192" y="22" width="2" height="80" fill="black"/>
+  <rect x="194" y="22" width="2" height="80" fill="black"/>
+  <rect x="200" y="22" width="2" height="80" fill="black"/>
+  <rect x="204" y="22" width="2" height="90" fill="black"/>
+  <rect x="208" y="22" width="2" height="90" fill="black"/>
+  <text x="10" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">8</text>
+  <text x="33.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">1</text>
+  <text x="47.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">3</text>
+  <text x="61.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">1</text>
+  <text x="75.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">2</text>
+  <text x="89.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">0</text>
+  <text x="119.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">0</text>
+  <text x="133.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">3</text>
+  <text x="147.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">0</text>
+  <text x="161.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">6</text>
+  <text x="175.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">0</text>
+  <text x="216" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">0</text>
+</svg>
