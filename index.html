@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutritional Innovations — Wholesale</title>
+    <link rel="icon" href="ni-logo.png" type="image/png">
+    <style>
+        :root {
+            /* NI Brand Colors */
+            --ni-main: #515763;
+            --ni-deep-blue: #2D3F82;
+            --ni-blue: #2C84C6;
+            --ni-indigo: #515FA0;
+            --ni-white: #FBFCFE;
+            --ni-dark: #323639;
+            --ni-charcoal: #171616;
+            --ni-warm-gray: #ded9d3;
+            --ni-cool-gray: #c2ccd2;
+            --ni-sage: #65695c;
+            --ni-earth: #866e58;
+            --ni-muted: #abb0aa;
+            --ni-light: #edefea;
+            --ni-cream: #f6f5f3;
+            --ni-taupe: #aea89f;
+            --ni-teal-dark: #344141;
+            --ni-linen: #ede8e2;
+            /* Functional */
+            --primary: #515763;
+            --primary-dark: #434341;
+            --primary-darker: #323639;
+            --accent: #2D3F82;
+            --sky: #2C84C6;
+            --ni-band: #515763;
+            --ni-navy: #323639;
+            --success: #16a34a; --success-bg: #f0fdf4;
+            --warning: #d97706; --warning-bg: #fffbeb;
+            --danger: #dc2626; --danger-bg: #fef2f2;
+            --info: #2C84C6;
+            --gray-50: #FBFCFE; --gray-100: #f6f5f3; --gray-200: #edefea; --gray-300: #c2ccd2;
+            --gray-400: #abb0aa; --gray-500: #65695c; --gray-600: #515763; --gray-700: #434341;
+            --gray-800: #323639; --gray-900: #171616;
+            --radius: 6px;
+            --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+            --shadow-md: 0 4px 6px rgba(0,0,0,.06), 0 2px 4px rgba(0,0,0,.04);
+            --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --serif: 'Georgia', 'Times New Roman', serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--serif); background: #fff; color: var(--gray-800); min-height: 100vh; }
+
+        /* ── Navbar ── */
+        .navbar { background: #fff; position: sticky; top: 0; z-index: 1000; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+        .navbar-top { display: flex; align-items: center; padding: 16px 24px; }
+        .navbar-bottom { background: var(--ni-band); display: flex; align-items: center; padding: 0 24px; height: 44px; }
+        .navbar-brand { display: flex; align-items: center; gap: 14px; }
+        .navbar-brand img { height: 52px; }
+        .navbar-brand .brand-sub { font-size: 11px; color: var(--gray-500); letter-spacing: 2px; text-transform: uppercase; }
+        .navbar-top-right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+        .admin-toggle { color: var(--gray-500); background: none; border: 1px solid var(--gray-300); padding: 6px 14px; border-radius: var(--radius); cursor: pointer; font-size: 12px; font-family: var(--sans); letter-spacing: .5px; text-transform: uppercase; }
+        .admin-toggle:hover { border-color: var(--ni-band); color: var(--ni-band); }
+        .admin-toggle.active { background: var(--ni-band); border-color: var(--ni-band); color: #fff; }
+        .navbar-nav { display: flex; gap: 0; list-style: none; font-family: var(--sans); }
+        .navbar-nav li a { color: rgba(255,255,255,.85); text-decoration: none; padding: 10px 20px; font-size: 13px; font-weight: 500; letter-spacing: .5px; text-transform: uppercase; transition: all .2s; }
+        .navbar-nav li a:hover { color: #fff; background: rgba(255,255,255,.15); }
+        .navbar-nav li a.active { color: #fff; background: rgba(255,255,255,.2); }
+        .navbar-right { margin-left: auto; display: flex; gap: 12px; }
+        .cart-btn { color: #fff; background: rgba(255,255,255,.2); border: none; padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; font-family: var(--sans); }
+        .cart-btn:hover { background: rgba(255,255,255,.3); }
+        .cart-count { background: #fff; color: var(--ni-band); font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 10px; min-width: 18px; text-align: center; }
+        .login-btn { color: var(--gray-600); background: none; border: 1px solid var(--gray-300); padding: 6px 14px; border-radius: var(--radius); cursor: pointer; font-size: 12px; font-family: var(--sans); letter-spacing: .5px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+        .login-btn:hover { border-color: var(--ni-band); color: var(--ni-band); }
+        .logged-in-name { font-family: var(--sans); font-size: 13px; color: var(--gray-700); font-weight: 600; }
+
+        /* ── Layout ── */
+        .page { display: none; padding: 32px 24px; max-width: 1400px; margin: 0 auto; }
+        .page.active { display: block; }
+        .page-full { max-width: none; padding: 0; }
+
+        /* ── Cards ── */
+        .card { background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 24px; margin-bottom: 20px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--gray-200); }
+        .card-header h2 { font-size: 18px; color: var(--ni-navy); font-family: var(--serif); }
+
+        /* ── Buttons ── */
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all .2s; font-family: var(--sans); letter-spacing: .3px; }
+        .btn-primary { background: var(--ni-band); color: #fff; }
+        .btn-primary:hover { background: var(--ni-navy); }
+        .btn-accent { background: var(--ni-deep-blue); color: #fff; }
+        .btn-accent:hover { background: var(--ni-indigo); }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-success:hover { opacity: .9; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { opacity: .9; }
+        .btn-outline { background: #fff; color: var(--ni-band); border: 1px solid var(--ni-band); }
+        .btn-outline:hover { background: var(--ni-band); color: #fff; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn-lg { padding: 12px 28px; font-size: 15px; }
+        .btn-white { background: #fff; color: var(--ni-navy); border: none; }
+        .btn-white:hover { background: var(--gray-200); }
+
+        /* ── Tables ── */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: var(--sans); }
+        th { background: var(--ni-navy); color: #fff; font-weight: 600; text-align: left; padding: 10px 12px; white-space: nowrap; font-size: 12px; letter-spacing: .3px; text-transform: uppercase; }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--gray-200); }
+        tr:hover td { background: var(--gray-100); }
+
+        /* ── Forms ── */
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .3px; font-family: var(--sans); }
+        .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 14px; font-family: var(--sans); }
+        .form-control:focus { outline: none; border-color: var(--ni-band); box-shadow: 0 0 0 3px rgba(81,87,99,.15); }
+        select.form-control { appearance: auto; }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+
+        /* ── Badges ── */
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; font-family: var(--sans); }
+        .badge-success { background: var(--success-bg); color: var(--success); }
+        .badge-warning { background: var(--warning-bg); color: var(--warning); }
+        .badge-danger { background: var(--danger-bg); color: var(--danger); }
+        .badge-info { background: #e0f2fe; color: var(--info); }
+        .badge-new { background: #dbeafe; color: #1d4ed8; font-size: 10px; padding: 2px 8px; border-radius: 4px; font-family: var(--sans); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; position: absolute; top: 8px; left: 8px; z-index: 1; }
+
+        /* ── Stats ── */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .stat-card { background: #fff; border-radius: var(--radius); padding: 20px; border: 1px solid var(--gray-200); border-left: 4px solid var(--ni-band); }
+        .stat-card .stat-label { font-size: 11px; color: var(--gray-500); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; font-family: var(--sans); }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--ni-navy); font-family: var(--serif); }
+
+        /* ── Hero / Homepage ── */
+        .hero { background: linear-gradient(135deg, var(--ni-deep-blue) 0%, var(--ni-blue) 100%); color: #fff; padding: 80px 24px; text-align: center; position: relative; overflow: hidden; }
+        .hero::before { content: ''; position: absolute; top: -50%; right: -20%; width: 600px; height: 600px; background: radial-gradient(circle, rgba(255,255,255,.08) 0%, transparent 70%); }
+        .hero::after { content: ''; position: absolute; bottom: -30%; left: -10%; width: 500px; height: 500px; background: radial-gradient(circle, rgba(255,255,255,.05) 0%, transparent 70%); }
+        .hero-content { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 48px; text-align: left; }
+        .hero-text { flex: 1; }
+        .hero-text img.hero-logo { height: 120px; margin-bottom: 24px; filter: brightness(10); }
+        .hero-product-img { flex: 0 0 320px; position: relative; }
+        .hero-product-img img { width: 100%; max-width: 320px; filter: drop-shadow(0 20px 40px rgba(0,0,0,.3)); animation: floatProduct 3s ease-in-out infinite; }
+        @keyframes floatProduct { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+        .hero h1 { font-family: var(--serif); font-size: 36px; font-weight: 400; letter-spacing: 3px; margin-bottom: 16px; }
+        .hero p { font-family: var(--sans); font-size: 16px; opacity: .85; line-height: 1.6; margin-bottom: 32px; }
+        .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+        /* ── Homepage sections ── */
+        .home-section { padding: 60px 24px; max-width: 1200px; margin: 0 auto; }
+        .home-section h2 { font-family: var(--serif); font-size: 28px; color: var(--ni-navy); text-align: center; margin-bottom: 8px; }
+        .home-section .section-sub { font-family: var(--sans); font-size: 14px; color: var(--gray-500); text-align: center; margin-bottom: 40px; }
+        .home-section .section-divider { width: 60px; height: 3px; background: var(--ni-band); margin: 12px auto 0; }
+
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; }
+        .feature-card { text-align: center; padding: 32px 20px; }
+        .feature-icon { width: 64px; height: 64px; background: var(--gray-100); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; }
+        .feature-card h3 { font-family: var(--serif); font-size: 18px; color: var(--ni-navy); margin-bottom: 8px; }
+        .feature-card p { font-family: var(--sans); font-size: 14px; color: var(--gray-500); line-height: 1.6; }
+
+        .featured-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 24px; }
+
+        .about-strip { background: var(--gray-100); padding: 60px 24px; }
+        .about-content { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+        .about-content .about-text h2 { text-align: left; margin-bottom: 16px; }
+        .about-content .about-text p { font-family: var(--sans); font-size: 14px; color: var(--gray-600); line-height: 1.8; }
+        .about-details { font-family: var(--sans); font-size: 13px; color: var(--gray-600); }
+        .about-details dt { font-weight: 700; color: var(--ni-navy); margin-top: 12px; }
+        .about-details dd { margin-left: 0; }
+
+        /* ── Product Grid (storefront) ── */
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+        .product-card { background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); overflow: hidden; transition: transform .2s, box-shadow .2s; cursor: pointer; }
+        .product-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--ni-band); }
+        .product-img { width: 100%; height: 200px; background: #fafbfc; display: flex; align-items: center; justify-content: center; color: var(--gray-400); font-size: 13px; font-family: var(--sans); border-bottom: 3px solid var(--ni-band); position: relative; }
+        .product-img img { width: 100%; height: 100%; object-fit: contain; padding: 12px; }
+        .product-img .stock-badge { position: absolute; top: 8px; right: 8px; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-family: var(--sans); font-weight: 600; }
+        .product-img .stock-in { background: var(--success-bg); color: var(--success); }
+        .product-img .stock-low { background: var(--warning-bg); color: var(--warning); }
+        .product-img .stock-out { background: var(--danger-bg); color: var(--danger); }
+        .product-info { padding: 16px; }
+        .product-info .product-category { font-size: 11px; color: var(--ni-band); font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; font-family: var(--sans); }
+        .product-info .product-name { font-size: 18px; font-weight: 700; margin: 6px 0 8px; color: var(--ni-navy); font-family: var(--serif); }
+        .product-info .product-size { font-size: 13px; color: var(--gray-500); margin-bottom: 12px; font-family: var(--sans); }
+        .product-info .product-price { font-size: 20px; font-weight: 700; color: var(--ni-navy); font-family: var(--sans); }
+        .product-info .product-retail { font-size: 12px; color: var(--gray-400); text-decoration: line-through; margin-left: 8px; }
+        .product-actions { display: flex; gap: 8px; margin-top: 12px; }
+        .product-actions .btn { flex: 1; justify-content: center; }
+
+        /* ── Product Detail Modal ── */
+        .product-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .product-detail-img-wrap { }
+        .product-detail-main-img { background: var(--gray-100); border-radius: var(--radius); min-height: 300px; display: flex; align-items: center; justify-content: center; color: var(--gray-400); font-family: var(--sans); }
+        .product-detail-main-img img { max-width: 100%; max-height: 300px; object-fit: contain; }
+        .product-detail-thumbs { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+        .product-detail-thumbs img { width: 60px; height: 60px; object-fit: contain; border: 2px solid var(--gray-200); border-radius: 4px; cursor: pointer; padding: 2px; background: #fff; }
+        .product-detail-thumbs img.active-thumb { border-color: var(--ni-band); }
+        .product-detail-info h2 { font-family: var(--serif); font-size: 24px; color: var(--ni-navy); margin-bottom: 4px; }
+        .product-detail-info .detail-category { font-size: 12px; color: var(--ni-band); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; font-family: var(--sans); margin-bottom: 16px; }
+        .product-detail-info .detail-price { font-size: 28px; font-weight: 700; color: var(--ni-navy); font-family: var(--sans); margin-bottom: 4px; }
+        .product-detail-info .detail-retail { font-size: 13px; color: var(--gray-400); text-decoration: line-through; margin-bottom: 16px; }
+        .detail-meta { font-family: var(--sans); font-size: 13px; color: var(--gray-600); margin-bottom: 20px; }
+        .detail-meta div { padding: 6px 0; border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; }
+        .detail-meta strong { color: var(--ni-navy); }
+        .detail-add-row { display: flex; gap: 8px; align-items: center; }
+
+        /* ── Filter bar ── */
+        .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+        .search-input { flex: 1; min-width: 200px; padding: 10px 16px; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 14px; font-family: var(--sans); }
+        .search-input:focus { outline: none; border-color: var(--ni-band); }
+
+        /* ── Modal ── */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #fff; border-radius: 12px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+        .modal-lg { max-width: 800px; }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--gray-200); }
+        .modal-header h2 { font-size: 18px; font-family: var(--serif); color: var(--ni-navy); }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--gray-400); }
+        .modal-close:hover { color: var(--gray-700); }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--gray-200); display: flex; gap: 8px; justify-content: flex-end; }
+
+        /* ── UPC Section ── */
+        .upc-result { font-family: 'Courier New', monospace; font-size: 32px; font-weight: 700; text-align: center; padding: 20px; background: var(--ni-navy); color: #fff; border-radius: var(--radius); margin-top: 16px; letter-spacing: 4px; }
+        .upc-structure { background: #fafbfc; padding: 16px; border-radius: var(--radius); font-size: 14px; line-height: 1.8; margin-bottom: 20px; border: 1px solid var(--gray-200); font-family: var(--sans); }
+        .upc-structure code { background: var(--gray-200); padding: 2px 6px; border-radius: 4px; font-weight: 600; color: var(--ni-navy); }
+
+        /* ── Cart sidebar ── */
+        .cart-sidebar { position: fixed; top: 0; right: -420px; width: 420px; height: 100vh; background: #fff; z-index: 3000; box-shadow: -4px 0 20px rgba(0,0,0,.15); transition: right .3s ease; display: flex; flex-direction: column; }
+        .cart-sidebar.open { right: 0; }
+        .cart-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 2500; }
+        .cart-overlay.open { display: block; }
+        .cart-header { padding: 20px 24px; border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; }
+        .cart-header h2 { font-size: 18px; font-family: var(--serif); color: var(--ni-navy); }
+        .cart-items { flex: 1; overflow-y: auto; padding: 16px 24px; }
+        .cart-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--gray-100); font-family: var(--sans); }
+        .cart-item-info { flex: 1; }
+        .cart-item-name { font-weight: 600; font-size: 14px; }
+        .cart-item-size { font-size: 12px; color: var(--gray-500); }
+        .cart-item-qty { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+        .cart-item-qty button { width: 28px; height: 28px; border: 1px solid var(--gray-300); border-radius: 4px; background: #fff; cursor: pointer; font-size: 16px; }
+        .cart-item-qty button:hover { background: var(--gray-100); }
+        .cart-item-qty span { font-size: 14px; font-weight: 600; min-width: 24px; text-align: center; }
+        .cart-item-price { font-weight: 700; color: var(--ni-navy); white-space: nowrap; }
+        .cart-item-remove { color: var(--gray-400); background: none; border: none; cursor: pointer; font-size: 18px; }
+        .cart-item-remove:hover { color: var(--danger); }
+        .cart-footer { padding: 20px 24px; border-top: 1px solid var(--gray-200); font-family: var(--sans); }
+        .cart-total { display: flex; justify-content: space-between; font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+        .cart-empty { text-align: center; color: var(--gray-400); padding: 40px 0; font-family: var(--sans); }
+
+        /* ── Vendor tabs ── */
+        .vendor-tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+        .vendor-tab { padding: 8px 16px; border: 1px solid var(--gray-300); border-radius: var(--radius); background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; font-family: var(--sans); }
+        .vendor-tab:hover { border-color: var(--ni-band); color: var(--ni-band); }
+        .vendor-tab.active { background: var(--ni-band); color: #fff; border-color: var(--ni-band); }
+
+        /* ── Category tabs ── */
+        .category-tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+        .category-tab { padding: 8px 16px; border: 1px solid var(--gray-300); border-radius: var(--radius); background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; font-family: var(--sans); }
+        .category-tab:hover { border-color: var(--ni-band); color: var(--ni-band); }
+        .category-tab.active { background: var(--ni-band); color: #fff; border-color: var(--ni-band); }
+
+        /* ── Image upload ── */
+        .img-upload-area { border: 2px dashed var(--gray-300); border-radius: var(--radius); padding: 24px; text-align: center; cursor: pointer; transition: border-color .2s; font-family: var(--sans); color: var(--gray-500); font-size: 13px; }
+        .img-upload-area:hover { border-color: var(--ni-band); }
+        .img-upload-area.has-img { border-style: solid; padding: 8px; }
+        .img-upload-area img { max-width: 100%; max-height: 150px; object-fit: contain; }
+
+        /* ── Multi-image gallery (admin) ── */
+        .images-gallery { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .images-gallery .gallery-thumb { position: relative; width: 80px; height: 80px; border: 2px solid var(--gray-200); border-radius: 4px; overflow: hidden; }
+        .images-gallery .gallery-thumb img { width: 100%; height: 100%; object-fit: contain; }
+        .images-gallery .gallery-thumb.primary { border-color: var(--ni-band); }
+        .images-gallery .gallery-thumb .thumb-actions { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.6); display: flex; justify-content: center; gap: 4px; padding: 2px; }
+        .images-gallery .gallery-thumb .thumb-actions button { background: none; border: none; color: #fff; font-size: 11px; cursor: pointer; padding: 1px 4px; }
+        .images-gallery .gallery-thumb .thumb-actions button:hover { color: var(--warning); }
+
+        /* ── Low stock alert ── */
+        .alert { padding: 12px 16px; border-radius: var(--radius); margin-bottom: 16px; font-family: var(--sans); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+        .alert-warning { background: var(--warning-bg); color: var(--warning); border: 1px solid #fde68a; }
+        .alert-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; }
+
+        /* ── Footer ── */
+        .site-footer { background: var(--ni-navy); color: rgba(255,255,255,.7); padding: 48px 24px; margin-top: 60px; }
+        .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; font-family: var(--sans); font-size: 13px; }
+        .footer-col h3 { font-family: var(--serif); color: #fff; font-size: 16px; margin-bottom: 12px; }
+        .footer-col a { color: rgba(255,255,255,.7); text-decoration: none; }
+        .footer-col a:hover { color: #fff; }
+        .footer-col p { line-height: 1.8; }
+        .footer-bottom { max-width: 1200px; margin: 24px auto 0; padding-top: 24px; border-top: 1px solid rgba(255,255,255,.15); text-align: center; font-family: var(--sans); font-size: 12px; color: rgba(255,255,255,.5); }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .navbar-top { padding: 12px; }
+            .navbar-bottom { flex-wrap: wrap; height: auto; padding: 8px 12px; }
+            .navbar-nav { flex-wrap: wrap; }
+            .navbar-nav li a { padding: 6px 12px; font-size: 11px; }
+            .page { padding: 16px; }
+            .product-grid { grid-template-columns: 1fr; }
+            .cart-sidebar { width: 100%; right: -100%; }
+            .form-row { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .hero { padding: 48px 16px; }
+            .hero-content { flex-direction: column; text-align: center; }
+            .hero-text { text-align: center; }
+            .hero-actions { justify-content: center !important; }
+            .hero-product-img { flex: 0 0 auto; }
+            .hero-product-img img { max-width: 200px; }
+            .hero h1 { font-size: 24px; }
+            .about-content { grid-template-columns: 1fr; }
+            .product-detail { grid-template-columns: 1fr; }
+        }
+
+        /* ── Toast ── */
+        .toast-container { position: fixed; top: 80px; right: 24px; z-index: 5000; display: flex; flex-direction: column; gap: 8px; }
+        .toast { background: #fff; padding: 12px 20px; border-radius: var(--radius); box-shadow: var(--shadow-md); font-size: 14px; font-family: var(--sans); display: flex; align-items: center; gap: 8px; animation: slideIn .3s ease; }
+        .toast-success { border-left: 4px solid var(--success); }
+        .toast-error { border-left: 4px solid var(--danger); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .qty-input { width: 60px; text-align: center; padding: 6px; border: 1px solid var(--gray-300); border-radius: 4px; font-size: 14px; font-family: var(--sans); }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-family: var(--sans); }
+
+        /* ── Tabs (for admin sub-sections) ── */
+        .admin-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--gray-200); margin-bottom: 20px; }
+        .admin-tab { padding: 10px 20px; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; text-transform: uppercase; letter-spacing: .5px; }
+        .admin-tab:hover { color: var(--ni-band); }
+        .admin-tab.active { color: var(--ni-band); border-bottom-color: var(--ni-band); }
+        .admin-tab-content { display: none; }
+        .admin-tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════ NAVBAR ═══════════ -->
+<nav class="navbar">
+    <div class="navbar-top">
+        <div class="navbar-brand">
+            <img src="ni-logo.png" alt="Nutritional Innovations">
+            <div class="brand-text">
+                <div class="brand-sub">Wholesale</div>
+            </div>
+        </div>
+        <div class="navbar-top-right">
+            <span class="logged-in-name" id="loggedInName" style="display:none"></span>
+            <button class="login-btn" id="loginRegisterBtn" onclick="openModal('loginModal')">&#128100; Login / Register</button>
+            <button class="login-btn" id="logoutBtn" style="display:none" onclick="logoutAccount()">Logout</button>
+            <button class="admin-toggle" id="adminToggle" onclick="toggleAdmin()">Admin</button>
+        </div>
+    </div>
+    <div class="navbar-bottom">
+        <ul class="navbar-nav" id="mainNav">
+            <li><a href="#" data-page="home" class="active">Home</a></li>
+            <li><a href="#" data-page="storefront">Shop</a></li>
+            <li><a href="#" data-page="admin-products" class="admin-link" style="display:none">Products</a></li>
+            <li><a href="#" data-page="admin-inventory" class="admin-link" style="display:none">Inventory</a></li>
+            <li><a href="#" data-page="admin-orders" class="admin-link" style="display:none">Orders</a></li>
+            <li><a href="#" data-page="admin-upc" class="admin-link" style="display:none">UPC</a></li>
+            <li><a href="#" data-page="admin-vendors" class="admin-link" style="display:none">Vendors</a></li>
+            <li><a href="#" data-page="admin-customers" class="admin-link" style="display:none">Customers</a></li>
+            <li><a href="#" data-page="admin-accounts" class="admin-link" style="display:none">Accounts</a></li>
+            <li><a href="#" data-page="admin-users" class="admin-link" style="display:none">Admin Users</a></li>
+        </ul>
+        <div class="navbar-right">
+            <button class="cart-btn" onclick="toggleCart()">&#128722; Cart <span class="cart-count" id="cartCount">0</span></button>
+        </div>
+    </div>
+</nav>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══════════ CART SIDEBAR ═══════════ -->
+<div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+<div class="cart-sidebar" id="cartSidebar">
+    <div class="cart-header"><h2>Your Order</h2><button class="modal-close" onclick="toggleCart()">&times;</button></div>
+    <div class="cart-items" id="cartItems"><div class="cart-empty">Your cart is empty</div></div>
+    <div class="cart-footer">
+        <div class="cart-total"><span>Total:</span><span id="cartTotal">$0.00</span></div>
+        <button class="btn btn-success" style="width:100%;justify-content:center" onclick="submitOrder()">Submit Order</button>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: HOME ═══════════ -->
+<div class="page page-full active" id="page-home">
+    <div class="hero">
+        <div class="hero-content">
+            <div class="hero-text">
+                <img src="ni-logo.png" alt="Nutritional Innovations" class="hero-logo">
+                <h1>Premium Supplements for Pharmacy Professionals</h1>
+                <p>High-quality nutritional supplements formulated for pharmacies. Pharmaceutical-grade ingredients, competitive wholesale pricing, and trusted formulations your patients can rely on.</p>
+                <div class="hero-actions" style="justify-content:flex-start">
+                    <button class="btn btn-lg btn-white" onclick="navigate('storefront')">Browse Products</button>
+                    <button class="btn btn-lg btn-outline" style="color:#fff;border-color:rgba(255,255,255,.5)" onclick="navigate('storefront')">Place an Order</button>
+                </div>
+            </div>
+            <div class="hero-product-img">
+                <img src="hero-product.png" alt="Nutritional Innovations D3K2 5000">
+            </div>
+        </div>
+    </div>
+
+    <div class="home-section">
+        <h2>Why Nutritional Innovations</h2>
+        <div class="section-divider"></div>
+        <p class="section-sub">Purpose-built for independent and compounding pharmacies</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">&#9883;</div>
+                <h3>Pharmaceutical Grade</h3>
+                <p>Every product meets rigorous quality standards. GMP-compliant manufacturing with full traceability and COAs available.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#9733;</div>
+                <h3>Trusted Formulations</h3>
+                <p>Expertly developed supplements backed by science. Consistent potency, purity, and bioavailability in every batch.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#128176;</div>
+                <h3>Wholesale Pricing</h3>
+                <p>Competitive cost-per-unit with healthy margins built in. Volume discounts available for multi-location pharmacies.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#128666;</div>
+                <h3>Direct Fulfillment</h3>
+                <p>Ship directly to any pharmacy location. Fast turnaround with order tracking and packing slip documentation.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="about-strip">
+        <div class="about-content">
+            <div class="about-text">
+                <h2 style="font-family:var(--serif);font-size:28px;color:var(--ni-navy)">About Nutritional Innovations</h2>
+                <p>Nutritional Innovations is a division of Pharmacy Innovations, providing premium dietary supplements specifically for the pharmacy market. Our product line includes vitamins, minerals, probiotics, and specialty formulations — all held to pharmaceutical-grade quality standards.</p>
+                <p style="margin-top:12px">Every NI product is formulated to deliver consistent potency and bioavailability, giving your patients supplements they can trust and your pharmacy margins it deserves.</p>
+            </div>
+            <div class="about-details">
+                <dl>
+                    <dt>Headquarters</dt>
+                    <dd>7779 Starkey Rd., Seminole, FL 33777</dd>
+                    <dt>Phone</dt>
+                    <dd>814-838-2102</dd>
+                    <dt>Web</dt>
+                    <dd>www.nutritionalinnovations.net</dd>
+                    <dt>Serving</dt>
+                    <dd>Independent Pharmacies, Compounding Pharmacies, Specialty Clinics</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="home-section">
+        <h2>Featured Products</h2>
+        <div class="section-divider"></div>
+        <p class="section-sub">Our most popular supplements</p>
+        <div class="featured-products" id="featuredGrid"></div>
+        <div style="text-align:center;margin-top:32px">
+            <button class="btn btn-lg btn-primary" onclick="navigate('storefront')">View All Products</button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="site-footer">
+        <div class="footer-content">
+            <div class="footer-col">
+                <h3>Nutritional Innovations</h3>
+                <p>Premium dietary supplements for pharmacy professionals. A Pharmacy Innovations company.</p>
+            </div>
+            <div class="footer-col">
+                <h3>Contact</h3>
+                <p>7779 Starkey Rd.<br>Seminole, FL 33777<br>814-838-2102<br>www.nutritionalinnovations.net</p>
+            </div>
+            <div class="footer-col">
+                <h3>Quick Links</h3>
+                <p><a href="#" onclick="navigate('storefront');return false">Shop Products</a><br>
+                <a href="#" onclick="navigate('home');return false">About Us</a></p>
+            </div>
+        </div>
+        <div class="footer-bottom">Distributed by Nutritional Innovations &mdash; A Pharmacy Innovations Company</div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: STOREFRONT ═══════════ -->
+<div class="page" id="page-storefront">
+    <div style="margin-bottom:24px">
+        <h2 style="font-family:var(--serif);font-size:24px;color:var(--ni-navy)">Product Catalog</h2>
+        <p style="font-family:var(--sans);font-size:14px;color:var(--gray-500);margin-top:4px">Browse and order wholesale supplements for your pharmacy</p>
+    </div>
+    <div class="filter-bar">
+        <input type="text" class="search-input" id="storeSearch" placeholder="Search by name, category, or UPC..." oninput="renderStorefront()">
+        <select class="form-control" id="storeCategoryFilter" style="width:auto" onchange="renderStorefront()">
+            <option value="">All Categories</option>
+            <option value="Vitamins">Vitamins</option>
+            <option value="Minerals">Minerals</option>
+            <option value="Probiotics">Probiotics</option>
+            <option value="Specialty">Specialty</option>
+            <option value="Omega/Fish Oil">Omega/Fish Oil</option>
+            <option value="Hormonal Support">Hormonal Support</option>
+        </select>
+    </div>
+    <div class="product-grid" id="storefrontGrid"></div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — PRODUCTS ═══════════ -->
+<div class="page" id="page-admin-products">
+    <div id="lowStockAlerts"></div>
+    <div class="stats-grid" id="productStats"></div>
+    <div class="card">
+        <div class="card-header">
+            <h2>Product Catalog</h2>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-sm btn-outline" onclick="exportProductsCSV()">Export CSV</button>
+                <button class="btn btn-primary" onclick="openProductModal()">+ Add Product</button>
+            </div>
+        </div>
+        <div class="filter-bar">
+            <input type="text" class="search-input" id="catalogSearch" placeholder="Search products..." oninput="renderProductTable()">
+            <select class="form-control" id="catalogVendorFilter" style="width:auto" onchange="renderProductTable()"><option value="">All Vendors</option></select>
+            <select class="form-control" id="catalogActiveFilter" style="width:auto" onchange="renderProductTable()">
+                <option value="">All Status</option><option value="Y">Active</option><option value="N">Inactive</option>
+            </select>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr>
+                    <th>Image</th><th>Product ID</th><th>Product Name</th><th>Vendor</th><th>UPC</th><th>Pkg Size</th><th>Stock</th><th>Cost</th><th>Sell Price</th><th>Margin</th><th>Active</th><th>Actions</th>
+                </tr></thead>
+                <tbody id="productTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — INVENTORY LEDGER ═══════════ -->
+<div class="page" id="page-admin-inventory">
+    <div class="stats-grid" id="inventoryStats"></div>
+    <div class="card">
+        <div class="card-header">
+            <h2>Inventory Ledger</h2>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-sm btn-outline" onclick="exportInventoryCSV()">Export CSV</button>
+                <button class="btn btn-primary" onclick="openInventoryModal()">+ Record Transaction</button>
+            </div>
+        </div>
+        <div class="vendor-tabs" id="inventoryVendorTabs"></div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Product</th><th>Qty In</th><th>Qty Out</th><th>Balance</th><th>Unit Cost</th><th>Customer</th><th>Notes</th><th>Actions</th></tr></thead>
+                <tbody id="inventoryTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — ORDER HISTORY ═══════════ -->
+<div class="page" id="page-admin-orders">
+    <div class="stats-grid" id="orderStats"></div>
+    <div class="card">
+        <div class="card-header">
+            <h2>Order History</h2>
+            <button class="btn btn-sm btn-outline" onclick="exportOrdersCSV()">Export CSV</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Order ID</th><th>Date</th><th>Customer</th><th>Email</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="orderTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — UPC ═══════════ -->
+<div class="page" id="page-admin-upc">
+    <div class="card">
+        <div class="card-header"><h2>UPC-A Generator</h2></div>
+        <div class="upc-structure">
+            <strong>Nutritional Innovations — UPC Structure</strong><br><br>
+            Format: <code>8 MMMM III SSS C</code> (12 digits total)<br><br>
+            <code>8</code> = Prefix flag &nbsp; <code>MMMM</code> = Manufacturer code &nbsp; <code>III</code> = Item number &nbsp; <code>SSS</code> = Package size &nbsp; <code>C</code> = Check digit
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Manufacturer</label>
+                <select class="form-control" id="upcManufacturer" onchange="updateUpcPreview()">
+                    <option value="1413">NuMedica (1413)</option>
+                    <option value="1409">Nutritional Innovations (1409)</option>
+                    <option value="">Custom...</option>
+                </select>
+            </div>
+            <div class="form-group" id="upcCustomMfgGroup" style="display:none">
+                <label>Custom Code (4 digits)</label>
+                <input type="text" class="form-control" id="upcCustomMfg" maxlength="4" oninput="updateUpcPreview()">
+            </div>
+            <div class="form-group">
+                <label>Item Number (3 digits)</label>
+                <input type="text" class="form-control" id="upcItemNumber" maxlength="3" placeholder="e.g., 236" oninput="updateUpcPreview()">
+            </div>
+            <div class="form-group">
+                <label>Package Size Code (3 digits)</label>
+                <input type="text" class="form-control" id="upcPackageSize" maxlength="3" placeholder="e.g., 180" oninput="updateUpcPreview()">
+            </div>
+        </div>
+        <div class="upc-result" id="upcResult">8 ---- --- --- -</div>
+        <div style="text-align:center;margin-top:12px">
+            <button class="btn btn-primary" onclick="copyUpc()">Copy UPC</button>
+            <button class="btn btn-outline" onclick="assignUpcToProduct()" style="margin-left:8px">Assign to Product</button>
+        </div>
+    </div>
+    <div class="card" style="margin-top:20px">
+        <div class="card-header"><h2>Check Digit Calculator</h2></div>
+        <div class="form-row">
+            <div class="form-group"><label>Enter first 11 digits</label><input type="text" class="form-control" id="upcCheckInput" maxlength="11" placeholder="Enter 11 digits..." oninput="calcCheckDigit()"></div>
+            <div class="form-group"><label>Full UPC-A (12 digits)</label><input type="text" class="form-control" id="upcCheckResult" readonly></div>
+        </div>
+    </div>
+    <div class="card" style="margin-top:20px">
+        <div class="card-header"><h2>Manufacturer Codes</h2><button class="btn btn-sm btn-outline" onclick="openMfgCodeModal()">+ Add Code</button></div>
+        <table><thead><tr><th>Manufacturer</th><th>Code</th><th>Derived</th><th>Notes</th></tr></thead><tbody id="mfgCodeTableBody"></tbody></table>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — VENDORS ═══════════ -->
+<div class="page" id="page-admin-vendors">
+    <div class="card">
+        <div class="card-header"><h2>Vendor List</h2><button class="btn btn-primary" onclick="openVendorModal()">+ Add Vendor</button></div>
+        <table><thead><tr><th>Vendor</th><th>Contact</th><th>Email</th><th>Products</th><th>Actions</th></tr></thead><tbody id="vendorTableBody"></tbody></table>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — CUSTOMERS ═══════════ -->
+<div class="page" id="page-admin-customers">
+    <div class="card">
+        <div class="card-header"><h2>Customer List</h2><button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button></div>
+        <div class="table-wrap">
+            <table><thead><tr><th>Customer</th><th>Location</th><th>Customer ID</th><th>Ship To</th><th>Bill To</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead><tbody id="customerTableBody"></tbody></table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — PHARMACY ACCOUNTS ═══════════ -->
+<div class="page" id="page-admin-accounts">
+    <div class="card">
+        <div class="card-header"><h2>Pharmacy Account Registrations</h2></div>
+        <div class="admin-tabs" id="accountStatusTabs">
+            <div class="admin-tab active" onclick="switchAccountTab('all')">All</div>
+            <div class="admin-tab" onclick="switchAccountTab('Pending Review')">Pending Review</div>
+            <div class="admin-tab" onclick="switchAccountTab('Approved')">Approved</div>
+            <div class="admin-tab" onclick="switchAccountTab('Suspended')">Suspended</div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Pharmacy</th><th>License #</th><th>NPI</th><th>State</th><th>Contact</th><th>Email</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="accountsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — ADMIN USERS ═══════════ -->
+<div class="page" id="page-admin-users">
+    <div class="card">
+        <div class="card-header"><h2>Admin User Management</h2><button class="btn btn-primary" onclick="openAdminUserModal()">+ Add Admin User</button></div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+                <tbody id="adminUsersTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ MODALS ═══════════ -->
+
+<!-- Login Modal -->
+<div class="modal-overlay" id="loginModal">
+    <div class="modal" style="max-width:420px">
+        <div class="modal-header"><h2>Pharmacy Login</h2><button class="modal-close" onclick="closeModal('loginModal')">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-group"><label>Email *</label><input type="email" class="form-control" id="loginEmail"></div>
+            <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="loginPassword"></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Sign In</button>
+            <div style="text-align:center;margin-top:16px;font-family:var(--sans);font-size:13px;color:var(--gray-500)">
+                Don't have an account? <a href="#" style="color:var(--ni-blue)" onclick="closeModal('loginModal');openModal('registerModal');return false">Register your pharmacy</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Register Modal -->
+<div class="modal-overlay" id="registerModal">
+    <div class="modal modal-lg">
+        <div class="modal-header"><h2>Pharmacy Account Registration</h2><button class="modal-close" onclick="closeModal('registerModal')">&times;</button></div>
+        <div class="modal-body">
+            <div style="background:var(--info);color:#fff;padding:10px 16px;border-radius:var(--radius);margin-bottom:20px;font-family:var(--sans);font-size:13px">
+                Register your pharmacy to place wholesale orders. Your account will be reviewed and approved by our team.
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Pharmacy Name *</label><input type="text" class="form-control" id="regPharmacyName"></div>
+                <div class="form-group"><label>Pharmacy Type *</label>
+                    <select class="form-control" id="regPharmacyType">
+                        <option value="">Select...</option>
+                        <option value="Independent">Independent</option>
+                        <option value="Compounding">Compounding</option>
+                        <option value="Hospital">Hospital</option>
+                        <option value="Clinic">Clinic</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>State Pharmacy License # *</label><input type="text" class="form-control" id="regLicenseNumber"></div>
+                <div class="form-group"><label>DEA Number</label><input type="text" class="form-control" id="regDEA"></div>
+                <div class="form-group"><label>NPI Number</label><input type="text" class="form-control" id="regNPI"></div>
+            </div>
+            <div class="form-group"><label>Pharmacy Address *</label><input type="text" class="form-control" id="regAddress"></div>
+            <div class="form-row">
+                <div class="form-group"><label>City *</label><input type="text" class="form-control" id="regCity"></div>
+                <div class="form-group"><label>State *</label><input type="text" class="form-control" id="regState" maxlength="2" placeholder="e.g., FL"></div>
+                <div class="form-group"><label>ZIP *</label><input type="text" class="form-control" id="regZip"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Phone *</label><input type="tel" class="form-control" id="regPhone"></div>
+                <div class="form-group"><label>Email *</label><input type="email" class="form-control" id="regEmail"></div>
+            </div>
+            <div class="form-group"><label>Contact Person Name *</label><input type="text" class="form-control" id="regContactName"></div>
+            <div class="form-row">
+                <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="regPassword"></div>
+                <div class="form-group"><label>Confirm Password *</label><input type="password" class="form-control" id="regPasswordConfirm"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('registerModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="doRegister()">Submit Registration</button>
+        </div>
+    </div>
+</div>
+
+<!-- Product Modal -->
+<div class="modal-overlay" id="productModal">
+    <div class="modal modal-lg">
+        <div class="modal-header"><h2 id="productModalTitle">Add Product</h2><button class="modal-close" onclick="closeModal('productModal')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="productEditIndex" value="-1">
+            <div class="form-row" style="grid-template-columns:1fr">
+                <div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Product ID</label><input type="text" class="form-control" id="pProductId" placeholder="e.g., NI-NM236"></div>
+                        <div class="form-group"><label>Product Name *</label><input type="text" class="form-control" id="pProductName" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Vendor Product Name</label><input type="text" class="form-control" id="pVendorProductName"></div>
+                        <div class="form-group"><label>Vendor *</label><select class="form-control" id="pVendor"><option value="">Select vendor...</option></select></div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Product Images</label>
+                <div class="images-gallery" id="productImagesGallery"></div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <button class="btn btn-sm btn-outline" type="button" onclick="document.getElementById('pImageFile').click()">Upload Image</button>
+                    <input type="file" id="pImageFile" accept="image/*" style="display:none" onchange="handleImageUpload(this)">
+                    <input type="text" class="form-control" id="pImageUrl" placeholder="Or paste image URL..." style="flex:1;min-width:200px">
+                    <button class="btn btn-sm btn-primary" type="button" onclick="addImageFromUrl()">Add URL</button>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Vendor Part Number</label><input type="text" class="form-control" id="pVendorPartNum"></div>
+                <div class="form-group"><label>UPC Number</label><input type="text" class="form-control" id="pUpc"></div>
+                <div class="form-group"><label>Package Size</label><input type="text" class="form-control" id="pPackageSize" placeholder="e.g., 120 Capsules"></div>
+                <div class="form-group"><label>Category</label>
+                    <select class="form-control" id="pCategory">
+                        <option value="">--</option><option>Vitamins</option><option>Minerals</option><option>Probiotics</option><option>Specialty</option><option>Omega/Fish Oil</option><option>Hormonal Support</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCost" step="0.01" min="0"></div>
+                <div class="form-group"><label>Sell Price ($)</label><input type="number" class="form-control" id="pSellPrice" step="0.01" min="0"></div>
+                <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
+                <div class="form-group"><label>Stock Qty</label><input type="number" class="form-control" id="pStock" min="0" value="0"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Low Stock Threshold</label><input type="number" class="form-control" id="pLowStock" min="0" value="10"></div>
+                <div class="form-group"><label>Taxable</label><select class="form-control" id="pTaxable"><option value="">--</option><option value="Y">Yes</option><option value="N">No</option></select></div>
+                <div class="form-group"><label>Active</label><select class="form-control" id="pActive"><option value="Y">Yes</option><option value="N">No</option></select></div>
+                <div class="form-group"><label>Paid from Account</label><input type="text" class="form-control" id="pPaidFrom"></div>
+            </div>
+            <div class="form-group"><label>Notes</label><textarea class="form-control" id="pNotes" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button><button class="btn btn-primary" onclick="saveProduct()">Save Product</button></div>
+    </div>
+</div>
+
+<!-- Product Detail Modal -->
+<div class="modal-overlay" id="productDetailModal">
+    <div class="modal modal-lg">
+        <div class="modal-header"><h2 id="detailModalTitle">Product Details</h2><button class="modal-close" onclick="closeModal('productDetailModal')">&times;</button></div>
+        <div class="modal-body" id="productDetailBody"></div>
+    </div>
+</div>
+
+<!-- Inventory Modal -->
+<div class="modal-overlay" id="inventoryModal">
+    <div class="modal">
+        <div class="modal-header"><h2>Record Transaction</h2><button class="modal-close" onclick="closeModal('inventoryModal')">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group"><label>Date *</label><input type="date" class="form-control" id="invDate"></div>
+                <div class="form-group"><label>Type *</label><select class="form-control" id="invType"><option value="IN">IN (Received)</option><option value="OUT">OUT (Sold)</option><option value="ADJ">ADJ (Adjustment)</option></select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Vendor *</label><select class="form-control" id="invVendor" onchange="updateInvProducts()"><option value="">Select...</option></select></div>
+                <div class="form-group"><label>Product *</label><select class="form-control" id="invProduct"></select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Quantity *</label><input type="number" class="form-control" id="invQty" min="1"></div>
+                <div class="form-group"><label>Reference / Invoice #</label><input type="text" class="form-control" id="invRef"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Customer</label><select class="form-control" id="invCustomer"><option value="">N/A</option></select></div>
+                <div class="form-group"><label>Ordered/Sold By</label><input type="text" class="form-control" id="invSoldBy"></div>
+            </div>
+            <div class="form-group"><label>Notes</label><textarea class="form-control" id="invNotes" rows="2"></textarea></div>
+            <div style="background:var(--warning-bg);padding:10px;border-radius:var(--radius);font-family:var(--sans);font-size:12px;color:var(--warning)">This also updates the product stock quantity automatically.</div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('inventoryModal')">Cancel</button><button class="btn btn-primary" onclick="saveInventoryTransaction()">Save Transaction</button></div>
+    </div>
+</div>
+
+<!-- Order Detail Modal -->
+<div class="modal-overlay" id="orderDetailModal">
+    <div class="modal">
+        <div class="modal-header"><h2 id="orderDetailTitle">Order Details</h2><button class="modal-close" onclick="closeModal('orderDetailModal')">&times;</button></div>
+        <div class="modal-body" id="orderDetailBody"></div>
+    </div>
+</div>
+
+<!-- Vendor Modal -->
+<div class="modal-overlay" id="vendorModal">
+    <div class="modal" style="max-width:500px">
+        <div class="modal-header"><h2 id="vendorModalTitle">Add Vendor</h2><button class="modal-close" onclick="closeModal('vendorModal')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="vendorEditIndex" value="-1">
+            <div class="form-group"><label>Vendor Name *</label><input type="text" class="form-control" id="vName"></div>
+            <div class="form-group"><label>Contact</label><input type="text" class="form-control" id="vContact"></div>
+            <div class="form-group"><label>Email</label><input type="text" class="form-control" id="vEmail"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('vendorModal')">Cancel</button><button class="btn btn-primary" onclick="saveVendor()">Save</button></div>
+    </div>
+</div>
+
+<!-- Customer Modal -->
+<div class="modal-overlay" id="customerModal">
+    <div class="modal">
+        <div class="modal-header"><h2 id="customerModalTitle">Add Customer</h2><button class="modal-close" onclick="closeModal('customerModal')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="customerEditIndex" value="-1">
+            <div class="form-row"><div class="form-group"><label>Customer Name *</label><input type="text" class="form-control" id="cName"></div><div class="form-group"><label>Location ID</label><input type="text" class="form-control" id="cLocationId"></div></div>
+            <div class="form-row"><div class="form-group"><label>Customer ID *</label><input type="text" class="form-control" id="cCustomerId"></div><div class="form-group"><label>Phone</label><input type="text" class="form-control" id="cPhone"></div></div>
+            <div class="form-group"><label>Ship To</label><input type="text" class="form-control" id="cShipTo"></div>
+            <div class="form-group"><label>Bill To</label><input type="text" class="form-control" id="cBillTo"></div>
+            <div class="form-group"><label>Email</label><input type="text" class="form-control" id="cEmail"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('customerModal')">Cancel</button><button class="btn btn-primary" onclick="saveCustomer()">Save</button></div>
+    </div>
+</div>
+
+<!-- Mfg Code Modal -->
+<div class="modal-overlay" id="mfgCodeModal">
+    <div class="modal" style="max-width:500px">
+        <div class="modal-header"><h2>Add Manufacturer Code</h2><button class="modal-close" onclick="closeModal('mfgCodeModal')">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-group"><label>Manufacturer *</label><input type="text" class="form-control" id="mfgName"></div>
+            <div class="form-group"><label>Code (MMMM) *</label><input type="text" class="form-control" id="mfgCode" maxlength="4"></div>
+            <div class="form-group"><label>How Derived</label><input type="text" class="form-control" id="mfgDerived"></div>
+            <div class="form-group"><label>Notes</label><input type="text" class="form-control" id="mfgNotes"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('mfgCodeModal')">Cancel</button><button class="btn btn-primary" onclick="saveMfgCode()">Save</button></div>
+    </div>
+</div>
+
+<!-- Order Submission Modal -->
+<div class="modal-overlay" id="orderModal">
+    <div class="modal">
+        <div class="modal-header"><h2>Submit Order</h2><button class="modal-close" onclick="closeModal('orderModal')">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-group"><label>Customer / Pharmacy Name *</label><input type="text" class="form-control" id="orderCustomerName"></div>
+            <div class="form-row"><div class="form-group"><label>Contact Name</label><input type="text" class="form-control" id="orderContactName"></div><div class="form-group"><label>Phone</label><input type="text" class="form-control" id="orderPhone"></div></div>
+            <div class="form-group"><label>Email *</label><input type="text" class="form-control" id="orderEmail"></div>
+            <div class="form-group"><label>Ship To Address</label><textarea class="form-control" id="orderShipTo" rows="2"></textarea></div>
+            <div class="form-group"><label>Order Notes</label><textarea class="form-control" id="orderNotes" rows="2"></textarea></div>
+            <div id="orderSummary" style="margin-top:16px"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('orderModal')">Cancel</button><button class="btn btn-success" onclick="confirmOrder()">Confirm Order</button></div>
+    </div>
+</div>
+
+<!-- Admin User Modal -->
+<div class="modal-overlay" id="adminUserModal">
+    <div class="modal" style="max-width:500px">
+        <div class="modal-header"><h2 id="adminUserModalTitle">Add Admin User</h2><button class="modal-close" onclick="closeModal('adminUserModal')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="adminUserEditIndex" value="-1">
+            <div class="form-group"><label>Full Name *</label><input type="text" class="form-control" id="auName"></div>
+            <div class="form-group"><label>Email *</label><input type="email" class="form-control" id="auEmail"></div>
+            <div class="form-group"><label>Role *</label>
+                <select class="form-control" id="auRole">
+                    <option value="Super Admin">Super Admin</option>
+                    <option value="Manager">Manager</option>
+                    <option value="Viewer">Viewer</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('adminUserModal')">Cancel</button><button class="btn btn-primary" onclick="saveAdminUser()">Save</button></div>
+    </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════════════════
+const STORAGE_KEY = 'ni_wholesale_data';
+const ACCOUNTS_KEY = 'ni_accounts';
+const ADMIN_USERS_KEY = 'ni_admin_users';
+const SESSION_KEY = 'ni_session';
+const LOW_STOCK_DEFAULT = 10;
+
+function getDefaultData() {
+    return {
+        products: [
+            { productId:'', productName:'Hair of Dog', vendorProductName:'', vendor:'Nufacturing', vendorPartNum:'', upc:'', packageSize:'', category:'Specialty', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'Calcium Citrate 250mg 120ct.', vendorProductName:'', vendor:'Formulation Tech', vendorPartNum:'', upc:'', packageSize:'120', category:'Minerals', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'Magnesium Glycinate 600mg', vendorProductName:'', vendor:'Nufacturing', vendorPartNum:'', upc:'', packageSize:'100', category:'Minerals', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'Multiple Vit 2-A-Day', vendorProductName:'', vendor:'Formulation Tech', vendorPartNum:'', upc:'', packageSize:'60', category:'Vitamins', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'Probiotic Complex', vendorProductName:'', vendor:'Formulation Tech', vendorPartNum:'', upc:'', packageSize:'120', category:'Probiotics', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'Vitamin D3 5,000iu', vendorProductName:'', vendor:'Formulation Tech', vendorPartNum:'', upc:'', packageSize:'120', category:'Vitamins', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NI-NM236', productName:'B-Balanced', vendorProductName:'B Replete', vendor:'NuMedica', vendorPartNum:'NM236', upc:'814132361805', packageSize:'180 Capsules', category:'Vitamins', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM234', productName:'Ubiquinol', vendorProductName:'CoQ Clear Ubiquinol', vendor:'NuMedica', vendorPartNum:'NM234', upc:'814132340602', packageSize:'60 Softgel Caps', category:'Specialty', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM980', productName:'D3K25000', vendorProductName:'D3-5000+K2-200', vendor:'NuMedica', vendorPartNum:'NM980', upc:'814139800604', packageSize:'60 Softgel Caps', category:'Vitamins', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM331', productName:'DHEA 5mg', vendorProductName:'DHEA 5mg', vendor:'NuMedica', vendorPartNum:'NM331', upc:'814133310604', packageSize:'120 Capsules', category:'Hormonal Support', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM074', productName:'DHEA 25mg', vendorProductName:'DHEA 25mg', vendor:'NuMedica', vendorPartNum:'NM074', upc:'814130740602', packageSize:'90 Capsules', category:'Hormonal Support', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM112', productName:'E-Balanced', vendorProductName:'Elite E Complex', vendor:'NuMedica', vendorPartNum:'NM112', upc:'814131120601', packageSize:'60 Softgel Caps', category:'Vitamins', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM555', productName:'Ultra Flora', vendorProductName:'HiFlora 50', vendor:'NuMedica', vendorPartNum:'NM555', upc:'814135550503', packageSize:'60 Softgel Caps', category:'Probiotics', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM250', productName:'Max Multi', vendorProductName:'MultiMedica without Iron', vendor:'NuMedica', vendorPartNum:'NM250', upc:'814132501201', packageSize:'120 Capsules', category:'Vitamins', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM035', productName:'EPADHA950', vendorProductName:'Omega 950', vendor:'NuMedica', vendorPartNum:'NM035', upc:'814130350603', packageSize:'60 Softgel Caps', category:'Omega/Fish Oil', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM061', productName:'OsteoPlus', vendorProductName:'OsteoMedica', vendor:'NuMedica', vendorPartNum:'NM061', upc:'814130611209', packageSize:'120 Capsules', category:'Minerals', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM052', productName:'Red Yeast Rice', vendorProductName:'Red Yeast Rice', vendor:'NuMedica', vendorPartNum:'NM052', upc:'814130520600', packageSize:'90 Capsules', category:'Specialty', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM185', productName:'Organic Iodine', vendorProductName:'Thyroxodine', vendor:'NuMedica', vendorPartNum:'NM185', upc:'814131850607', packageSize:'2 oz', category:'Minerals', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM586', productName:'VitA', vendorProductName:'Vitamin A', vendor:'NuMedica', vendorPartNum:'NM586', upc:'814135860602', packageSize:'90 Capsules', category:'Vitamins', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM148', productName:'Absorbable Zinc', vendorProductName:'Zinc Glycinate', vendor:'NuMedica', vendorPartNum:'NM148', upc:'814131481207', packageSize:'120 Capsules', category:'Minerals', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'NM25', productName:'DIM', vendorProductName:'DIM', vendor:'NuMedica', vendorPartNum:'NM25', upc:'814130251207', packageSize:'120 Capsules', category:'Hormonal Support', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'Vaginal Balance', vendorProductName:'Vaginal Balance', vendor:'Microbiome', vendorPartNum:'', upc:'', packageSize:'', category:'Probiotics', cost:16.83, sellPrice:null, retailPrice:33.65, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'MegaSporeBiotic', vendorProductName:'MegaSporeBiotic', vendor:'Microbiome', vendorPartNum:'', upc:'', packageSize:'60 Capsules', category:'Probiotics', cost:36.43, sellPrice:null, retailPrice:66.25, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'MegaPre Precision Prebiotic', vendorProductName:'MegaPre Precision Prebiotic', vendor:'Microbiome', vendorPartNum:'', upc:'', packageSize:'', category:'Probiotics', cost:36.61, sellPrice:null, retailPrice:66.58, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+            { productId:'', productName:'MegaGuard', vendorProductName:'MegaGuard', vendor:'Microbiome', vendorPartNum:'', upc:'', packageSize:'', category:'Specialty', cost:null, sellPrice:null, retailPrice:null, stock:0, lowStock:10, taxable:'', active:'Y', notes:'', paidFrom:'', images:[], dateAdded:'' },
+        ],
+        vendors: [
+            { name:'NuMedica', contact:'Nate Gentile', email:'ngt@novonesis.com' },
+            { name:'Formulation Tech', contact:'', email:'' },
+            { name:'Nufacturing', contact:'', email:'' },
+            { name:'Microbiome', contact:'', email:'' },
+        ],
+        customers: [
+            { name:'Pharmacy Innovations', locationId:'GV', customerId:'PI_612_GV', shipTo:'640 Congaree Rd Greenville, SC 29607', billTo:'2535 Johns Place Jamestown, NY 14701', phone:'864-241-0477', email:'greenville@pharmacyinnovtions.net' },
+            { name:'Pharmacy Innovations', locationId:'JMST', customerId:'PI_612_JMST', shipTo:'', billTo:'2535 Johns Place Jamestown, NY 14701', phone:'', email:'' },
+            { name:'Pharmacy Innovations', locationId:'ER', customerId:'PI_612_ER', shipTo:'', billTo:'2535 Johns Place Jamestown, NY 14701', phone:'', email:'' },
+            { name:'Pharmacy Innovations', locationId:'VB', customerId:'PI_612_VB', shipTo:'', billTo:'2535 Johns Place Jamestown, NY 14701', phone:'', email:'' },
+            { name:'Pharmacy Innovations', locationId:'FL', customerId:'PI_612_FL', shipTo:'', billTo:'2535 Johns Place Jamestown, NY 14701', phone:'', email:'' },
+            { name:'Pharmacy Innovations', locationId:'HST', customerId:'PI_612_HST', shipTo:'', billTo:'2535 Johns Place Jamestown, NY 14701', phone:'', email:'' },
+            { name:'Custom Prescriptions of Lancaster', locationId:'', customerId:'CPL_970', shipTo:'', billTo:'2535 Johns Place Jamestown, NY 14701', phone:'', email:'' },
+            { name:"Reed's Compounding Pharmacy", locationId:'', customerId:'Reeds_4488', shipTo:'2729 E Speedway Blvd. Tucson, AZ 85716', billTo:'2535 Johns Place Jamestown, NY 14701', phone:'520-318-4421', email:'tucson@pharmacyinnovations.net' },
+        ],
+        inventory: [],
+        mfgCodes: [
+            { name:'NuMedica (NM)', code:'1413', derived:'NM => N=14, M=13', notes:'Use for NuMedica products' },
+            { name:'Nutritional Innovations', code:'1409', derived:'NI => N=14, I=09', notes:'Default NI prefix' },
+        ],
+        orders: [],
+        cart: [],
+        adminMode: false,
+    };
+}
+
+function getDefaultAdminUsers() {
+    return [
+        { name: 'Alexandra Brown', email: 'abrown@pharmacyinnovations.net', role: 'Super Admin' }
+    ];
+}
+
+let DATA;
+let currentEditImages = []; // temp array for product image editing
+
+function migrateProductImages(p) {
+    // Migrate old imageUrl/imageData to images array
+    if (!p.images) p.images = [];
+    if ((p.imageUrl || p.imageData) && p.images.length === 0) {
+        if (p.imageData) {
+            p.images.push({ data: p.imageData, url: '', isPrimary: true });
+        } else if (p.imageUrl) {
+            p.images.push({ data: '', url: p.imageUrl, isPrimary: true });
+        }
+    }
+    // Ensure dateAdded exists
+    if (!p.dateAdded) p.dateAdded = '';
+    // Clean up old fields
+    delete p.imageUrl;
+    delete p.imageData;
+}
+
+function getPrimaryImage(p) {
+    if (!p.images || !p.images.length) return null;
+    const primary = p.images.find(img => img.isPrimary);
+    return primary || p.images[0];
+}
+
+function getProductImageHtml(p) {
+    const img = getPrimaryImage(p);
+    if (!img) return '<span>No image yet</span>';
+    const src = img.data || img.url;
+    if (src) return '<img src="' + esc(src) + '" alt="' + esc(p.productName) + '">';
+    return '<span>No image yet</span>';
+}
+
+function isNewProduct(p) {
+    if (!p.dateAdded) return false;
+    const added = new Date(p.dateAdded);
+    const now = new Date();
+    const diffDays = (now - added) / (1000 * 60 * 60 * 24);
+    return diffDays <= 30;
+}
+
+function loadData() {
+    try {
+        const r = localStorage.getItem(STORAGE_KEY);
+        if (r) {
+            DATA = JSON.parse(r);
+            const d = getDefaultData();
+            for (const k of Object.keys(d)) {
+                if (!(k in DATA)) DATA[k] = d[k];
+            }
+            DATA.products.forEach(p => {
+                if (!('stock' in p)) { p.stock = 0; p.lowStock = 10; p.category = p.category || ''; }
+                migrateProductImages(p);
+            });
+        } else {
+            DATA = getDefaultData();
+            DATA.products.forEach(p => migrateProductImages(p));
+        }
+    } catch (e) {
+        DATA = getDefaultData();
+        DATA.products.forEach(p => migrateProductImages(p));
+    }
+}
+
+function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); }
+function esc(s) { return s ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+
+// ════════════════════════════════════════════════════
+// ACCOUNTS (Pharmacy Registration)
+// ════════════════════════════════════════════════════
+function loadAccounts() {
+    try {
+        const r = localStorage.getItem(ACCOUNTS_KEY);
+        return r ? JSON.parse(r) : [];
+    } catch (e) { return []; }
+}
+function saveAccounts(accounts) { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts)); }
+
+function loadSession() {
+    try {
+        const r = localStorage.getItem(SESSION_KEY);
+        return r ? JSON.parse(r) : null;
+    } catch (e) { return null; }
+}
+function saveSession(session) {
+    if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    else localStorage.removeItem(SESSION_KEY);
+}
+
+function doRegister() {
+    const pharmacyName = document.getElementById('regPharmacyName').value.trim();
+    const pharmacyType = document.getElementById('regPharmacyType').value;
+    const licenseNumber = document.getElementById('regLicenseNumber').value.trim();
+    const dea = document.getElementById('regDEA').value.trim();
+    const npi = document.getElementById('regNPI').value.trim();
+    const address = document.getElementById('regAddress').value.trim();
+    const city = document.getElementById('regCity').value.trim();
+    const state = document.getElementById('regState').value.trim();
+    const zip = document.getElementById('regZip').value.trim();
+    const phone = document.getElementById('regPhone').value.trim();
+    const email = document.getElementById('regEmail').value.trim().toLowerCase();
+    const contactName = document.getElementById('regContactName').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const passwordConfirm = document.getElementById('regPasswordConfirm').value;
+
+    if (!pharmacyName || !licenseNumber || !state || !address || !city || !zip || !phone || !email || !contactName || !password || !pharmacyType) {
+        showToast('Please fill in all required fields', 'error'); return;
+    }
+    if (password !== passwordConfirm) {
+        showToast('Passwords do not match', 'error'); return;
+    }
+    if (password.length < 6) {
+        showToast('Password must be at least 6 characters', 'error'); return;
+    }
+
+    const accounts = loadAccounts();
+    if (accounts.find(a => a.email === email)) {
+        showToast('An account with this email already exists', 'error'); return;
+    }
+
+    accounts.push({
+        id: 'ACCT-' + Date.now().toString(36).toUpperCase(),
+        pharmacyName, pharmacyType, licenseNumber, dea, npi,
+        address, city, state, zip, phone, email, contactName,
+        password, // In production this would be hashed
+        status: 'Pending Review',
+        dateRegistered: new Date().toISOString()
+    });
+    saveAccounts(accounts);
+    closeModal('registerModal');
+    showToast('Registration submitted! Your account is pending review.');
+    // Clear form
+    ['regPharmacyName','regLicenseNumber','regDEA','regNPI','regAddress','regCity','regState','regZip','regPhone','regEmail','regContactName','regPassword','regPasswordConfirm'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('regPharmacyType').selectedIndex = 0;
+}
+
+function doLogin() {
+    const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) { showToast('Email and password required', 'error'); return; }
+
+    const accounts = loadAccounts();
+    const account = accounts.find(a => a.email === email && a.password === password);
+    if (!account) { showToast('Invalid email or password', 'error'); return; }
+    if (account.status === 'Pending Review') { showToast('Your account is pending review. You will be notified when approved.', 'error'); return; }
+    if (account.status === 'Suspended') { showToast('Your account has been suspended. Please contact us.', 'error'); return; }
+
+    saveSession({ accountId: account.id, pharmacyName: account.pharmacyName, email: account.email });
+    closeModal('loginModal');
+    document.getElementById('loginEmail').value = '';
+    document.getElementById('loginPassword').value = '';
+    updateLoginUI();
+    showToast('Welcome, ' + account.pharmacyName + '!');
+}
+
+function logoutAccount() {
+    saveSession(null);
+    updateLoginUI();
+    showToast('Logged out');
+}
+
+function updateLoginUI() {
+    const session = loadSession();
+    const nameEl = document.getElementById('loggedInName');
+    const loginBtn = document.getElementById('loginRegisterBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (session) {
+        nameEl.textContent = session.pharmacyName;
+        nameEl.style.display = '';
+        loginBtn.style.display = 'none';
+        logoutBtn.style.display = '';
+    } else {
+        nameEl.style.display = 'none';
+        loginBtn.style.display = '';
+        logoutBtn.style.display = 'none';
+    }
+}
+
+// ════════════════════════════════════════════════════
+// ADMIN: ACCOUNTS
+// ════════════════════════════════════════════════════
+let currentAccountFilter = 'all';
+function switchAccountTab(status) {
+    currentAccountFilter = status;
+    document.querySelectorAll('#accountStatusTabs .admin-tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    renderAccounts();
+}
+
+function renderAccounts() {
+    const accounts = loadAccounts();
+    const filtered = currentAccountFilter === 'all' ? accounts : accounts.filter(a => a.status === currentAccountFilter);
+    const tbody = document.getElementById('accountsTableBody');
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No accounts found</td></tr>';
+        return;
+    }
+    tbody.innerHTML = filtered.map((a, i) => {
+        const statusClass = a.status === 'Approved' ? 'badge-success' : a.status === 'Pending Review' ? 'badge-warning' : 'badge-danger';
+        return '<tr>' +
+            '<td><strong>' + esc(a.pharmacyName) + '</strong></td>' +
+            '<td>' + esc(a.licenseNumber) + '</td>' +
+            '<td>' + esc(a.npi || '--') + '</td>' +
+            '<td>' + esc(a.state) + '</td>' +
+            '<td>' + esc(a.contactName) + '</td>' +
+            '<td>' + esc(a.email) + '</td>' +
+            '<td>' + esc(a.pharmacyType || '--') + '</td>' +
+            '<td><span class="badge ' + statusClass + '">' + esc(a.status) + '</span></td>' +
+            '<td style="white-space:nowrap">' +
+                '<select class="form-control" style="width:auto;display:inline;font-size:11px;padding:2px 4px" onchange="updateAccountStatus(\'' + esc(a.id) + '\',this.value)">' +
+                    '<option ' + (a.status === 'Pending Review' ? 'selected' : '') + '>Pending Review</option>' +
+                    '<option ' + (a.status === 'Approved' ? 'selected' : '') + '>Approved</option>' +
+                    '<option ' + (a.status === 'Suspended' ? 'selected' : '') + '>Suspended</option>' +
+                '</select>' +
+            '</td></tr>';
+    }).join('');
+}
+
+function updateAccountStatus(accountId, newStatus) {
+    const accounts = loadAccounts();
+    const account = accounts.find(a => a.id === accountId);
+    if (account) {
+        account.status = newStatus;
+        saveAccounts(accounts);
+        renderAccounts();
+        showToast('Account status updated to ' + newStatus);
+    }
+}
+
+// ════════════════════════════════════════════════════
+// ADMIN USERS
+// ════════════════════════════════════════════════════
+function loadAdminUsers() {
+    try {
+        const r = localStorage.getItem(ADMIN_USERS_KEY);
+        return r ? JSON.parse(r) : getDefaultAdminUsers();
+    } catch (e) { return getDefaultAdminUsers(); }
+}
+function saveAdminUsers(users) { localStorage.setItem(ADMIN_USERS_KEY, JSON.stringify(users)); }
+
+function renderAdminUsers() {
+    const users = loadAdminUsers();
+    document.getElementById('adminUsersTableBody').innerHTML = users.map((u, i) => {
+        const roleClass = u.role === 'Super Admin' ? 'badge-danger' : u.role === 'Manager' ? 'badge-warning' : 'badge-info';
+        return '<tr><td><strong>' + esc(u.name) + '</strong></td><td>' + esc(u.email) + '</td><td><span class="badge ' + roleClass + '">' + esc(u.role) + '</span></td><td style="white-space:nowrap"><button class="btn btn-sm btn-outline" onclick="editAdminUser(' + i + ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteAdminUser(' + i + ')">Del</button></td></tr>';
+    }).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No admin users</td></tr>';
+}
+
+function openAdminUserModal(i) {
+    if (i === undefined) i = -1;
+    document.getElementById('adminUserEditIndex').value = i;
+    document.getElementById('adminUserModalTitle').textContent = i >= 0 ? 'Edit Admin User' : 'Add Admin User';
+    if (i >= 0) {
+        const users = loadAdminUsers();
+        document.getElementById('auName').value = users[i].name;
+        document.getElementById('auEmail').value = users[i].email;
+        document.getElementById('auRole').value = users[i].role;
+    } else {
+        document.getElementById('auName').value = '';
+        document.getElementById('auEmail').value = '';
+        document.getElementById('auRole').value = 'Viewer';
+    }
+    openModal('adminUserModal');
+}
+
+function editAdminUser(i) { openAdminUserModal(i); }
+
+function saveAdminUser() {
+    const name = document.getElementById('auName').value.trim();
+    const email = document.getElementById('auEmail').value.trim();
+    const role = document.getElementById('auRole').value;
+    if (!name || !email) { showToast('Name and email required', 'error'); return; }
+    const users = loadAdminUsers();
+    const i = parseInt(document.getElementById('adminUserEditIndex').value);
+    if (i >= 0) {
+        users[i] = { name, email, role };
+        showToast('Admin user updated');
+    } else {
+        users.push({ name, email, role });
+        showToast('Admin user added');
+    }
+    saveAdminUsers(users);
+    closeModal('adminUserModal');
+    renderAdminUsers();
+}
+
+function deleteAdminUser(i) {
+    const users = loadAdminUsers();
+    if (!confirm('Delete admin user "' + users[i].name + '"?')) return;
+    users.splice(i, 1);
+    saveAdminUsers(users);
+    renderAdminUsers();
+    showToast('Admin user deleted');
+}
+
+// ════════════════════════════════════════════════════
+// NAV
+// ════════════════════════════════════════════════════
+function navigate(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.navbar-nav a').forEach(a => a.classList.remove('active'));
+    const page = document.getElementById('page-' + pageId);
+    if (page) page.classList.add('active');
+    const link = document.querySelector('.navbar-nav a[data-page="' + pageId + '"]');
+    if (link) link.classList.add('active');
+    if (pageId === 'home') renderFeatured();
+    if (pageId === 'storefront') renderStorefront();
+    if (pageId === 'admin-products') { renderProductTable(); renderProductStats(); renderLowStockAlerts(); }
+    if (pageId === 'admin-inventory') { renderInventory(); renderInventoryStats(); }
+    if (pageId === 'admin-orders') renderOrders();
+    if (pageId === 'admin-upc') renderMfgCodes();
+    if (pageId === 'admin-vendors') renderVendors();
+    if (pageId === 'admin-customers') renderCustomers();
+    if (pageId === 'admin-accounts') renderAccounts();
+    if (pageId === 'admin-users') renderAdminUsers();
+}
+document.querySelectorAll('.navbar-nav a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); }));
+
+function toggleAdmin() { DATA.adminMode = !DATA.adminMode; saveData(); applyAdminMode(); }
+function applyAdminMode() {
+    const b = document.getElementById('adminToggle'), l = document.querySelectorAll('.admin-link');
+    if (DATA.adminMode) { b.classList.add('active'); l.forEach(x => x.style.display = ''); }
+    else { b.classList.remove('active'); l.forEach(x => x.style.display = 'none'); const a = document.querySelector('.page.active'); if (a && a.id.startsWith('page-admin')) navigate('home'); }
+}
+
+function populateVendorDropdowns() {
+    const names = DATA.vendors.map(v => v.name);
+    document.querySelectorAll('#catalogVendorFilter').forEach(sel => {
+        const val = sel.value;
+        sel.innerHTML = '<option value="">All Vendors</option>' + names.map(n => '<option>' + esc(n) + '</option>').join('');
+        sel.value = val;
+    });
+    const pv = document.getElementById('pVendor');
+    if (pv) {
+        const val = pv.value;
+        pv.innerHTML = '<option value="">Select vendor...</option>' + names.map(n => '<option>' + esc(n) + '</option>').join('');
+        pv.value = val;
+    }
+    const iv = document.getElementById('invVendor');
+    if (iv) {
+        const val = iv.value;
+        iv.innerHTML = '<option value="">Select...</option>' + names.map(n => '<option>' + esc(n) + '</option>').join('');
+        iv.value = val;
+    }
+}
+
+// ════════════════════════════════════════════════════
+// TOAST / MODAL
+// ════════════════════════════════════════════════════
+function showToast(msg, type) {
+    type = type || 'success';
+    var c = document.getElementById('toastContainer'), t = document.createElement('div');
+    t.className = 'toast toast-' + type; t.textContent = msg; c.appendChild(t);
+    setTimeout(function() { t.remove(); }, 3000);
+}
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+
+// ════════════════════════════════════════════════════
+// HOMEPAGE
+// ════════════════════════════════════════════════════
+function renderFeatured() {
+    var featured = DATA.products.filter(function(p) { return p.active !== 'N' && (p.upc || p.cost); }).slice(0, 4);
+    document.getElementById('featuredGrid').innerHTML = featured.map(function(p) {
+        var idx = DATA.products.indexOf(p);
+        var img = getProductImageHtml(p);
+        var newBadge = isNewProduct(p) ? '<span class="badge-new">New</span>' : '';
+        return '<div class="product-card" onclick="openProductDetail(' + idx + ')">' +
+            '<div class="product-img">' + newBadge + img + '</div>' +
+            '<div class="product-info">' +
+                '<div class="product-category">' + esc(p.category || 'Supplement') + '</div>' +
+                '<div class="product-name">' + esc(p.productName) + '</div>' +
+                '<div class="product-size">' + esc(p.packageSize || '') + '</div>' +
+                '<div><span class="product-price">' + (p.sellPrice ? '$' + Number(p.sellPrice).toFixed(2) : 'Contact for pricing') + '</span></div>' +
+            '</div></div>';
+    }).join('');
+}
+
+// ════════════════════════════════════════════════════
+// STOREFRONT
+// ════════════════════════════════════════════════════
+function getStockBadge(p) {
+    if (!p.stock && p.stock !== 0) return '';
+    if (p.stock <= 0) return '<span class="stock-badge stock-out">Out of Stock</span>';
+    if (p.stock <= (p.lowStock || 10)) return '<span class="stock-badge stock-low">Low Stock</span>';
+    return '<span class="stock-badge stock-in">In Stock</span>';
+}
+
+function renderStorefront() {
+    var search = document.getElementById('storeSearch').value.toLowerCase();
+    var cat = document.getElementById('storeCategoryFilter').value;
+    var grid = document.getElementById('storefrontGrid');
+    var products = DATA.products.filter(function(p) {
+        if (p.active === 'N') return false;
+        if (cat && p.category !== cat) return false;
+        if (search) {
+            var h = (p.productName + ' ' + p.category + ' ' + p.productId + ' ' + p.upc + ' ' + p.packageSize).toLowerCase();
+            if (h.indexOf(search) === -1) return false;
+        }
+        return true;
+    });
+    if (!products.length) { grid.innerHTML = '<div class="empty-state"><p>No products found</p></div>'; return; }
+    grid.innerHTML = products.map(function(p) {
+        var idx = DATA.products.indexOf(p);
+        var price = p.sellPrice ? '$' + Number(p.sellPrice).toFixed(2) : 'Contact for pricing';
+        var retail = p.retailPrice ? '<span class="product-retail">MSRP $' + Number(p.retailPrice).toFixed(2) + '</span>' : '';
+        var newBadge = isNewProduct(p) ? '<span class="badge-new">New</span>' : '';
+        return '<div class="product-card" onclick="openProductDetail(' + idx + ')">' +
+            '<div class="product-img">' + newBadge + getProductImageHtml(p) + getStockBadge(p) + '</div>' +
+            '<div class="product-info">' +
+                '<div class="product-category">' + esc(p.category || 'Supplement') + '</div>' +
+                '<div class="product-name">' + esc(p.productName) + '</div>' +
+                '<div class="product-size">' + esc(p.packageSize || 'Size TBD') + '</div>' +
+                '<div><span class="product-price">' + price + '</span>' + retail + '</div>' +
+                '<div class="product-actions" onclick="event.stopPropagation()">' +
+                    '<input type="number" class="qty-input" value="1" min="1" id="qty-' + idx + '">' +
+                    '<button class="btn btn-primary btn-sm" onclick="addToCart(' + idx + ')">Add to Order</button>' +
+                '</div>' +
+            '</div></div>';
+    }).join('');
+}
+
+// ════════════════════════════════════════════════════
+// PRODUCT DETAIL
+// ════════════════════════════════════════════════════
+function openProductDetail(idx) {
+    var p = DATA.products[idx];
+    var primaryImg = getPrimaryImage(p);
+    var mainSrc = primaryImg ? (primaryImg.data || primaryImg.url) : '';
+    var mainImgHtml = mainSrc ? '<img src="' + esc(mainSrc) + '" id="detailMainImg">' : '<span>No image</span>';
+
+    // Thumbnail gallery
+    var thumbsHtml = '';
+    if (p.images && p.images.length > 1) {
+        thumbsHtml = '<div class="product-detail-thumbs">';
+        p.images.forEach(function(img, i) {
+            var src = img.data || img.url;
+            if (src) {
+                var activeClass = (img.isPrimary || (i === 0 && !p.images.find(function(x) { return x.isPrimary; }))) ? ' active-thumb' : '';
+                thumbsHtml += '<img src="' + esc(src) + '" class="' + activeClass + '" onclick="switchDetailImage(' + idx + ',' + i + ')">';
+            }
+        });
+        thumbsHtml += '</div>';
+    }
+
+    document.getElementById('detailModalTitle').textContent = p.productName;
+    document.getElementById('productDetailBody').innerHTML =
+        '<div class="product-detail">' +
+            '<div class="product-detail-img-wrap">' +
+                '<div class="product-detail-main-img">' + mainImgHtml + '</div>' +
+                thumbsHtml +
+            '</div>' +
+            '<div class="product-detail-info">' +
+                '<div class="detail-category">' + esc(p.category || 'Supplement') + '</div>' +
+                '<h2>' + esc(p.productName) + '</h2>' +
+                '<div class="detail-price">' + (p.sellPrice ? '$' + Number(p.sellPrice).toFixed(2) : 'Contact for pricing') + '</div>' +
+                (p.retailPrice ? '<div class="detail-retail">Suggested Retail: $' + Number(p.retailPrice).toFixed(2) + '</div>' : '') +
+                '<div class="detail-meta">' +
+                    (p.packageSize ? '<div><span>Package Size</span><strong>' + esc(p.packageSize) + '</strong></div>' : '') +
+                    (p.upc ? '<div><span>UPC</span><strong style="font-family:monospace">' + esc(p.upc) + '</strong></div>' : '') +
+                    (p.productId ? '<div><span>Product ID</span><strong>' + esc(p.productId) + '</strong></div>' : '') +
+                    '<div><span>Stock</span><strong>' + (p.stock > 0 ? p.stock + ' units' : 'Out of stock') + '</strong></div>' +
+                '</div>' +
+                (p.notes ? '<div style="font-size:13px;color:var(--gray-600);margin-bottom:16px;font-family:var(--sans)">' + esc(p.notes) + '</div>' : '') +
+                '<div class="detail-add-row">' +
+                    '<input type="number" class="qty-input" value="1" min="1" id="detail-qty-' + idx + '">' +
+                    '<button class="btn btn-primary" onclick="addToCart(' + idx + ',\'detail-qty-' + idx + '\');closeModal(\'productDetailModal\')">Add to Order</button>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    openModal('productDetailModal');
+}
+
+function switchDetailImage(productIdx, imageIdx) {
+    var p = DATA.products[productIdx];
+    var img = p.images[imageIdx];
+    var src = img.data || img.url;
+    var mainImg = document.getElementById('detailMainImg');
+    if (mainImg && src) mainImg.src = src;
+    // Update active thumb
+    document.querySelectorAll('.product-detail-thumbs img').forEach(function(t, i) {
+        t.classList.toggle('active-thumb', i === imageIdx);
+    });
+}
+
+// ════════════════════════════════════════════════════
+// CART
+// ════════════════════════════════════════════════════
+function toggleCart() { document.getElementById('cartSidebar').classList.toggle('open'); document.getElementById('cartOverlay').classList.toggle('open'); }
+function addToCart(idx, qtyId) {
+    // Check if logged in and approved
+    var session = loadSession();
+    if (!session) {
+        showToast('Please log in to place orders', 'error');
+        openModal('loginModal');
+        return;
+    }
+    var accounts = loadAccounts();
+    var acct = accounts.find(function(a) { return a.id === session.accountId; });
+    if (!acct || acct.status !== 'Approved') {
+        showToast('Your account must be approved to place orders', 'error');
+        return;
+    }
+
+    var el = document.getElementById(qtyId || ('qty-' + idx));
+    var qty = parseInt(el ? el.value : 1) || 1;
+    var ex = DATA.cart.find(function(c) { return c.productIndex === idx; });
+    if (ex) ex.qty += qty; else DATA.cart.push({ productIndex: idx, qty: qty });
+    saveData(); renderCart(); showToast('Added ' + DATA.products[idx].productName + ' to cart');
+}
+function renderCart() {
+    var c = document.getElementById('cartItems'), cnt = document.getElementById('cartCount'), tot = document.getElementById('cartTotal');
+    var total = DATA.cart.reduce(function(s, c) { return s + c.qty; }, 0);
+    cnt.textContent = total;
+    if (!DATA.cart.length) { c.innerHTML = '<div class="cart-empty">Your cart is empty</div>'; tot.textContent = '$0.00'; return; }
+    var sum = 0;
+    c.innerHTML = DATA.cart.map(function(item, i) {
+        var p = DATA.products[item.productIndex];
+        var line = p.sellPrice ? p.sellPrice * item.qty : 0;
+        sum += line;
+        return '<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">' + esc(p.productName) + '</div><div class="cart-item-size">' + esc(p.packageSize || '') + '</div><div class="cart-item-qty"><button onclick="updateCartQty(' + i + ',-1)">-</button><span>' + item.qty + '</span><button onclick="updateCartQty(' + i + ',1)">+</button></div></div><div style="text-align:right"><div class="cart-item-price">' + (p.sellPrice ? '$' + line.toFixed(2) : 'TBD') + '</div><button class="cart-item-remove" onclick="removeCartItem(' + i + ')">&times;</button></div></div>';
+    }).join('');
+    tot.textContent = '$' + sum.toFixed(2);
+}
+function updateCartQty(i, d) { DATA.cart[i].qty += d; if (DATA.cart[i].qty <= 0) DATA.cart.splice(i, 1); saveData(); renderCart(); }
+function removeCartItem(i) { DATA.cart.splice(i, 1); saveData(); renderCart(); }
+function submitOrder() {
+    if (!DATA.cart.length) { showToast('Cart is empty', 'error'); return; }
+    // Check login
+    var session = loadSession();
+    if (!session) { showToast('Please log in to place orders', 'error'); openModal('loginModal'); return; }
+    var accounts = loadAccounts();
+    var acct = accounts.find(function(a) { return a.id === session.accountId; });
+    if (!acct || acct.status !== 'Approved') { showToast('Your account must be approved to place orders', 'error'); return; }
+
+    toggleCart();
+    // Pre-fill from account
+    document.getElementById('orderCustomerName').value = acct.pharmacyName;
+    document.getElementById('orderContactName').value = acct.contactName;
+    document.getElementById('orderPhone').value = acct.phone;
+    document.getElementById('orderEmail').value = acct.email;
+    document.getElementById('orderShipTo').value = acct.address + ', ' + acct.city + ', ' + acct.state + ' ' + acct.zip;
+
+    var html = '<table style="width:100%;font-size:13px;font-family:var(--sans)"><thead><tr><th>Product</th><th>Qty</th><th>Price</th></tr></thead><tbody>';
+    var total = 0;
+    DATA.cart.forEach(function(item) {
+        var p = DATA.products[item.productIndex];
+        var l = p.sellPrice ? p.sellPrice * item.qty : 0;
+        total += l;
+        html += '<tr><td>' + esc(p.productName) + '</td><td>' + item.qty + '</td><td>' + (p.sellPrice ? '$' + l.toFixed(2) : 'TBD') + '</td></tr>';
+    });
+    html += '</tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total</td><td style="font-weight:700">$' + total.toFixed(2) + '</td></tr></tfoot></table>';
+    document.getElementById('orderSummary').innerHTML = html;
+    openModal('orderModal');
+}
+function confirmOrder() {
+    var name = document.getElementById('orderCustomerName').value.trim(), email = document.getElementById('orderEmail').value.trim();
+    if (!name || !email) { showToast('Customer name and email required', 'error'); return; }
+    var order = {
+        id: 'NI-' + Date.now().toString(36).toUpperCase(),
+        date: new Date().toISOString(),
+        customerName: name,
+        contactName: document.getElementById('orderContactName').value.trim(),
+        phone: document.getElementById('orderPhone').value.trim(),
+        email: email,
+        shipTo: document.getElementById('orderShipTo').value.trim(),
+        notes: document.getElementById('orderNotes').value.trim(),
+        items: DATA.cart.map(function(c) {
+            return {
+                productIndex: c.productIndex,
+                productName: DATA.products[c.productIndex].productName,
+                qty: c.qty,
+                unitPrice: DATA.products[c.productIndex].sellPrice
+            };
+        }),
+        status: 'Pending'
+    };
+    // Decrement stock
+    order.items.forEach(function(item) {
+        var p = DATA.products[item.productIndex];
+        if (p.stock > 0) p.stock = Math.max(0, p.stock - item.qty);
+    });
+    DATA.orders.push(order); DATA.cart = []; saveData(); renderCart(); closeModal('orderModal');
+    showToast('Order ' + order.id + ' submitted!');
+    ['orderCustomerName', 'orderContactName', 'orderPhone', 'orderEmail', 'orderShipTo', 'orderNotes'].forEach(function(id) { document.getElementById(id).value = ''; });
+}
+
+// ════════════════════════════════════════════════════
+// ADMIN: PRODUCTS
+// ════════════════════════════════════════════════════
+function renderLowStockAlerts() {
+    var low = DATA.products.filter(function(p) { return p.active !== 'N' && p.stock <= (p.lowStock || 10); });
+    var el = document.getElementById('lowStockAlerts');
+    if (!low.length) { el.innerHTML = ''; return; }
+    var out = low.filter(function(p) { return p.stock <= 0; });
+    var warn = low.filter(function(p) { return p.stock > 0; });
+    var html = '';
+    if (out.length) html += '<div class="alert alert-danger">&#9888; ' + out.length + ' product' + (out.length > 1 ? 's' : '') + ' out of stock: ' + out.map(function(p) { return esc(p.productName); }).join(', ') + '</div>';
+    if (warn.length) html += '<div class="alert alert-warning">&#9888; ' + warn.length + ' product' + (warn.length > 1 ? 's' : '') + ' running low: ' + warn.map(function(p) { return esc(p.productName) + ' (' + p.stock + ')'; }).join(', ') + '</div>';
+    el.innerHTML = html;
+}
+function renderProductStats() {
+    var t = DATA.products.length, a = DATA.products.filter(function(p) { return p.active !== 'N'; }).length;
+    var totalStock = DATA.products.reduce(function(s, p) { return s + (p.stock || 0); }, 0);
+    var low = DATA.products.filter(function(p) { return p.active !== 'N' && p.stock <= (p.lowStock || 10); }).length;
+    document.getElementById('productStats').innerHTML =
+        '<div class="stat-card"><div class="stat-label">Total Products</div><div class="stat-value">' + t + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--success)"><div class="stat-label">Active</div><div class="stat-value">' + a + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--info)"><div class="stat-label">Total Stock</div><div class="stat-value">' + totalStock + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:' + (low ? 'var(--warning)' : 'var(--success)') + '"><div class="stat-label">Low/Out of Stock</div><div class="stat-value">' + low + '</div></div>';
+}
+function renderProductTable() {
+    var search = document.getElementById('catalogSearch').value.toLowerCase();
+    var vendor = document.getElementById('catalogVendorFilter').value;
+    var af = document.getElementById('catalogActiveFilter').value;
+    var filtered = DATA.products.map(function(p, i) { return Object.assign({}, p, { _idx: i }); }).filter(function(p) {
+        if (vendor && p.vendor !== vendor) return false;
+        if (af && p.active !== af) return false;
+        if (search) { var h = (p.productId + ' ' + p.productName + ' ' + p.vendorProductName + ' ' + p.vendor + ' ' + p.upc).toLowerCase(); if (h.indexOf(search) === -1) return false; }
+        return true;
+    });
+    document.getElementById('productTableBody').innerHTML = filtered.map(function(p) {
+        var margin = (p.cost && p.sellPrice) ? (((p.sellPrice - p.cost) / p.sellPrice) * 100).toFixed(1) + '%' : '--';
+        var imgObj = getPrimaryImage(p);
+        var imgSrc = imgObj ? (imgObj.data || imgObj.url) : '';
+        var img = imgSrc ? '<img src="' + esc(imgSrc) + '" style="width:40px;height:40px;object-fit:contain;border-radius:4px">' : '<div style="width:40px;height:40px;background:var(--gray-100);border-radius:4px"></div>';
+        var stockClass = p.stock <= 0 ? 'badge-danger' : p.stock <= (p.lowStock || 10) ? 'badge-warning' : 'badge-success';
+        return '<tr>' +
+            '<td>' + img + '</td>' +
+            '<td>' + esc(p.productId || '--') + '</td>' +
+            '<td><strong>' + esc(p.productName) + '</strong>' + (p.vendorProductName ? '<br><span style="font-size:11px;color:var(--gray-400)">' + esc(p.vendorProductName) + '</span>' : '') + '</td>' +
+            '<td>' + esc(p.vendor) + '</td>' +
+            '<td style="font-family:monospace;font-size:11px">' + esc(p.upc || '--') + '</td>' +
+            '<td>' + esc(p.packageSize || '--') + '</td>' +
+            '<td><span class="badge ' + stockClass + '">' + (p.stock || 0) + '</span></td>' +
+            '<td>' + (p.cost != null ? '$' + Number(p.cost).toFixed(2) : '--') + '</td>' +
+            '<td>' + (p.sellPrice != null ? '$' + Number(p.sellPrice).toFixed(2) : '--') + '</td>' +
+            '<td>' + margin + '</td>' +
+            '<td>' + (p.active === 'N' ? '<span class="badge badge-danger">No</span>' : '<span class="badge badge-success">Yes</span>') + '</td>' +
+            '<td style="white-space:nowrap"><button class="btn btn-sm btn-outline" onclick="editProduct(' + p._idx + ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteProduct(' + p._idx + ')">Del</button></td>' +
+        '</tr>';
+    }).join('');
+}
+
+function renderProductImagesGallery() {
+    var gallery = document.getElementById('productImagesGallery');
+    if (!currentEditImages.length) {
+        gallery.innerHTML = '<div style="font-size:12px;color:var(--gray-400);font-family:var(--sans)">No images added yet</div>';
+        return;
+    }
+    gallery.innerHTML = currentEditImages.map(function(img, i) {
+        var src = img.data || img.url;
+        return '<div class="gallery-thumb' + (img.isPrimary ? ' primary' : '') + '">' +
+            '<img src="' + esc(src) + '">' +
+            '<div class="thumb-actions">' +
+                (img.isPrimary ? '<button title="Primary">&#9733;</button>' : '<button title="Set as primary" onclick="setEditImagePrimary(' + i + ')">&#9734;</button>') +
+                '<button title="Remove" onclick="removeEditImage(' + i + ')">&#10005;</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function setEditImagePrimary(i) {
+    currentEditImages.forEach(function(img, idx) { img.isPrimary = (idx === i); });
+    renderProductImagesGallery();
+}
+
+function removeEditImage(i) {
+    var wasPrimary = currentEditImages[i].isPrimary;
+    currentEditImages.splice(i, 1);
+    if (wasPrimary && currentEditImages.length > 0) currentEditImages[0].isPrimary = true;
+    renderProductImagesGallery();
+}
+
+function openProductModal(idx) {
+    if (idx === undefined) idx = -1;
+    document.getElementById('productEditIndex').value = idx;
+    document.getElementById('productModalTitle').textContent = idx >= 0 ? 'Edit Product' : 'Add Product';
+    currentEditImages = [];
+    if (idx >= 0) {
+        var p = DATA.products[idx];
+        document.getElementById('pProductId').value = p.productId || '';
+        document.getElementById('pProductName').value = p.productName || '';
+        document.getElementById('pVendorProductName').value = p.vendorProductName || '';
+        document.getElementById('pVendor').value = p.vendor || '';
+        document.getElementById('pVendorPartNum').value = p.vendorPartNum || '';
+        document.getElementById('pUpc').value = p.upc || '';
+        document.getElementById('pPackageSize').value = p.packageSize || '';
+        document.getElementById('pCategory').value = p.category || '';
+        document.getElementById('pCost').value = p.cost != null ? p.cost : '';
+        document.getElementById('pSellPrice').value = p.sellPrice != null ? p.sellPrice : '';
+        document.getElementById('pRetailPrice').value = p.retailPrice != null ? p.retailPrice : '';
+        document.getElementById('pStock').value = p.stock || 0;
+        document.getElementById('pLowStock').value = p.lowStock || 10;
+        document.getElementById('pTaxable').value = p.taxable || '';
+        document.getElementById('pActive').value = p.active || 'Y';
+        document.getElementById('pPaidFrom').value = p.paidFrom || '';
+        document.getElementById('pImageUrl').value = '';
+        document.getElementById('pNotes').value = p.notes || '';
+        // Deep copy images
+        currentEditImages = (p.images || []).map(function(img) { return { data: img.data || '', url: img.url || '', isPrimary: !!img.isPrimary }; });
+    } else {
+        ['pProductId', 'pProductName', 'pVendorProductName', 'pVendorPartNum', 'pUpc', 'pPackageSize', 'pCost', 'pSellPrice', 'pRetailPrice', 'pPaidFrom', 'pImageUrl', 'pNotes'].forEach(function(f) { document.getElementById(f).value = ''; });
+        document.getElementById('pVendor').selectedIndex = 0;
+        document.getElementById('pCategory').selectedIndex = 0;
+        document.getElementById('pTaxable').selectedIndex = 0;
+        document.getElementById('pActive').value = 'Y';
+        document.getElementById('pStock').value = 0;
+        document.getElementById('pLowStock').value = 10;
+    }
+    renderProductImagesGallery();
+    openModal('productModal');
+}
+function editProduct(idx) { openProductModal(idx); }
+
+function handleImageUpload(input) {
+    if (!input.files || !input.files[0]) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var isFirst = currentEditImages.length === 0;
+        currentEditImages.push({ data: e.target.result, url: '', isPrimary: isFirst });
+        renderProductImagesGallery();
+    };
+    reader.readAsDataURL(input.files[0]);
+    input.value = ''; // reset so same file can be re-uploaded
+}
+
+function addImageFromUrl() {
+    var url = document.getElementById('pImageUrl').value.trim();
+    if (!url) { showToast('Enter an image URL', 'error'); return; }
+    var isFirst = currentEditImages.length === 0;
+    currentEditImages.push({ data: '', url: url, isPrimary: isFirst });
+    document.getElementById('pImageUrl').value = '';
+    renderProductImagesGallery();
+}
+
+function saveProduct() {
+    var name = document.getElementById('pProductName').value.trim(), vendor = document.getElementById('pVendor').value;
+    if (!name || !vendor) { showToast('Product name and vendor required', 'error'); return; }
+    var product = {
+        productId: document.getElementById('pProductId').value.trim(),
+        productName: name,
+        vendorProductName: document.getElementById('pVendorProductName').value.trim(),
+        vendor: vendor,
+        vendorPartNum: document.getElementById('pVendorPartNum').value.trim(),
+        upc: document.getElementById('pUpc').value.trim(),
+        packageSize: document.getElementById('pPackageSize').value.trim(),
+        category: document.getElementById('pCategory').value,
+        cost: document.getElementById('pCost').value ? parseFloat(document.getElementById('pCost').value) : null,
+        sellPrice: document.getElementById('pSellPrice').value ? parseFloat(document.getElementById('pSellPrice').value) : null,
+        retailPrice: document.getElementById('pRetailPrice').value ? parseFloat(document.getElementById('pRetailPrice').value) : null,
+        stock: parseInt(document.getElementById('pStock').value) || 0,
+        lowStock: parseInt(document.getElementById('pLowStock').value) || 10,
+        taxable: document.getElementById('pTaxable').value,
+        active: document.getElementById('pActive').value,
+        notes: document.getElementById('pNotes').value.trim(),
+        paidFrom: document.getElementById('pPaidFrom').value.trim(),
+        images: currentEditImages.slice(), // copy current images
+        dateAdded: ''
+    };
+    var idx = parseInt(document.getElementById('productEditIndex').value);
+    if (idx >= 0) {
+        product.dateAdded = DATA.products[idx].dateAdded || '';
+        DATA.products[idx] = product;
+        showToast('Product updated');
+    } else {
+        product.dateAdded = new Date().toISOString();
+        DATA.products.push(product);
+        showToast('Product added');
+    }
+    currentEditImages = [];
+    saveData(); closeModal('productModal'); renderProductTable(); renderProductStats(); renderLowStockAlerts();
+}
+function deleteProduct(idx) {
+    if (!confirm('Delete "' + DATA.products[idx].productName + '"?')) return;
+    DATA.products.splice(idx, 1); saveData(); renderProductTable(); renderProductStats(); showToast('Product deleted');
+}
+
+// ════════════════════════════════════════════════════
+// ADMIN: INVENTORY LEDGER
+// ════════════════════════════════════════════════════
+var currentInventoryVendor = 'NuMedica';
+function renderInventoryStats() {
+    var tIn = DATA.inventory.filter(function(t) { return t.type === 'IN'; }).reduce(function(s, t) { return s + (t.qty || 0); }, 0);
+    var tOut = DATA.inventory.filter(function(t) { return t.type === 'OUT'; }).reduce(function(s, t) { return s + (t.qty || 0); }, 0);
+    document.getElementById('inventoryStats').innerHTML =
+        '<div class="stat-card"><div class="stat-label">Total Units In</div><div class="stat-value">' + tIn + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--danger)"><div class="stat-label">Total Units Out</div><div class="stat-value">' + tOut + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--success)"><div class="stat-label">Net</div><div class="stat-value">' + (tIn - tOut) + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--info)"><div class="stat-label">Transactions</div><div class="stat-value">' + DATA.inventory.length + '</div></div>';
+}
+function renderInventory() {
+    var vendors = DATA.vendors.map(function(v) { return v.name; });
+    document.getElementById('inventoryVendorTabs').innerHTML = vendors.map(function(v) {
+        return '<button class="vendor-tab ' + (v === currentInventoryVendor ? 'active' : '') + '" onclick="switchInventoryVendor(\'' + esc(v) + '\')">' + esc(v) + '</button>';
+    }).join('');
+    var txns = DATA.inventory.filter(function(t) { return t.vendor === currentInventoryVendor; });
+    var tbody = document.getElementById('inventoryTableBody');
+    if (!txns.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No transactions for this vendor</td></tr>'; return; }
+    var bal = 0;
+    tbody.innerHTML = txns.map(function(t, i) {
+        if (t.type === 'IN') bal += t.qty; else if (t.type === 'OUT') bal -= t.qty;
+        var p = DATA.products.find(function(x) { return x.productName === t.productName; });
+        var cost = p ? p.cost : null;
+        return '<tr><td>' + (t.date || '--') + '</td><td><span class="badge ' + (t.type === 'IN' ? 'badge-success' : t.type === 'OUT' ? 'badge-danger' : 'badge-warning') + '">' + t.type + '</span></td><td>' + esc(t.reference || '--') + '</td><td>' + esc(t.productName) + '</td><td>' + (t.type === 'IN' ? t.qty : '--') + '</td><td>' + (t.type === 'OUT' ? t.qty : '--') + '</td><td><strong>' + bal + '</strong></td><td>' + (cost != null ? '$' + Number(cost).toFixed(2) : '--') + '</td><td>' + esc(t.customerName || '--') + '</td><td>' + esc(t.notes || '--') + '</td><td><button class="btn btn-sm btn-danger" onclick="deleteInventoryTxn(' + i + ')">Del</button></td></tr>';
+    }).join('');
+}
+function switchInventoryVendor(v) { currentInventoryVendor = v; renderInventory(); }
+function openInventoryModal() {
+    document.getElementById('invDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('invType').value = 'IN';
+    document.getElementById('invVendor').value = currentInventoryVendor;
+    document.getElementById('invQty').value = '';
+    document.getElementById('invRef').value = '';
+    document.getElementById('invSoldBy').value = '';
+    document.getElementById('invNotes').value = '';
+    updateInvProducts(); updateInvCustomers(); openModal('inventoryModal');
+}
+function updateInvProducts() {
+    var v = document.getElementById('invVendor').value;
+    document.getElementById('invProduct').innerHTML = DATA.products.filter(function(p) { return p.vendor === v; }).map(function(p) { return '<option>' + esc(p.productName) + '</option>'; }).join('');
+}
+function updateInvCustomers() {
+    document.getElementById('invCustomer').innerHTML = '<option value="">N/A</option>' + DATA.customers.map(function(c) { return '<option value="' + esc(c.customerId) + '">' + esc(c.name) + (c.locationId ? ' (' + esc(c.locationId) + ')' : '') + '</option>'; }).join('');
+}
+function saveInventoryTransaction() {
+    var vendor = document.getElementById('invVendor').value, pName = document.getElementById('invProduct').value, qty = parseInt(document.getElementById('invQty').value), type = document.getElementById('invType').value;
+    if (!vendor || !pName || !qty) { showToast('Fill required fields', 'error'); return; }
+    var product = DATA.products.find(function(p) { return p.productName === pName && p.vendor === vendor; });
+    var custId = document.getElementById('invCustomer').value, cust = DATA.customers.find(function(c) { return c.customerId === custId; });
+    DATA.inventory.push({ date: document.getElementById('invDate').value, type: type, reference: document.getElementById('invRef').value.trim(), productName: pName, productId: product ? product.productId : '', vendor: vendor, qty: qty, soldBy: document.getElementById('invSoldBy').value.trim(), customerId: custId || '', customerName: cust ? cust.name : '', notes: document.getElementById('invNotes').value.trim() });
+    if (product) { if (type === 'IN') product.stock = (product.stock || 0) + qty; else if (type === 'OUT') product.stock = Math.max(0, (product.stock || 0) - qty); }
+    saveData(); closeModal('inventoryModal'); renderInventory(); renderInventoryStats(); showToast('Transaction recorded — stock updated');
+}
+function deleteInventoryTxn(vi) {
+    var vt = DATA.inventory.filter(function(t) { return t.vendor === currentInventoryVendor; });
+    var txn = vt[vi]; var gi = DATA.inventory.indexOf(txn);
+    if (gi >= 0 && confirm('Delete this transaction?')) { DATA.inventory.splice(gi, 1); saveData(); renderInventory(); renderInventoryStats(); showToast('Transaction deleted'); }
+}
+
+// ════════════════════════════════════════════════════
+// ADMIN: ORDERS
+// ════════════════════════════════════════════════════
+function renderOrders() {
+    var total = DATA.orders.length, pending = DATA.orders.filter(function(o) { return o.status === 'Pending'; }).length;
+    var revenue = DATA.orders.reduce(function(s, o) { return s + o.items.reduce(function(ss, i) { return ss + (i.unitPrice || 0) * i.qty; }, 0); }, 0);
+    document.getElementById('orderStats').innerHTML =
+        '<div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-value">' + total + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--warning)"><div class="stat-label">Pending</div><div class="stat-value">' + pending + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--success)"><div class="stat-label">Revenue</div><div class="stat-value">$' + revenue.toFixed(2) + '</div></div>';
+    document.getElementById('orderTableBody').innerHTML = DATA.orders.slice().reverse().map(function(o, ri) {
+        var i = DATA.orders.length - 1 - ri;
+        var total = o.items.reduce(function(s, x) { return s + (x.unitPrice || 0) * x.qty; }, 0);
+        var statusClass = o.status === 'Pending' ? 'badge-warning' : o.status === 'Shipped' ? 'badge-info' : 'badge-success';
+        return '<tr><td><strong>' + esc(o.id) + '</strong></td><td>' + new Date(o.date).toLocaleDateString() + '</td><td>' + esc(o.customerName) + '</td><td>' + esc(o.email) + '</td><td>' + o.items.length + '</td><td>$' + total.toFixed(2) + '</td><td><span class="badge ' + statusClass + '">' + o.status + '</span></td><td><button class="btn btn-sm btn-outline" onclick="viewOrder(' + i + ')">View</button> <select class="form-control" style="width:auto;display:inline;font-size:11px;padding:2px 4px" onchange="updateOrderStatus(' + i + ',this.value)"><option ' + (o.status === 'Pending' ? 'selected' : '') + '>Pending</option><option ' + (o.status === 'Processing' ? 'selected' : '') + '>Processing</option><option ' + (o.status === 'Shipped' ? 'selected' : '') + '>Shipped</option><option ' + (o.status === 'Complete' ? 'selected' : '') + '>Complete</option><option ' + (o.status === 'Canceled' ? 'selected' : '') + '>Canceled</option></select></td></tr>';
+    }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No orders yet</td></tr>';
+}
+function viewOrder(i) {
+    var o = DATA.orders[i];
+    document.getElementById('orderDetailTitle').textContent = 'Order ' + o.id;
+    var total = o.items.reduce(function(s, x) { return s + (x.unitPrice || 0) * x.qty; }, 0);
+    document.getElementById('orderDetailBody').innerHTML = '<div style="font-family:var(--sans);font-size:13px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px"><div><strong>Customer:</strong> ' + esc(o.customerName) + '<br><strong>Email:</strong> ' + esc(o.email) + '<br>' + (o.phone ? '<strong>Phone:</strong> ' + esc(o.phone) + '<br>' : '') + (o.contactName ? '<strong>Contact:</strong> ' + esc(o.contactName) + '<br>' : '') + '</div><div><strong>Status:</strong> ' + o.status + '<br><strong>Date:</strong> ' + new Date(o.date).toLocaleString() + '<br>' + (o.shipTo ? '<strong>Ship To:</strong> ' + esc(o.shipTo) + '<br>' : '') + '</div></div>' + (o.notes ? '<div style="margin-bottom:16px"><strong>Notes:</strong> ' + esc(o.notes) + '</div>' : '') + '<table><thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>' + o.items.map(function(x) { return '<tr><td>' + esc(x.productName) + '</td><td>' + x.qty + '</td><td>' + (x.unitPrice ? '$' + Number(x.unitPrice).toFixed(2) : '--') + '</td><td>' + (x.unitPrice ? '$' + (x.unitPrice * x.qty).toFixed(2) : '--') + '</td></tr>'; }).join('') + '</tbody><tfoot><tr><td colspan="3" style="font-weight:700">Total</td><td style="font-weight:700">$' + total.toFixed(2) + '</td></tr></tfoot></table></div>';
+    openModal('orderDetailModal');
+}
+function updateOrderStatus(i, status) { DATA.orders[i].status = status; saveData(); renderOrders(); showToast('Order status updated'); }
+
+// ════════════════════════════════════════════════════
+// ADMIN: UPC
+// ════════════════════════════════════════════════════
+function calculateCheckDigit(d) {
+    if (d.length !== 11 || !/^\d{11}$/.test(d)) return null;
+    var o = 0, e = 0;
+    for (var i = 0; i < 11; i++) { if ((i + 1) % 2 === 1) o += parseInt(d[i]); else e += parseInt(d[i]); }
+    return (10 - (o * 3 + e) % 10) % 10;
+}
+function updateUpcPreview() {
+    var s = document.getElementById('upcManufacturer'), cg = document.getElementById('upcCustomMfgGroup');
+    cg.style.display = s.value === '' ? '' : 'none';
+    var m = s.value || document.getElementById('upcCustomMfg').value;
+    var it = document.getElementById('upcItemNumber').value.padStart(3, '0');
+    var pk = document.getElementById('upcPackageSize').value.padStart(3, '0');
+    if (m.length === 4 && /^\d{4}$/.test(m) && /^\d{3}$/.test(it) && /^\d{3}$/.test(pk)) {
+        var f = '8' + m + it + pk;
+        document.getElementById('upcResult').textContent = f + calculateCheckDigit(f);
+    } else {
+        document.getElementById('upcResult').textContent = '8 ---- --- --- ?';
+    }
+}
+function calcCheckDigit() {
+    var i = document.getElementById('upcCheckInput').value.trim(), r = document.getElementById('upcCheckResult');
+    if (i.length === 11 && /^\d{11}$/.test(i)) r.value = i + calculateCheckDigit(i); else r.value = '';
+}
+function copyUpc() {
+    var u = document.getElementById('upcResult').textContent.trim();
+    if (u.indexOf('?') !== -1) { showToast('Complete all fields', 'error'); return; }
+    navigator.clipboard.writeText(u).then(function() { showToast('Copied: ' + u); });
+}
+function assignUpcToProduct() {
+    var u = document.getElementById('upcResult').textContent.trim();
+    if (u.indexOf('?') !== -1) { showToast('Complete all fields', 'error'); return; }
+    var noUpc = DATA.products.filter(function(p) { return !p.upc; });
+    if (!noUpc.length) { showToast('All products have UPCs', 'error'); return; }
+    var opts = noUpc.map(function(p) { return DATA.products.indexOf(p) + ': ' + p.productName + ' (' + p.vendor + ')'; }).join('\n');
+    var c = prompt('Assign UPC ' + u + ' to:\n\n' + opts + '\n\nEnter number:');
+    if (c !== null) {
+        var idx = parseInt(c);
+        if (idx >= 0 && idx < DATA.products.length) { DATA.products[idx].upc = u; saveData(); showToast('UPC assigned to ' + DATA.products[idx].productName); }
+    }
+}
+function renderMfgCodes() {
+    document.getElementById('mfgCodeTableBody').innerHTML = DATA.mfgCodes.map(function(m) {
+        return '<tr><td>' + esc(m.name) + '</td><td><code>' + esc(m.code) + '</code></td><td>' + esc(m.derived || '--') + '</td><td>' + esc(m.notes || '--') + '</td></tr>';
+    }).join('');
+}
+function openMfgCodeModal() { ['mfgName', 'mfgCode', 'mfgDerived', 'mfgNotes'].forEach(function(id) { document.getElementById(id).value = ''; }); openModal('mfgCodeModal'); }
+function saveMfgCode() {
+    var n = document.getElementById('mfgName').value.trim(), c = document.getElementById('mfgCode').value.trim();
+    if (!n || !c) { showToast('Required', 'error'); return; }
+    DATA.mfgCodes.push({ name: n, code: c, derived: document.getElementById('mfgDerived').value.trim(), notes: document.getElementById('mfgNotes').value.trim() });
+    saveData(); closeModal('mfgCodeModal'); renderMfgCodes(); showToast('Code added');
+}
+
+// ════════════════════════════════════════════════════
+// ADMIN: VENDORS & CUSTOMERS
+// ════════════════════════════════════════════════════
+function renderVendors() {
+    document.getElementById('vendorTableBody').innerHTML = DATA.vendors.map(function(v, i) {
+        return '<tr><td><strong>' + esc(v.name) + '</strong></td><td>' + esc(v.contact || '--') + '</td><td>' + esc(v.email || '--') + '</td><td>' + DATA.products.filter(function(p) { return p.vendor === v.name; }).length + '</td><td><button class="btn btn-sm btn-outline" onclick="editVendor(' + i + ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteVendor(' + i + ')">Del</button></td></tr>';
+    }).join('');
+}
+function openVendorModal(i) {
+    if (i === undefined) i = -1;
+    document.getElementById('vendorEditIndex').value = i;
+    document.getElementById('vendorModalTitle').textContent = i >= 0 ? 'Edit Vendor' : 'Add Vendor';
+    if (i >= 0) {
+        var v = DATA.vendors[i];
+        document.getElementById('vName').value = v.name;
+        document.getElementById('vContact').value = v.contact || '';
+        document.getElementById('vEmail').value = v.email || '';
+    } else {
+        ['vName', 'vContact', 'vEmail'].forEach(function(id) { document.getElementById(id).value = ''; });
+    }
+    openModal('vendorModal');
+}
+function editVendor(i) { openVendorModal(i); }
+function saveVendor() {
+    var n = document.getElementById('vName').value.trim();
+    if (!n) { showToast('Name required', 'error'); return; }
+    var v = { name: n, contact: document.getElementById('vContact').value.trim(), email: document.getElementById('vEmail').value.trim() };
+    var i = parseInt(document.getElementById('vendorEditIndex').value);
+    if (i >= 0) { DATA.vendors[i] = v; showToast('Updated'); } else { DATA.vendors.push(v); showToast('Added'); }
+    saveData(); closeModal('vendorModal'); renderVendors(); populateVendorDropdowns();
+}
+function deleteVendor(i) { if (!confirm('Delete "' + DATA.vendors[i].name + '"?')) return; DATA.vendors.splice(i, 1); saveData(); renderVendors(); populateVendorDropdowns(); showToast('Deleted'); }
+
+function renderCustomers() {
+    document.getElementById('customerTableBody').innerHTML = DATA.customers.map(function(c, i) {
+        return '<tr><td><strong>' + esc(c.name) + '</strong></td><td>' + esc(c.locationId || '--') + '</td><td><code>' + esc(c.customerId) + '</code></td><td style="max-width:200px">' + esc(c.shipTo || '--') + '</td><td style="max-width:200px">' + esc(c.billTo || '--') + '</td><td>' + esc(c.phone || '--') + '</td><td>' + esc(c.email || '--') + '</td><td><button class="btn btn-sm btn-outline" onclick="editCustomer(' + i + ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteCustomer(' + i + ')">Del</button></td></tr>';
+    }).join('');
+}
+function openCustomerModal(i) {
+    if (i === undefined) i = -1;
+    document.getElementById('customerEditIndex').value = i;
+    document.getElementById('customerModalTitle').textContent = i >= 0 ? 'Edit Customer' : 'Add Customer';
+    if (i >= 0) {
+        var c = DATA.customers[i];
+        document.getElementById('cName').value = c.name;
+        document.getElementById('cLocationId').value = c.locationId || '';
+        document.getElementById('cCustomerId').value = c.customerId;
+        document.getElementById('cShipTo').value = c.shipTo || '';
+        document.getElementById('cBillTo').value = c.billTo || '';
+        document.getElementById('cPhone').value = c.phone || '';
+        document.getElementById('cEmail').value = c.email || '';
+    } else {
+        ['cName', 'cLocationId', 'cCustomerId', 'cShipTo', 'cBillTo', 'cPhone', 'cEmail'].forEach(function(id) { document.getElementById(id).value = ''; });
+    }
+    openModal('customerModal');
+}
+function editCustomer(i) { openCustomerModal(i); }
+function saveCustomer() {
+    var n = document.getElementById('cName').value.trim(), cid = document.getElementById('cCustomerId').value.trim();
+    if (!n || !cid) { showToast('Name and ID required', 'error'); return; }
+    var c = { name: n, locationId: document.getElementById('cLocationId').value.trim(), customerId: cid, shipTo: document.getElementById('cShipTo').value.trim(), billTo: document.getElementById('cBillTo').value.trim(), phone: document.getElementById('cPhone').value.trim(), email: document.getElementById('cEmail').value.trim() };
+    var i = parseInt(document.getElementById('customerEditIndex').value);
+    if (i >= 0) { DATA.customers[i] = c; showToast('Updated'); } else { DATA.customers.push(c); showToast('Added'); }
+    saveData(); closeModal('customerModal'); renderCustomers();
+}
+function deleteCustomer(i) { if (!confirm('Delete "' + DATA.customers[i].name + '"?')) return; DATA.customers.splice(i, 1); saveData(); renderCustomers(); showToast('Deleted'); }
+
+// ════════════════════════════════════════════════════
+// EXPORT CSV
+// ════════════════════════════════════════════════════
+function downloadCSV(filename, rows) {
+    var csv = rows.map(function(r) { return r.map(function(c) { return '"' + String(c || '').replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
+function exportProductsCSV() {
+    var rows = [['Product ID', 'Name', 'Vendor', 'Vendor Part #', 'UPC', 'Pkg Size', 'Category', 'Cost', 'Sell Price', 'Retail', 'Stock', 'Active']];
+    DATA.products.forEach(function(p) { rows.push([p.productId, p.productName, p.vendor, p.vendorPartNum, p.upc, p.packageSize, p.category, p.cost, p.sellPrice, p.retailPrice, p.stock, p.active]); });
+    downloadCSV('ni_products.csv', rows); showToast('Products exported');
+}
+function exportInventoryCSV() {
+    var rows = [['Date', 'Type', 'Vendor', 'Product', 'Qty', 'Reference', 'Customer', 'Notes']];
+    DATA.inventory.forEach(function(t) { rows.push([t.date, t.type, t.vendor, t.productName, t.qty, t.reference, t.customerName, t.notes]); });
+    downloadCSV('ni_inventory.csv', rows); showToast('Inventory exported');
+}
+function exportOrdersCSV() {
+    var rows = [['Order ID', 'Date', 'Customer', 'Email', 'Items', 'Total', 'Status']];
+    DATA.orders.forEach(function(o) { var t = o.items.reduce(function(s, x) { return s + (x.unitPrice || 0) * x.qty; }, 0); rows.push([o.id, o.date, o.customerName, o.email, o.items.length, '$' + t.toFixed(2), o.status]); });
+    downloadCSV('ni_orders.csv', rows); showToast('Orders exported');
+}
+
+// ════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════
+loadData();
+applyAdminMode();
+populateVendorDropdowns();
+renderFeatured();
+renderCart();
+updateLoginUI();
+
+// Initialize default admin users if not present
+if (!localStorage.getItem(ADMIN_USERS_KEY)) {
+    saveAdminUsers(getDefaultAdminUsers());
+}
+</script>
+</body>
+</html>
