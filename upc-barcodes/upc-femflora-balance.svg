@@ -41,15 +41,15 @@
   <rect x="152" y="22" width="2" height="80" fill="black"/>
   <rect x="158" y="22" width="2" height="80" fill="black"/>
   <rect x="162" y="22" width="2" height="80" fill="black"/>
-  <rect x="172" y="22" width="2" height="80" fill="black"/>
+  <rect x="166" y="22" width="2" height="80" fill="black"/>
   <rect x="176" y="22" width="2" height="80" fill="black"/>
   <rect x="178" y="22" width="2" height="80" fill="black"/>
   <rect x="180" y="22" width="2" height="80" fill="black"/>
   <rect x="186" y="22" width="2" height="80" fill="black"/>
   <rect x="190" y="22" width="2" height="80" fill="black"/>
+  <rect x="192" y="22" width="2" height="80" fill="black"/>
   <rect x="196" y="22" width="2" height="80" fill="black"/>
   <rect x="198" y="22" width="2" height="80" fill="black"/>
-  <rect x="200" y="22" width="2" height="80" fill="black"/>
   <rect x="204" y="22" width="2" height="90" fill="black"/>
   <rect x="208" y="22" width="2" height="90" fill="black"/>
   <text x="10" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">8</text>
@@ -61,7 +61,7 @@
   <text x="119.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">0</text>
   <text x="133.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">1</text>
   <text x="147.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">0</text>
-  <text x="161.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">3</text>
+  <text x="161.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">6</text>
   <text x="175.0" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">0</text>
-  <text x="216" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">5</text>
+  <text x="216" y="126" text-anchor="middle" font-family="'OCR-B', 'Courier New', monospace" font-size="14" fill="black">2</text>
 </svg>
