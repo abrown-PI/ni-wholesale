@@ -612,7 +612,7 @@
     </div>
     <div class="card" style="margin-top:20px">
         <div class="card-header"><h2>Manufacturer Codes</h2><button class="btn btn-sm btn-outline" onclick="openMfgCodeModal()">+ Add Code</button></div>
-        <table><thead><tr><th>Manufacturer</th><th>Code</th><th>Derived</th><th>Notes</th></tr></thead><tbody id="mfgCodeTableBody"></tbody></table>
+        <table><thead><tr><th>Manufacturer</th><th>Code</th><th>Derived</th><th>Notes</th><th>Actions</th></tr></thead><tbody id="mfgCodeTableBody"></tbody></table>
     </div>
 </div>
 
@@ -865,11 +865,12 @@
 <!-- Mfg Code Modal -->
 <div class="modal-overlay" id="mfgCodeModal">
     <div class="modal" style="max-width:500px">
-        <div class="modal-header"><h2>Add Manufacturer Code</h2><button class="modal-close" onclick="closeModal('mfgCodeModal')">&times;</button></div>
+        <input type="hidden" id="mfgEditIndex" value="-1">
+        <div class="modal-header"><h2 id="mfgModalTitle">Add Manufacturer Code</h2><button class="modal-close" onclick="closeModal('mfgCodeModal')">&times;</button></div>
         <div class="modal-body">
-            <div class="form-group"><label>Manufacturer *</label><input type="text" class="form-control" id="mfgName"></div>
-            <div class="form-group"><label>Code (MMMM) *</label><input type="text" class="form-control" id="mfgCode" maxlength="4"></div>
-            <div class="form-group"><label>How Derived</label><input type="text" class="form-control" id="mfgDerived"></div>
+            <div class="form-group"><label>Manufacturer *</label><input type="text" class="form-control" id="mfgName" oninput="autoDeriveMfgCode()"></div>
+            <div class="form-group"><label>Code (MMMM) *</label><input type="text" class="form-control" id="mfgCode" maxlength="4" readonly style="background:#f0f0f0"></div>
+            <div class="form-group"><label>How Derived</label><input type="text" class="form-control" id="mfgDerived" readonly style="background:#f0f0f0"></div>
             <div class="form-group"><label>Notes</label><input type="text" class="form-control" id="mfgNotes"></div>
         </div>
         <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('mfgCodeModal')">Cancel</button><button class="btn btn-primary" onclick="saveMfgCode()">Save</button></div>
@@ -1295,7 +1296,7 @@ function navigate(pageId) {
     if (pageId === 'admin-products') { renderProductTable(); renderProductStats(); renderLowStockAlerts(); }
     if (pageId === 'admin-inventory') { renderInventory(); renderInventoryStats(); }
     if (pageId === 'admin-orders') renderOrders();
-    if (pageId === 'admin-upc') renderMfgCodes();
+    if (pageId === 'admin-upc') { renderMfgCodes(); refreshMfgDropdown(); }
     if (pageId === 'admin-vendors') renderVendors();
     if (pageId === 'admin-customers') renderCustomers();
     if (pageId === 'admin-accounts') renderAccounts();
@@ -1895,16 +1896,67 @@ function assignUpcToProduct() {
     }
 }
 function renderMfgCodes() {
-    document.getElementById('mfgCodeTableBody').innerHTML = DATA.mfgCodes.map(function(m) {
-        return '<tr><td>' + esc(m.name) + '</td><td><code>' + esc(m.code) + '</code></td><td>' + esc(m.derived || '--') + '</td><td>' + esc(m.notes || '--') + '</td></tr>';
+    document.getElementById('mfgCodeTableBody').innerHTML = DATA.mfgCodes.map(function(m, i) {
+        return '<tr><td>' + esc(m.name) + '</td><td><code>' + esc(m.code) + '</code></td><td>' + esc(m.derived || '--') + '</td><td>' + esc(m.notes || '--') + '</td><td><button class="btn btn-sm btn-outline" onclick="editMfgCode(' + i + ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteMfgCode(' + i + ')">Del</button></td></tr>';
     }).join('');
 }
-function openMfgCodeModal() { ['mfgName', 'mfgCode', 'mfgDerived', 'mfgNotes'].forEach(function(id) { document.getElementById(id).value = ''; }); openModal('mfgCodeModal'); }
+function letterToNumber(ch) {
+    ch = ch.toUpperCase();
+    if (ch >= 'A' && ch <= 'Z') return (ch.charCodeAt(0) - 64).toString().padStart(2, '0');
+    if (ch >= '0' && ch <= '9') return ch;
+    return '';
+}
+function autoDeriveMfgCode() {
+    var name = document.getElementById('mfgName').value.trim();
+    var words = name.split(/\s+/).filter(function(w) { return w.length > 0; });
+    if (words.length === 0) { document.getElementById('mfgCode').value = ''; document.getElementById('mfgDerived').value = ''; return; }
+    var initials = '';
+    for (var i = 0; i < words.length && initials.length < 2; i++) {
+        var ch = words[i][0].toUpperCase();
+        if (/[A-Z]/.test(ch)) initials += ch;
+    }
+    if (initials.length < 2 && words[0].length >= 2) initials = words[0].substring(0, 2).toUpperCase();
+    if (initials.length < 2) { document.getElementById('mfgCode').value = ''; document.getElementById('mfgDerived').value = ''; return; }
+    var n1 = letterToNumber(initials[0]), n2 = letterToNumber(initials[1]);
+    var code = n1 + n2;
+    var derived = initials[0] + initials[1] + ' => ' + initials[0] + '=' + n1 + ', ' + initials[1] + '=' + n2;
+    document.getElementById('mfgCode').value = code;
+    document.getElementById('mfgDerived').value = derived;
+}
+function openMfgCodeModal(i) {
+    if (i === undefined) i = -1;
+    document.getElementById('mfgEditIndex').value = i;
+    document.getElementById('mfgModalTitle').textContent = i >= 0 ? 'Edit Manufacturer Code' : 'Add Manufacturer Code';
+    if (i >= 0) {
+        var m = DATA.mfgCodes[i];
+        document.getElementById('mfgName').value = m.name;
+        document.getElementById('mfgCode').value = m.code;
+        document.getElementById('mfgDerived').value = m.derived || '';
+        document.getElementById('mfgNotes').value = m.notes || '';
+    } else {
+        ['mfgName', 'mfgCode', 'mfgDerived', 'mfgNotes'].forEach(function(id) { document.getElementById(id).value = ''; });
+    }
+    openModal('mfgCodeModal');
+}
+function editMfgCode(i) { openMfgCodeModal(i); }
+function deleteMfgCode(i) {
+    if (!confirm('Delete manufacturer code "' + DATA.mfgCodes[i].name + '"?')) return;
+    DATA.mfgCodes.splice(i, 1);
+    saveData(); renderMfgCodes(); refreshMfgDropdown(); showToast('Code deleted');
+}
 function saveMfgCode() {
     var n = document.getElementById('mfgName').value.trim(), c = document.getElementById('mfgCode').value.trim();
-    if (!n || !c) { showToast('Required', 'error'); return; }
-    DATA.mfgCodes.push({ name: n, code: c, derived: document.getElementById('mfgDerived').value.trim(), notes: document.getElementById('mfgNotes').value.trim() });
-    saveData(); closeModal('mfgCodeModal'); renderMfgCodes(); showToast('Code added');
+    if (!n || !c) { showToast('Manufacturer name is required', 'error'); return; }
+    var idx = parseInt(document.getElementById('mfgEditIndex').value);
+    var entry = { name: n, code: c, derived: document.getElementById('mfgDerived').value.trim(), notes: document.getElementById('mfgNotes').value.trim() };
+    if (idx >= 0) { DATA.mfgCodes[idx] = entry; } else { DATA.mfgCodes.push(entry); }
+    saveData(); closeModal('mfgCodeModal'); renderMfgCodes(); refreshMfgDropdown();
+    showToast(idx >= 0 ? 'Code updated' : 'Code added');
+}
+function refreshMfgDropdown() {
+    var sel = document.getElementById('upcManufacturer'), val = sel.value;
+    sel.innerHTML = DATA.mfgCodes.map(function(m) { return '<option value="' + esc(m.code) + '">' + esc(m.name) + ' (' + esc(m.code) + ')</option>'; }).join('') + '<option value="">Custom...</option>';
+    sel.value = val;
 }
 
 // ════════════════════════════════════════════════════
