@@ -129,14 +129,14 @@
         .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--ni-navy); font-family: var(--serif); }
 
         /* ── Hero / Homepage ── */
-        .hero { background: linear-gradient(135deg, var(--ni-deep-blue) 0%, var(--ni-blue) 100%); color: #fff; padding: 40px 24px 0 24px; text-align: center; position: relative; overflow: hidden; min-height: 480px; }
+        .hero { background: linear-gradient(135deg, var(--ni-deep-blue) 0%, var(--ni-blue) 100%); color: #fff; padding: 24px 24px 0 24px; text-align: center; position: relative; overflow: hidden; min-height: 360px; }
         .hero::before { content: ''; position: absolute; top: -50%; right: -20%; width: 600px; height: 600px; background: radial-gradient(circle, rgba(255,255,255,.08) 0%, transparent 70%); }
         .hero::after { content: ''; position: absolute; bottom: -30%; left: -10%; width: 500px; height: 500px; background: radial-gradient(circle, rgba(255,255,255,.05) 0%, transparent 70%); }
-        .hero-content { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; display: flex; align-items: flex-end; gap: 24px; text-align: left; min-height: 480px; }
-        .hero-text { flex: 1; padding: 40px 0; }
-        .hero-text img.hero-logo { height: 120px; margin-bottom: 24px; filter: brightness(0) invert(1); }
-        .hero-product-img { flex: 0 0 480px; position: relative; align-self: flex-end; display: flex; align-items: flex-end; justify-content: center; height: 100%; }
-        .hero-product-img img { width: 100%; max-width: 480px; height: auto; display: block; filter: drop-shadow(0 20px 40px rgba(0,0,0,.3)); }
+        .hero-content { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; display: flex; align-items: flex-end; gap: 24px; text-align: left; min-height: 360px; }
+        .hero-text { flex: 1; padding: 20px 0; }
+        .hero-text img.hero-logo { height: 90px; margin-bottom: 16px; filter: brightness(0) invert(1); }
+        .hero-product-img { flex: 0 0 420px; position: relative; align-self: flex-end; display: flex; align-items: flex-end; justify-content: center; }
+        .hero-product-img img { width: 100%; max-width: 420px; height: auto; display: block; filter: drop-shadow(0 20px 40px rgba(0,0,0,.3)); }
         @keyframes floatProduct { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
         .hero h1 { font-family: var(--serif); font-size: 36px; font-weight: 400; letter-spacing: 3px; margin-bottom: 16px; }
         .hero p { font-family: var(--sans); font-size: 16px; opacity: .85; line-height: 1.6; margin-bottom: 32px; }
