@@ -1797,14 +1797,19 @@ function deleteProduct(idx) {
 // ════════════════════════════════════════════════════
 var currentInventoryVendor = 'ALL';
 function renderInventoryStats() {
-    var activeProducts = DATA.products.filter(function(p) { return p.active !== 'N'; });
-    var onHand = activeProducts.reduce(function(s,p) { return s + (p.stock || 0); }, 0);
-    var invValue = activeProducts.reduce(function(s,p) { return s + ((p.stock||0) * (Number(p.cost)||0)); }, 0);
-    var lowCount = activeProducts.filter(function(p) { return (p.stock||0) <= (p.lowStock||10); }).length;
-    var tIn = DATA.inventory.filter(function(t) { return t.type === 'IN'; }).reduce(function(s, t) { return s + (t.qty || 0); }, 0);
-    var tOut = DATA.inventory.filter(function(t) { return t.type === 'OUT'; }).reduce(function(s, t) { return s + (t.qty || 0); }, 0);
+    var scope = currentInventoryVendor;
+    var scopeLabel = scope === 'ALL' ? 'All Vendors' : scope;
+    var products = DATA.products.filter(function(p) {
+        return p.active !== 'N' && (scope === 'ALL' || p.vendor === scope);
+    });
+    var txns = DATA.inventory.filter(function(t) { return scope === 'ALL' || t.vendor === scope; });
+    var onHand = products.reduce(function(s,p) { return s + (p.stock || 0); }, 0);
+    var invValue = products.reduce(function(s,p) { return s + ((p.stock||0) * (Number(p.cost)||0)); }, 0);
+    var lowCount = products.filter(function(p) { return (p.stock||0) <= (p.lowStock||10); }).length;
+    var tIn = txns.filter(function(t) { return t.type === 'IN'; }).reduce(function(s, t) { return s + (t.qty || 0); }, 0);
+    var tOut = txns.filter(function(t) { return t.type === 'OUT'; }).reduce(function(s, t) { return s + (t.qty || 0); }, 0);
     document.getElementById('inventoryStats').innerHTML =
-        '<div class="stat-card"><div class="stat-label">Total On Hand</div><div class="stat-value">' + onHand + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">On Hand — ' + esc(scopeLabel) + '</div><div class="stat-value">' + onHand + '</div></div>' +
         '<div class="stat-card" style="border-left-color:var(--success)"><div class="stat-label">Inventory Value</div><div class="stat-value">$' + invValue.toFixed(2) + '</div></div>' +
         '<div class="stat-card" style="border-left-color:var(--warning)"><div class="stat-label">Low/Out of Stock</div><div class="stat-value">' + lowCount + '</div></div>' +
         '<div class="stat-card" style="border-left-color:var(--info)"><div class="stat-label">Transactions (In/Out)</div><div class="stat-value" style="font-size:18px">' + tIn + ' / ' + tOut + '</div></div>';
@@ -1862,7 +1867,7 @@ function renderInventory() {
         return '<tr><td>' + (t.date || '--') + '</td><td><span class="badge ' + (t.type === 'IN' ? 'badge-success' : t.type === 'OUT' ? 'badge-danger' : 'badge-warning') + '">' + t.type + '</span></td><td>' + esc(t.reference || '--') + '</td><td>' + esc(t.productName) + '</td><td>' + (t.type === 'IN' ? t.qty : '--') + '</td><td>' + (t.type === 'OUT' ? t.qty : '--') + '</td><td><strong>' + bal + '</strong></td><td>' + (cost != null ? '$' + Number(cost).toFixed(2) : '--') + '</td><td>' + esc(t.customerName || '--') + '</td><td>' + esc(t.notes || '--') + '</td><td><button class="btn btn-sm btn-danger" onclick="deleteInventoryTxn(' + i + ')">Del</button></td></tr>';
     }).join('');
 }
-function switchInventoryVendor(v) { currentInventoryVendor = v; renderInventory(); }
+function switchInventoryVendor(v) { currentInventoryVendor = v; renderInventory(); renderInventoryStats(); }
 function openInventoryModal() {
     document.getElementById('invDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('invType').value = 'IN';
