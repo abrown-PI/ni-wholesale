@@ -798,27 +798,31 @@
 
 <!-- Inventory Modal -->
 <div class="modal-overlay" id="inventoryModal">
-    <div class="modal">
+    <div class="modal" style="max-width:900px">
         <div class="modal-header"><h2>Record Transaction</h2><button class="modal-close" onclick="closeModal('inventoryModal')">&times;</button></div>
         <div class="modal-body">
             <div class="form-row">
                 <div class="form-group"><label>Date *</label><input type="date" class="form-control" id="invDate"></div>
                 <div class="form-group"><label>Type *</label><select class="form-control" id="invType"><option value="IN">IN (Received)</option><option value="OUT">OUT (Sold)</option><option value="ADJ">ADJ (Adjustment)</option></select></div>
+                <div class="form-group"><label>Vendor *</label><select class="form-control" id="invVendor" onchange="onInvVendorChange()"><option value="">Select...</option></select></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>Vendor *</label><select class="form-control" id="invVendor" onchange="updateInvProducts()"><option value="">Select...</option></select></div>
-                <div class="form-group"><label>Product *</label><select class="form-control" id="invProduct"></select></div>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label>Quantity *</label><input type="number" class="form-control" id="invQty" min="1"></div>
                 <div class="form-group"><label>Reference / Invoice #</label><input type="text" class="form-control" id="invRef"></div>
-            </div>
-            <div class="form-row">
                 <div class="form-group"><label>Customer</label><select class="form-control" id="invCustomer"><option value="">N/A</option></select></div>
                 <div class="form-group"><label>Ordered/Sold By</label><input type="text" class="form-control" id="invSoldBy"></div>
             </div>
-            <div class="form-group"><label>Notes</label><textarea class="form-control" id="invNotes" rows="2"></textarea></div>
-            <div style="background:var(--warning-bg);padding:10px;border-radius:var(--radius);font-family:var(--sans);font-size:12px;color:var(--warning)">This also updates the product stock quantity automatically.</div>
+            <div style="margin-top:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <label style="margin:0;font-weight:600">Line Items *</label>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="addInvLine()">+ Add Line</button>
+                </div>
+                <table style="width:100%;font-family:var(--sans);font-size:13px">
+                    <thead><tr style="background:var(--gray-100)"><th style="padding:8px;text-align:left;width:70%">Product</th><th style="padding:8px;text-align:left;width:20%">Quantity</th><th style="width:10%"></th></tr></thead>
+                    <tbody id="invLinesBody"></tbody>
+                </table>
+            </div>
+            <div class="form-group" style="margin-top:12px"><label>Notes</label><textarea class="form-control" id="invNotes" rows="2"></textarea></div>
+            <div style="background:var(--warning-bg);padding:10px;border-radius:var(--radius);font-family:var(--sans);font-size:12px;color:var(--warning);margin-top:12px">This records one transaction per line and updates each product's stock automatically.</div>
         </div>
         <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('inventoryModal')">Cancel</button><button class="btn btn-primary" onclick="saveInventoryTransaction()">Save Transaction</button></div>
     </div>
@@ -1845,28 +1849,72 @@ function switchInventoryVendor(v) { currentInventoryVendor = v; renderInventory(
 function openInventoryModal() {
     document.getElementById('invDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('invType').value = 'IN';
-    document.getElementById('invVendor').value = currentInventoryVendor === 'ALL' ? (DATA.vendors[0] ? DATA.vendors[0].name : '') : currentInventoryVendor;
-    document.getElementById('invQty').value = '';
+    // Populate vendor dropdown
+    var vSel = document.getElementById('invVendor');
+    vSel.innerHTML = '<option value="">Select...</option>' + DATA.vendors.map(function(v) { return '<option>' + esc(v.name) + '</option>'; }).join('');
+    vSel.value = currentInventoryVendor === 'ALL' ? (DATA.vendors[0] ? DATA.vendors[0].name : '') : currentInventoryVendor;
     document.getElementById('invRef').value = '';
     document.getElementById('invSoldBy').value = '';
     document.getElementById('invNotes').value = '';
-    updateInvProducts(); updateInvCustomers(); openModal('inventoryModal');
+    // Reset lines and add one blank line
+    document.getElementById('invLinesBody').innerHTML = '';
+    addInvLine();
+    updateInvCustomers(); openModal('inventoryModal');
 }
-function updateInvProducts() {
+function onInvVendorChange() {
+    // When vendor changes, refresh all existing line dropdowns
+    var rows = document.querySelectorAll('#invLinesBody tr');
+    rows.forEach(function(row) {
+        var sel = row.querySelector('.inv-line-product');
+        var cur = sel.value;
+        sel.innerHTML = buildInvProductOptions();
+        if (cur) sel.value = cur;
+    });
+}
+function buildInvProductOptions() {
     var v = document.getElementById('invVendor').value;
-    document.getElementById('invProduct').innerHTML = DATA.products.filter(function(p) { return p.vendor === v; }).map(function(p) { return '<option>' + esc(p.productName) + '</option>'; }).join('');
+    var products = DATA.products.filter(function(p) { return p.vendor === v && p.active !== 'N'; });
+    return '<option value="">Select product...</option>' + products.map(function(p) { return '<option>' + esc(p.productName) + '</option>'; }).join('');
+}
+function addInvLine() {
+    var tbody = document.getElementById('invLinesBody');
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+        '<td style="padding:6px"><select class="form-control inv-line-product">' + buildInvProductOptions() + '</select></td>' +
+        '<td style="padding:6px"><input type="number" class="form-control inv-line-qty" min="1" placeholder="Qty"></td>' +
+        '<td style="padding:6px;text-align:center"><button type="button" class="btn btn-sm btn-danger" onclick="this.closest(\'tr\').remove()">&times;</button></td>';
+    tbody.appendChild(tr);
 }
 function updateInvCustomers() {
     document.getElementById('invCustomer').innerHTML = '<option value="">N/A</option>' + DATA.customers.map(function(c) { return '<option value="' + esc(c.customerId) + '">' + esc(c.name) + (c.locationId ? ' (' + esc(c.locationId) + ')' : '') + '</option>'; }).join('');
 }
 function saveInventoryTransaction() {
-    var vendor = document.getElementById('invVendor').value, pName = document.getElementById('invProduct').value, qty = parseInt(document.getElementById('invQty').value), type = document.getElementById('invType').value;
-    if (!vendor || !pName || !qty) { showToast('Fill required fields', 'error'); return; }
-    var product = DATA.products.find(function(p) { return p.productName === pName && p.vendor === vendor; });
+    var vendor = document.getElementById('invVendor').value, type = document.getElementById('invType').value;
+    if (!vendor) { showToast('Select a vendor', 'error'); return; }
+    // Gather all lines
+    var rows = document.querySelectorAll('#invLinesBody tr');
+    var lines = [];
+    rows.forEach(function(row) {
+        var pName = row.querySelector('.inv-line-product').value;
+        var qty = parseInt(row.querySelector('.inv-line-qty').value);
+        if (pName && qty > 0) lines.push({ pName: pName, qty: qty });
+    });
+    if (!lines.length) { showToast('Add at least one line item with product and quantity', 'error'); return; }
+    var date = document.getElementById('invDate').value;
+    var ref = document.getElementById('invRef').value.trim();
+    var soldBy = document.getElementById('invSoldBy').value.trim();
+    var notes = document.getElementById('invNotes').value.trim();
     var custId = document.getElementById('invCustomer').value, cust = DATA.customers.find(function(c) { return c.customerId === custId; });
-    DATA.inventory.push({ date: document.getElementById('invDate').value, type: type, reference: document.getElementById('invRef').value.trim(), productName: pName, productId: product ? product.productId : '', vendor: vendor, qty: qty, soldBy: document.getElementById('invSoldBy').value.trim(), customerId: custId || '', customerName: cust ? cust.name : '', notes: document.getElementById('invNotes').value.trim() });
-    if (product) { if (type === 'IN') product.stock = (product.stock || 0) + qty; else if (type === 'OUT') product.stock = Math.max(0, (product.stock || 0) - qty); }
-    saveData(); closeModal('inventoryModal'); renderInventory(); renderInventoryStats(); showToast('Transaction recorded — stock updated');
+    lines.forEach(function(ln) {
+        var product = DATA.products.find(function(p) { return p.productName === ln.pName && p.vendor === vendor; });
+        DATA.inventory.push({ date: date, type: type, reference: ref, productName: ln.pName, productId: product ? product.productId : '', vendor: vendor, qty: ln.qty, soldBy: soldBy, customerId: custId || '', customerName: cust ? cust.name : '', notes: notes });
+        if (product) {
+            if (type === 'IN') product.stock = (product.stock || 0) + ln.qty;
+            else if (type === 'OUT') product.stock = Math.max(0, (product.stock || 0) - ln.qty);
+        }
+    });
+    saveData(); closeModal('inventoryModal'); renderInventory(); renderInventoryStats();
+    showToast(lines.length + ' line' + (lines.length>1?'s':'') + ' recorded — stock updated');
 }
 function deleteInventoryTxn(vi) {
     var vt = DATA.inventory.filter(function(t) { return t.vendor === currentInventoryVendor; });
