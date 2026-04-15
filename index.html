@@ -542,7 +542,7 @@
         <div class="vendor-tabs" id="inventoryVendorTabs"></div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Product</th><th>Qty In</th><th>Qty Out</th><th>Balance</th><th>Unit Cost</th><th>Customer</th><th>Notes</th><th>Actions</th></tr></thead>
+                <thead id="invTableHead"><tr><th>Date</th><th>Type</th><th>Reference</th><th>Product</th><th>Qty In</th><th>Qty Out</th><th>Balance</th><th>Unit Cost</th><th>Customer</th><th>Notes</th><th>Actions</th></tr></thead>
                 <tbody id="inventoryTableBody"></tbody>
             </table>
         </div>
@@ -1791,7 +1791,7 @@ function deleteProduct(idx) {
 // ════════════════════════════════════════════════════
 // ADMIN: INVENTORY LEDGER
 // ════════════════════════════════════════════════════
-var currentInventoryVendor = 'NuMedica';
+var currentInventoryVendor = 'ALL';
 function renderInventoryStats() {
     var tIn = DATA.inventory.filter(function(t) { return t.type === 'IN'; }).reduce(function(s, t) { return s + (t.qty || 0); }, 0);
     var tOut = DATA.inventory.filter(function(t) { return t.type === 'OUT'; }).reduce(function(s, t) { return s + (t.qty || 0); }, 0);
@@ -1803,11 +1803,35 @@ function renderInventoryStats() {
 }
 function renderInventory() {
     var vendors = DATA.vendors.map(function(v) { return v.name; });
-    document.getElementById('inventoryVendorTabs').innerHTML = vendors.map(function(v) {
-        return '<button class="vendor-tab ' + (v === currentInventoryVendor ? 'active' : '') + '" onclick="switchInventoryVendor(\'' + esc(v) + '\')">' + esc(v) + '</button>';
-    }).join('');
-    var txns = DATA.inventory.filter(function(t) { return t.vendor === currentInventoryVendor; });
+    var tabs = ['<button class="vendor-tab ' + (currentInventoryVendor === 'ALL' ? 'active' : '') + '" onclick="switchInventoryVendor(\'ALL\')">All Inventory</button>'];
+    vendors.forEach(function(v) {
+        tabs.push('<button class="vendor-tab ' + (v === currentInventoryVendor ? 'active' : '') + '" onclick="switchInventoryVendor(\'' + esc(v) + '\')">' + esc(v) + '</button>');
+    });
+    document.getElementById('inventoryVendorTabs').innerHTML = tabs.join('');
     var tbody = document.getElementById('inventoryTableBody');
+
+    if (currentInventoryVendor === 'ALL') {
+        // Stock-on-hand summary across all products
+        var balances = {};
+        DATA.inventory.forEach(function(t) {
+            if (!balances[t.productName]) balances[t.productName] = 0;
+            if (t.type === 'IN') balances[t.productName] += t.qty;
+            else if (t.type === 'OUT') balances[t.productName] -= t.qty;
+        });
+        var rows = DATA.products.filter(function(p) { return p.active !== 'N'; }).map(function(p) {
+            var onHand = (p.stock || 0) + (balances[p.productName] || 0);
+            var cost = p.cost != null ? Number(p.cost) : 0;
+            var value = onHand * cost;
+            var lowCls = onHand <= (p.lowStock || 10) ? 'style="color:var(--danger);font-weight:700"' : '';
+            return '<tr><td>' + esc(p.productName) + '</td><td>' + esc(p.vendor || '--') + '</td><td>' + esc(p.packageSize || '--') + '</td><td ' + lowCls + '>' + onHand + '</td><td>' + (cost ? '$' + cost.toFixed(2) : '--') + '</td><td>' + (cost ? '$' + value.toFixed(2) : '--') + '</td></tr>';
+        }).join('');
+        document.getElementById('invTableHead').innerHTML = '<tr><th>Product</th><th>Vendor</th><th>Package Size</th><th>On Hand</th><th>Unit Cost</th><th>Inventory Value</th></tr>';
+        tbody.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No products</td></tr>';
+        return;
+    }
+
+    document.getElementById('invTableHead').innerHTML = '<tr><th>Date</th><th>Type</th><th>Reference</th><th>Product</th><th>Qty In</th><th>Qty Out</th><th>Balance</th><th>Unit Cost</th><th>Customer</th><th>Notes</th><th>Actions</th></tr>';
+    var txns = DATA.inventory.filter(function(t) { return t.vendor === currentInventoryVendor; });
     if (!txns.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No transactions for this vendor</td></tr>'; return; }
     var bal = 0;
     tbody.innerHTML = txns.map(function(t, i) {
@@ -1821,7 +1845,7 @@ function switchInventoryVendor(v) { currentInventoryVendor = v; renderInventory(
 function openInventoryModal() {
     document.getElementById('invDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('invType').value = 'IN';
-    document.getElementById('invVendor').value = currentInventoryVendor;
+    document.getElementById('invVendor').value = currentInventoryVendor === 'ALL' ? (DATA.vendors[0] ? DATA.vendors[0].name : '') : currentInventoryVendor;
     document.getElementById('invQty').value = '';
     document.getElementById('invRef').value = '';
     document.getElementById('invSoldBy').value = '';
