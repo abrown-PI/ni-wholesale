@@ -30,49 +30,79 @@
         .intro h2 { font-family: var(--serif); font-size: 20px; color: var(--ni-deep-blue); margin-bottom: 10px; }
 
         .product-card { border: 1px solid #e2e4e8; border-radius: 8px; margin-bottom: 28px; overflow: hidden; }
-        .product-header { background: var(--ni-deep-blue); color: #fff; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .product-header { background: var(--ni-deep-blue); color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
         .product-header h3 { font-family: var(--serif); font-size: 20px; }
         .product-header .origin { font-size: 12px; opacity: .8; background: rgba(255,255,255,.15); padding: 3px 10px; border-radius: 12px; }
-        .product-body { padding: 24px; }
-        .product-body p { font-size: 14px; line-height: 1.7; margin-bottom: 12px; }
+        .product-header .sku { font-size: 11px; opacity: .7; font-family: monospace; }
+        .product-body { padding: 20px 24px; }
+        .product-body p { font-size: 13px; line-height: 1.7; margin-bottom: 12px; }
 
-        .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-        .meta-item { background: var(--ni-light); padding: 10px 14px; border-radius: 6px; font-size: 13px; }
-        .meta-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #888; margin-bottom: 2px; }
+        .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .meta-item { background: var(--ni-light); padding: 8px 12px; border-radius: 6px; font-size: 12px; }
+        .meta-item .label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #888; margin-bottom: 2px; }
         .meta-item .value { font-weight: 700; color: var(--ni-dark); }
+        .meta-item .value.price { color: var(--ni-deep-blue); }
 
-        .benefits { margin: 16px 0; }
-        .benefits h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--ni-deep-blue); margin-bottom: 8px; }
-        .benefits ul { list-style: none; padding: 0; }
-        .benefits li { font-size: 13px; padding: 5px 0; padding-left: 20px; position: relative; line-height: 1.5; }
+        .benefits { margin: 12px 0; }
+        .benefits h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--ni-deep-blue); margin-bottom: 6px; }
+        .benefits ul { list-style: none; padding: 0; columns: 2; column-gap: 24px; }
+        .benefits li { font-size: 12px; padding: 3px 0; padding-left: 18px; position: relative; line-height: 1.5; break-inside: avoid; }
         .benefits li::before { content: '\2713'; position: absolute; left: 0; color: var(--success); font-weight: 700; }
 
-        .dosage { background: #f0f7ff; border-left: 3px solid var(--ni-blue); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 13px; line-height: 1.6; }
+        .info-box { padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 12px; line-height: 1.6; }
+        .dosage { background: #f0f7ff; border-left: 3px solid var(--ni-blue); }
         .dosage strong { color: var(--ni-deep-blue); }
-
-        .clinical { background: #f0fdf4; border-left: 3px solid var(--success); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 13px; line-height: 1.6; }
+        .clinical { background: #f0fdf4; border-left: 3px solid var(--success); }
         .clinical strong { color: #15803d; }
-
-        .talking-points { background: #fffbeb; border-left: 3px solid #d97706; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 13px; line-height: 1.6; }
+        .talking-points { background: #fffbeb; border-left: 3px solid #d97706; }
         .talking-points strong { color: #92400e; }
 
-        .ref-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 13px; }
-        .ref-table th { background: var(--ni-main); color: #fff; padding: 10px 14px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
-        .ref-table td { padding: 10px 14px; border-bottom: 1px solid #e2e4e8; }
+        .ref-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
+        .ref-table th { background: var(--ni-main); color: #fff; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+        .ref-table td { padding: 8px 10px; border-bottom: 1px solid #e2e4e8; }
         .ref-table tr:nth-child(even) td { background: var(--ni-cream); }
+        .ref-table .mono { font-family: monospace; font-size: 11px; }
 
-        .footer { text-align: center; padding: 32px; font-size: 12px; color: #999; border-top: 1px solid #e2e4e8; margin-top: 32px; }
+        .footer { text-align: center; padding: 24px; font-size: 11px; color: #999; border-top: 1px solid #e2e4e8; margin-top: 24px; }
 
+        .print-btn { position: fixed; bottom: 24px; right: 24px; background: var(--ni-deep-blue); color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-family: var(--sans); cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.2); z-index: 100; }
+        .print-btn:hover { background: var(--ni-main); }
+
+        /* ═══ PRINT STYLES ═══ */
         @media print {
-            .product-card { break-inside: avoid; }
-            body { font-size: 12px; }
+            @page {
+                size: letter;
+                margin: 0.5in;
+            }
+            body { font-size: 11px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            .print-btn { display: none !important; }
+            .header { padding: 24px 20px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .header h1 { font-size: 22px; }
+            .container { padding: 20px 0; }
+            .intro { padding: 16px; margin-bottom: 20px; }
+            .product-card { break-inside: avoid; margin-bottom: 20px; border: 1px solid #ccc; }
+            .product-header { padding: 10px 16px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .product-header h3 { font-size: 16px; }
+            .product-body { padding: 14px 16px; }
+            .meta-grid { gap: 6px; margin-bottom: 10px; }
+            .meta-item { padding: 6px 8px; }
+            .benefits ul { columns: 2; }
+            .info-box { padding: 8px 12px; margin: 8px 0; }
+            .ref-table th, .ref-table td { padding: 6px 8px; }
+            .ref-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .footer { padding: 16px; margin-top: 16px; }
+            /* Force page break before protocols so it starts clean */
+            .protocols { break-before: auto; }
         }
         @media (max-width: 600px) {
-            .meta-grid { grid-template-columns: 1fr; }
+            .meta-grid { grid-template-columns: 1fr 1fr; }
+            .benefits ul { columns: 1; }
         }
     </style>
 </head>
 <body>
+
+<button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
 
 <div class="header">
     <h1>Nutritional Innovations — Microbiome Product Line</h1>
@@ -84,56 +114,68 @@
 
     <div class="intro">
         <h2>About This Product Line</h2>
-        <p>We have partnered with <strong>Microbiome Labs</strong>, a leader in microbiome research and spore-based probiotics, to bring a curated line of private-labeled gut health products to our pharmacy customers. Each product below is manufactured by Microbiome Labs and sold under our <strong>Nutritional Innovations</strong> brand. This guide provides the NI product name, the corresponding Microbiome Labs product, key details, and selling points for your conversations with pharmacies.</p>
+        <p>We have partnered with <strong>Microbiome Labs</strong>, a leader in microbiome research and spore-based probiotics, to bring a curated line of private-labeled gut health products to our pharmacy customers. Each product below is manufactured by Microbiome Labs and sold under our <strong>Nutritional Innovations</strong> brand. This guide provides the NI product name, the corresponding Microbiome Labs product, pricing, and selling points for your conversations with pharmacies.</p>
     </div>
 
     <!-- ═══════ QUICK REFERENCE TABLE ═══════ -->
-    <h2 style="font-family:var(--serif);font-size:20px;color:var(--ni-deep-blue);margin-bottom:12px">Quick Reference</h2>
+    <h2 style="font-family:var(--serif);font-size:18px;color:var(--ni-deep-blue);margin-bottom:10px">Quick Reference</h2>
     <table class="ref-table">
         <thead>
             <tr>
+                <th>SKU</th>
                 <th>NI Product Name</th>
                 <th>Microbiome Labs Name</th>
-                <th>Form</th>
                 <th>Size</th>
                 <th>UPC</th>
+                <th>Wholesale</th>
+                <th>Sugg. Retail</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td><strong>Ultra Spore Biotic</strong></td>
-                <td>MegaSporeBiotic 60ct (HCP)</td>
-                <td>Capsules</td>
-                <td>60 ct</td>
-                <td>813120020601</td>
-            </tr>
-            <tr>
-                <td><strong>Ultra Pre Powder</strong></td>
-                <td>MegaPre Powder V2</td>
-                <td>Powder</td>
-                <td>5.1 oz</td>
-                <td>813120040517</td>
-            </tr>
-            <tr>
-                <td><strong>GastroGuard</strong></td>
-                <td>MegaGuard V2</td>
-                <td>Capsules</td>
-                <td>60 ct</td>
-                <td>813120050608</td>
-            </tr>
-            <tr>
-                <td><strong>FloraRestore</strong></td>
-                <td>RestorFlora V2 21ct</td>
-                <td>Capsules</td>
-                <td>21 ct</td>
-                <td>813120030211</td>
-            </tr>
-            <tr>
+                <td>ML001</td>
                 <td><strong>FemFlora Balance</strong></td>
-                <td>Vaginal Balance V2</td>
-                <td>Capsules</td>
-                <td>60 ct</td>
-                <td>813120010602</td>
+                <td>Vaginal Balance</td>
+                <td>60 Caps</td>
+                <td class="mono">850086669017</td>
+                <td>$21.36</td>
+                <td>$33.65</td>
+            </tr>
+            <tr>
+                <td>ML002</td>
+                <td><strong>Ultra Spore Biotic</strong></td>
+                <td>MegaSporeBiotic</td>
+                <td>60 Caps</td>
+                <td class="mono">850086669048</td>
+                <td>$46.25</td>
+                <td>$66.25</td>
+            </tr>
+            <tr>
+                <td>ML003</td>
+                <td><strong>FloraRestore</strong></td>
+                <td>RestorFlora</td>
+                <td>21 Caps</td>
+                <td class="mono">850086669024</td>
+                <td>$14.51</td>
+                <td>$22.87</td>
+            </tr>
+            <tr>
+                <td>ML004</td>
+                <td><strong>Ultra Pre Powder</strong></td>
+                <td>MegaPre Precision Prebiotic</td>
+                <td>5.1 oz</td>
+                <td class="mono">850086669031</td>
+                <td>$46.45</td>
+                <td>$66.58</td>
+            </tr>
+            <tr>
+                <td>ML005</td>
+                <td><strong>GastroGuard</strong></td>
+                <td>MegaGuard</td>
+                <td>60 Caps</td>
+                <td class="mono">850086669055</td>
+                <td>$40.65</td>
+                <td>$58.25</td>
             </tr>
         </tbody>
     </table>
@@ -141,14 +183,18 @@
     <!-- ═══════ PRODUCT 1: Ultra Spore Biotic ═══════ -->
     <div class="product-card">
         <div class="product-header">
-            <h3>Ultra Spore Biotic</h3>
+            <div>
+                <h3>Ultra Spore Biotic</h3>
+                <div class="sku">ML002</div>
+            </div>
             <span class="origin">Microbiome Labs: MegaSporeBiotic</span>
         </div>
         <div class="product-body">
             <div class="meta-grid">
-                <div class="meta-item"><div class="label">UPC</div><div class="value">813120020601</div></div>
+                <div class="meta-item"><div class="label">UPC</div><div class="value">850086669048</div></div>
                 <div class="meta-item"><div class="label">Size</div><div class="value">60 Capsules</div></div>
-                <div class="meta-item"><div class="label">Category</div><div class="value">Probiotics / GI Health</div></div>
+                <div class="meta-item"><div class="label">Wholesale</div><div class="value price">$46.25</div></div>
+                <div class="meta-item"><div class="label">Sugg. Retail</div><div class="value price">$66.25</div></div>
             </div>
 
             <p>A 100% spore-based, broad-spectrum probiotic containing five <em>Bacillus</em> strains. The spores remain dormant until reaching the GI tract, where they activate and colonize. No refrigeration required.</p>
@@ -161,18 +207,19 @@
                     <li>Supports immune function</li>
                     <li>Shelf-stable — no refrigeration needed</li>
                     <li>Survives stomach acid to reach the intestines</li>
+                    <li>100% spore-based formula</li>
                 </ul>
             </div>
 
-            <div class="dosage">
+            <div class="info-box dosage">
                 <strong>Dosage:</strong> Start with 1 capsule every other day (Week 1), then 1 daily (Week 2), then 2 daily (Week 3+). Gradual ramp-up minimizes die-off symptoms.
             </div>
 
-            <div class="clinical">
+            <div class="info-box clinical">
                 <strong>Clinical Backing:</strong> Supported by 10+ peer-reviewed studies demonstrating efficacy for triglyceride support, immune function, digestive health, and short-chain fatty acid production.
             </div>
 
-            <div class="talking-points">
+            <div class="info-box talking-points">
                 <strong>Selling Points:</strong> This is the flagship product. Spore-based probiotics are fundamentally different from traditional lactobacillus probiotics — they actually survive the stomach and colonize the gut. No cold chain needed, which is huge for pharmacy shelf life. Great entry point for the whole line.
             </div>
         </div>
@@ -181,38 +228,43 @@
     <!-- ═══════ PRODUCT 2: Ultra Pre Powder ═══════ -->
     <div class="product-card">
         <div class="product-header">
-            <h3>Ultra Pre Powder</h3>
-            <span class="origin">Microbiome Labs: MegaPre Powder</span>
+            <div>
+                <h3>Ultra Pre Powder</h3>
+                <div class="sku">ML004</div>
+            </div>
+            <span class="origin">Microbiome Labs: MegaPre Precision Prebiotic</span>
         </div>
         <div class="product-body">
             <div class="meta-grid">
-                <div class="meta-item"><div class="label">UPC</div><div class="value">813120040517</div></div>
+                <div class="meta-item"><div class="label">UPC</div><div class="value">850086669031</div></div>
                 <div class="meta-item"><div class="label">Size</div><div class="value">5.1 oz Powder</div></div>
-                <div class="meta-item"><div class="label">Category</div><div class="value">Prebiotics / GI Health</div></div>
+                <div class="meta-item"><div class="label">Wholesale</div><div class="value price">$46.45</div></div>
+                <div class="meta-item"><div class="label">Sugg. Retail</div><div class="value price">$66.58</div></div>
             </div>
 
-            <p>A precision prebiotic made up of clinically tested, non-digestible oligosaccharides from non-GMO kiwifruit, corn cob, and rBST-free cow's milk. Designed to selectively feed beneficial keystone bacteria rather than all gut bacteria indiscriminately.</p>
+            <p>A precision prebiotic made up of clinically tested, non-digestible oligosaccharides from non-GMO kiwifruit, corn cob, and rBST-free cow's milk. Selectively feeds beneficial keystone bacteria rather than all gut bacteria indiscriminately.</p>
 
             <div class="benefits">
                 <h4>Key Benefits</h4>
                 <ul>
                     <li>Increases microbial diversity</li>
-                    <li>Selectively feeds keystone bacteria: <em>Akkermansia muciniphila</em>, <em>Faecalibacterium prausnitzii</em>, and <em>Bifidobacteria</em></li>
-                    <li>Reinforces the beneficial changes created by Ultra Spore Biotic</li>
+                    <li>Selectively feeds <em>Akkermansia</em>, <em>F. prausnitzii</em>, and <em>Bifidobacteria</em></li>
+                    <li>Reinforces changes created by Ultra Spore Biotic</li>
                     <li>Supports short-chain fatty acid (SCFA) production</li>
                     <li>Promotes intestinal barrier and immune function</li>
+                    <li>Easy-to-mix powder format</li>
                 </ul>
             </div>
 
-            <div class="dosage">
+            <div class="info-box dosage">
                 <strong>Dosage (Ages 4+):</strong> Mix into water or beverage. Start slow and increase as tolerated. Pairs best when taken alongside Ultra Spore Biotic.
             </div>
 
-            <div class="clinical">
+            <div class="info-box clinical">
                 <strong>Clinical Backing:</strong> Studies show the synbiotic combination (MegaSporeBiotic + MegaPre) promoted microbial diversity in the transverse and descending colon and supported SCFA production including acetate, propionate, and butyrate.
             </div>
 
-            <div class="talking-points">
+            <div class="info-box talking-points">
                 <strong>Selling Points:</strong> This is NOT a generic prebiotic fiber — it's a precision prebiotic that feeds specific beneficial strains. Pairs perfectly with Ultra Spore Biotic as a 1-2 punch. The powder format is easy to mix into any drink and great for patients who can't swallow capsules.
             </div>
         </div>
@@ -221,14 +273,18 @@
     <!-- ═══════ PRODUCT 3: GastroGuard ═══════ -->
     <div class="product-card">
         <div class="product-header">
-            <h3>GastroGuard</h3>
+            <div>
+                <h3>GastroGuard</h3>
+                <div class="sku">ML005</div>
+            </div>
             <span class="origin">Microbiome Labs: MegaGuard</span>
         </div>
         <div class="product-body">
             <div class="meta-grid">
-                <div class="meta-item"><div class="label">UPC</div><div class="value">813120050608</div></div>
+                <div class="meta-item"><div class="label">UPC</div><div class="value">850086669055</div></div>
                 <div class="meta-item"><div class="label">Size</div><div class="value">60 Capsules</div></div>
-                <div class="meta-item"><div class="label">Category</div><div class="value">Digestive Support</div></div>
+                <div class="meta-item"><div class="label">Wholesale</div><div class="value price">$40.65</div></div>
+                <div class="meta-item"><div class="label">Sugg. Retail</div><div class="value price">$58.25</div></div>
             </div>
 
             <p>A botanical digestive support formula combining three clinically studied ingredients: licorice polyphenols, artichoke leaf extract, and ginger. Targets upper GI comfort — acid regulation, bloating, and motility.</p>
@@ -241,14 +297,15 @@
                     <li>Supports healthy H. pylori levels</li>
                     <li>Reduces occasional gas and bloating</li>
                     <li>Provides gastric balance without PPIs</li>
+                    <li>Three botanical ingredients</li>
                 </ul>
             </div>
 
-            <div class="dosage">
+            <div class="info-box dosage">
                 <strong>Dosage (Ages 8+):</strong> Take 1 capsule with lunch and 1 with dinner, or as directed by a healthcare practitioner.
             </div>
 
-            <div class="talking-points">
+            <div class="info-box talking-points">
                 <strong>Selling Points:</strong> Huge opportunity with patients looking for natural alternatives to PPIs and antacids. The licorice + artichoke + ginger combo addresses bloating, reflux, and motility without the long-term risks of acid suppression drugs. Easy add-on recommendation alongside the probiotic line.
             </div>
         </div>
@@ -257,14 +314,18 @@
     <!-- ═══════ PRODUCT 4: FloraRestore ═══════ -->
     <div class="product-card">
         <div class="product-header">
-            <h3>FloraRestore</h3>
+            <div>
+                <h3>FloraRestore</h3>
+                <div class="sku">ML003</div>
+            </div>
             <span class="origin">Microbiome Labs: RestorFlora</span>
         </div>
         <div class="product-body">
             <div class="meta-grid">
-                <div class="meta-item"><div class="label">UPC</div><div class="value">813120030211</div></div>
+                <div class="meta-item"><div class="label">UPC</div><div class="value">850086669024</div></div>
                 <div class="meta-item"><div class="label">Size</div><div class="value">21 Capsules</div></div>
-                <div class="meta-item"><div class="label">Category</div><div class="value">Probiotics / GI Health</div></div>
+                <div class="meta-item"><div class="label">Wholesale</div><div class="value price">$14.51</div></div>
+                <div class="meta-item"><div class="label">Sugg. Retail</div><div class="value price">$22.87</div></div>
             </div>
 
             <p>A dual-action probiotic combining probiotic yeast (<em>Saccharomyces boulardii</em>) with spore-based bacteria (<em>Bacillus subtilis</em> HU58, <em>B. coagulans</em>, and <em>B. clausii</em>). Designed for targeted intestinal restoration.</p>
@@ -276,19 +337,20 @@
                     <li>Promotes healthy bowel movements and regularity</li>
                     <li>Aids digestion and supports detoxification</li>
                     <li>Maintains healthy immune function</li>
-                    <li>Contains <em>S. boulardii</em> — well-studied for antibiotic-associated GI issues</li>
+                    <li>Contains <em>S. boulardii</em> — proven for antibiotic-associated GI issues</li>
+                    <li>Capsules can be opened and sprinkled on food</li>
                 </ul>
             </div>
 
-            <div class="dosage">
+            <div class="info-box dosage">
                 <strong>Dosage:</strong> 1-2 capsules per day with a meal. Capsules can be opened and sprinkled on soft foods or non-carbonated beverages.
             </div>
 
-            <div class="clinical">
+            <div class="info-box clinical">
                 <strong>Clinical Backing:</strong> Demonstrated support for intestinal epithelial barrier function and immune function in published research. A 90-day study showed the combined formula supports the body's metabolic processes.
             </div>
 
-            <div class="talking-points">
+            <div class="info-box talking-points">
                 <strong>Selling Points:</strong> The <em>S. boulardii</em> component makes this a natural pairing with antibiotic prescriptions — pharmacists can recommend it at the counter. The 21-count size is perfect for a course alongside a typical antibiotic Rx. Great for travel-related GI support too.
             </div>
         </div>
@@ -297,14 +359,18 @@
     <!-- ═══════ PRODUCT 5: FemFlora Balance ═══════ -->
     <div class="product-card">
         <div class="product-header">
-            <h3>FemFlora Balance</h3>
+            <div>
+                <h3>FemFlora Balance</h3>
+                <div class="sku">ML001</div>
+            </div>
             <span class="origin">Microbiome Labs: Vaginal Balance</span>
         </div>
         <div class="product-body">
             <div class="meta-grid">
-                <div class="meta-item"><div class="label">UPC</div><div class="value">813120010602</div></div>
+                <div class="meta-item"><div class="label">UPC</div><div class="value">850086669017</div></div>
                 <div class="meta-item"><div class="label">Size</div><div class="value">60 Capsules</div></div>
-                <div class="meta-item"><div class="label">Category</div><div class="value">Women's Health</div></div>
+                <div class="meta-item"><div class="label">Wholesale</div><div class="value price">$21.36</div></div>
+                <div class="meta-item"><div class="label">Sugg. Retail</div><div class="value price">$33.65</div></div>
             </div>
 
             <p>A probiotic blend featuring five <em>Lactobacillus</em> strains commonly found in a healthy vaginal microbiome, plus 500mg cranberry powder. Designed to support vaginal pH, yeast balance, and urinary tract health.</p>
@@ -316,26 +382,27 @@
                     <li>Promotes vaginal yeast and bacterial balance</li>
                     <li>Supports urinary tract health</li>
                     <li>Contains 500mg cranberry powder for UTI support</li>
-                    <li>Also supports immune and digestive health</li>
+                    <li>Supports immune and digestive health</li>
+                    <li>Five clinically studied Lactobacillus strains</li>
                 </ul>
             </div>
 
-            <div class="dosage">
+            <div class="info-box dosage">
                 <strong>Dosage (Ages 18+):</strong> 2 capsules daily.
             </div>
 
-            <div class="clinical">
+            <div class="info-box clinical">
                 <strong>Clinical Backing:</strong> Supported by randomized controlled trials showing probiotic <em>Lactobacillus</em> strains improve vaginal microbiota balance and reduce bacteria-related discomfort compared to placebo.
             </div>
 
-            <div class="talking-points">
+            <div class="info-box talking-points">
                 <strong>Selling Points:</strong> Natural recommendation alongside antifungal Rx or for patients with recurrent vaginal or UTI issues. The cranberry + lactobacillus combination covers both vaginal and urinary health in one product. Discreet branding under "FemFlora Balance" makes it easy to display and recommend.
             </div>
         </div>
     </div>
 
     <!-- ═══════ RECOMMENDED PROTOCOLS ═══════ -->
-    <div class="intro" style="margin-top:32px">
+    <div class="intro protocols" style="margin-top:28px">
         <h2>Recommended Stacking Protocols</h2>
         <p style="margin-bottom:12px">These products are designed to work together. Here are common recommendations:</p>
         <p><strong>Total Gut Restoration (Core Stack):</strong><br>
