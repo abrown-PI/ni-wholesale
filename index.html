@@ -548,6 +548,113 @@
             body.admin-mode-active { padding-left: 0 !important; }
             body.admin-mode-active .page { padding: 0 !important; }
         }
+
+        /* ══════════════════════════════════════════════════════
+           ADMIN TABLE RESKIN  (Reviv-style with NI branding — admin mode only)
+           ══════════════════════════════════════════════════════ */
+        body.admin-mode-active { background: var(--ni-linen); }
+        body.admin-mode-active .card {
+            background: #fff;
+            border: 1px solid rgba(50,54,57,.08);
+            border-radius: 4px;
+            padding: 0;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 2px rgba(50,54,57,.03);
+            overflow: hidden;
+        }
+        body.admin-mode-active .card-header {
+            padding: 18px 24px;
+            margin-bottom: 0;
+            border-bottom: 1px solid rgba(50,54,57,.08);
+        }
+        body.admin-mode-active .card-header h2 {
+            font-family: var(--serif);
+            font-size: 17px;
+            letter-spacing: 1px;
+            color: var(--ni-navy);
+        }
+        body.admin-mode-active .card > *:not(.card-header) { padding-left: 24px; padding-right: 24px; }
+        body.admin-mode-active .card > .table-wrap { padding-left: 0; padding-right: 0; }
+        body.admin-mode-active .card > *:last-child { padding-bottom: 16px; }
+        body.admin-mode-active .card > .table-wrap:last-child { padding-bottom: 0; }
+
+        body.admin-mode-active .filter-bar {
+            padding-top: 16px;
+            padding-bottom: 0;
+        }
+
+        /* Table reskin — applies inside admin shell only */
+        body.admin-mode-active table {
+            font-size: 13px;
+        }
+        body.admin-mode-active th {
+            background: var(--ni-linen);
+            color: var(--gray-500);
+            font-weight: 600;
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-align: left;
+            padding: 14px 24px;
+            border-bottom: 1px solid rgba(50,54,57,.08);
+        }
+        body.admin-mode-active .table-wrap thead th {
+            background: var(--ni-linen);
+            box-shadow: 0 1px 0 rgba(50,54,57,.08);
+        }
+        body.admin-mode-active td {
+            padding: 14px 24px;
+            border-bottom: 1px solid rgba(50,54,57,.06);
+            font-size: 13px;
+            color: var(--ni-charcoal);
+            vertical-align: middle;
+        }
+        body.admin-mode-active tbody tr {
+            transition: background-color .12s;
+        }
+        body.admin-mode-active tbody tr:hover {
+            background: rgba(206,200,191,.18);
+        }
+        body.admin-mode-active tbody tr:last-child td {
+            border-bottom: none;
+        }
+        /* Subtle muted color for secondary text columns */
+        body.admin-mode-active td.muted,
+        body.admin-mode-active td .muted-text {
+            color: var(--gray-500);
+        }
+
+        /* Tighten action button column spacing in admin tables */
+        body.admin-mode-active td .btn-sm + .btn-sm {
+            margin-left: 4px;
+        }
+
+        /* Stats grid tweak inside admin shell — softer cards to match */
+        body.admin-mode-active .stats-grid .stat-card {
+            background: #fff;
+            border: 1px solid rgba(50,54,57,.08);
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(50,54,57,.03);
+        }
+        body.admin-mode-active .stat-label {
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--gray-500);
+            font-weight: 600;
+        }
+        body.admin-mode-active .stat-value {
+            font-family: var(--serif);
+            font-size: 28px;
+            color: var(--ni-navy);
+            margin-top: 6px;
+        }
+
+        /* Page block padding inside admin */
+        body.admin-mode-active .page {
+            padding: 28px 32px;
+            background: transparent;
+        }
     </style>
 </head>
 <body>
