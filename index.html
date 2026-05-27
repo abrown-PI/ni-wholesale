@@ -799,7 +799,7 @@
             <span class="logged-in-name" id="loggedInName" style="display:none"></span>
             <button class="login-btn" id="loginRegisterBtn" onclick="openModal('loginModal')">&#128100; Login / Register</button>
             <button class="login-btn" id="logoutBtn" style="display:none" onclick="logoutAccount()">Logout</button>
-            <button class="admin-toggle" id="adminToggle" onclick="toggleAdmin()">Admin</button>
+            <button class="admin-toggle" id="adminToggle" onclick="toggleAdmin()" style="display:none">Admin</button>
         </div>
     </div>
     <div class="navbar-bottom">
@@ -4730,12 +4730,60 @@ var ADMIN_PAGE_TITLES = {
     'admin-users': 'Admin Users'
 };
 
-function navigate(pageId) {
+// ── URL path routing ──
+// Map between page IDs and URL paths so /admin works like Reviv.
+function pageToPath(pageId) {
+    if (!pageId || pageId === 'home') return '/';
+    if (pageId === 'admin-dashboard') return '/admin';
+    if (pageId === 'shipping-info') return '/shipping';
+    if (pageId.startsWith('admin-')) {
+        return '/admin/' + pageId.slice(6).replace(/-/g, '/');
+    }
+    return '/' + pageId;
+}
+function pathToPage(path) {
+    path = (path || '/').replace(/\/+$/, '') || '/';
+    if (path === '/') return 'home';
+    if (path === '/admin') return 'admin-dashboard';
+    if (path === '/shipping') return 'shipping-info';
+    if (path.startsWith('/admin/')) {
+        return 'admin-' + path.slice(7).replace(/\//g, '-');
+    }
+    return path.slice(1).replace(/\//g, '-');
+}
+function isAdminPage(pageId) { return pageId && pageId.indexOf('admin-') === 0; }
+
+function navigate(pageId, opts) {
+    opts = opts || {};
+    // URL path is the source of truth: admin pages → admin mode on; anything else → off.
+    var shouldBeAdmin = isAdminPage(pageId);
+    if (DATA.adminMode !== shouldBeAdmin) {
+        DATA.adminMode = shouldBeAdmin;
+        saveData();
+        // Toggle the body class directly to avoid recursion into navigate.
+        if (shouldBeAdmin) document.body.classList.add('admin-mode-active');
+        else document.body.classList.remove('admin-mode-active');
+        const tb = document.getElementById('adminToggle');
+        if (tb) tb.classList.toggle('active', shouldBeAdmin);
+        var session = loadSession();
+        var userLabel = session ? (session.name || session.email || '') : 'Admin';
+        var userEl = document.getElementById('adminSidebarUser');
+        var topUserEl = document.getElementById('adminTopbarUser');
+        if (userEl) userEl.textContent = userLabel;
+        if (topUserEl) topUserEl.textContent = userLabel ? 'Signed in as ' + userLabel : '';
+    }
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.navbar-nav a').forEach(a => a.classList.remove('active'));
     document.querySelectorAll('.admin-nav-link').forEach(a => a.classList.remove('active'));
     const page = document.getElementById('page-' + pageId);
     if (page) page.classList.add('active');
+    // Update URL via History API (skip if we're just responding to popstate or initial load)
+    if (!opts.skipHistory) {
+        var newPath = pageToPath(pageId);
+        if (location.pathname !== newPath) {
+            history.pushState({ pageId: pageId }, '', newPath);
+        }
+    }
     const link = document.querySelector('.navbar-nav a[data-page="' + pageId + '"]');
     if (link) link.classList.add('active');
     const sideLink = document.querySelector('.admin-nav-link[data-page="' + pageId + '"]');
@@ -10014,11 +10062,25 @@ function renderShippingInfoPage() {
 // INIT
 // ════════════════════════════════════════════════════
 loadData();
-applyAdminMode();
 populateVendorDropdowns();
-renderFeatured();
 renderCart();
 updateLoginUI();
+
+// Browser back/forward — URL is source of truth
+window.addEventListener('popstate', function(e) {
+    var pageId = (e.state && e.state.pageId) || pathToPage(location.pathname);
+    navigate(pageId, { skipHistory: true });
+});
+
+// Initial route: drop the user on the page that matches their URL
+(function initialRoute() {
+    var pageId = pathToPage(location.pathname);
+    // Force adminMode boolean to align with URL before navigate runs
+    DATA.adminMode = isAdminPage(pageId);
+    saveData();
+    navigate(pageId, { skipHistory: true });
+    history.replaceState({ pageId: pageId }, '', pageToPath(pageId));
+})();
 
 // Initialize default admin users if not present
 if (!localStorage.getItem(ADMIN_USERS_KEY)) {
