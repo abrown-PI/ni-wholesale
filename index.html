@@ -3988,83 +3988,227 @@ function resetGeneralSettings() {
     showToast('Settings reset to defaults');
 }
 
-// ── Site Info / Integrations (read-only reference page) ──
+// ── Site Info / Integrations (editable) ──
+function getDefaultSiteInfo() {
+    return {
+        deployment: {
+            hosting: 'Vercel',
+            hostingUrl: 'https://vercel.com/abrown-pis-projects/ni-wholesale',
+            liveUrl: 'https://www.nutritionalinnovations.net',
+            repoUrl: 'https://github.com/abrown-PI/ni-wholesale',
+            deployBranch: 'master (auto-deploy on push)',
+            howToUpdate: 'Edit code locally → git commit → git push origin master → Vercel auto-deploys within ~1 minute.'
+        },
+        dns: {
+            domain: 'nutritionalinnovations.net',
+            dnsHost: 'A2 Hosting cPanel → Zone Editor',
+            apexRecord: 'A 76.76.21.21 (Vercel)',
+            wwwRecord: 'CNAME cname.vercel-dns.com',
+            sslProvider: 'Vercel (auto-provisioned via Let’s Encrypt)'
+        },
+        ringcentral: {
+            providerUrl: 'https://service.ringcentral.com',
+            accountNumber: '',
+            mainLine: '',
+            supportContact: 'RingCentral Support: 888-528-7464',
+            notes: 'Edit in RingCentral admin → Phone System → Phone Numbers. Update the storefront phone in Store Settings.'
+        },
+        resend: {
+            providerUrl: 'https://resend.com/login',
+            fromAddress: '',
+            replyTo: '',
+            apiKeyLocation: 'Stored as RESEND_API_KEY in Vercel project Env Vars + local .env.local. Never commit.',
+            domainVerification: 'Required in Resend dashboard before sending. Add the DNS records Resend provides (DKIM/SPF) at A2 Zone Editor.',
+            currentStatus: 'NI emails are queued locally only (Email Queue page). Real sending lands when the Next.js layer is wired.'
+        },
+        supabase: {
+            providerUrl: 'https://supabase.com',
+            projectUrl: '',
+            schemaFile: 'supabase-schema.sql (canonical target)',
+            migrations: 'migrations/01-07 — run in Supabase SQL Editor in order; back up first',
+            currentWiring: 'Front end is localStorage-only on this build. Schema is ready for the Next.js wiring to land.',
+            serviceRoleKeyLocation: 'NOT in this app. When wired: SUPABASE_SERVICE_ROLE_KEY in Vercel Env Vars. Never commit.'
+        },
+        stripe: {
+            providerUrl: 'https://dashboard.stripe.com',
+            currentStatus: 'Stubbed — card-method orders create entries in Payments log with payment_status \"Unpaid\" for manual confirmation. No real charges processed.',
+            publishableKeyLocation: 'When wired: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (safe to commit to client)',
+            secretKeyLocation: 'When wired: STRIPE_SECRET_KEY in Vercel Env Vars (server-only, never commit)',
+            webhookEndpoint: 'When wired: /api/stripe/webhook (Stripe dashboard → Webhooks)'
+        }
+    };
+}
+
+// Defines the editable cards — each has fields with type 'text', 'url', or 'textarea'
+function siteInfoCardDefs() {
+    return [
+        {
+            section: 'deployment', title: 'Deployment', fields: [
+                { key: 'hosting', label: 'Hosting' },
+                { key: 'hostingUrl', label: 'Hosting Dashboard URL', type: 'url' },
+                { key: 'liveUrl', label: 'Live URL', type: 'url' },
+                { key: 'repoUrl', label: 'Source Repo URL', type: 'url' },
+                { key: 'deployBranch', label: 'Deploy Branch' },
+                { key: 'howToUpdate', label: 'How to Update', type: 'textarea' }
+            ]
+        },
+        {
+            section: 'dns', title: 'Domain & DNS', fields: [
+                { key: 'domain', label: 'Domain' },
+                { key: 'dnsHost', label: 'DNS Host' },
+                { key: 'apexRecord', label: 'Apex (@) Record' },
+                { key: 'wwwRecord', label: 'www Record' },
+                { key: 'sslProvider', label: 'SSL Provider' }
+            ]
+        },
+        {
+            section: 'ringcentral', title: 'Phone — RingCentral', fields: [
+                { key: 'providerUrl', label: 'Provider URL', type: 'url' },
+                { key: 'accountNumber', label: 'Account Number' },
+                { key: 'mainLine', label: 'Main Line' },
+                { key: 'supportContact', label: 'Support Contact' },
+                { key: 'notes', label: 'Notes', type: 'textarea' }
+            ]
+        },
+        {
+            section: 'resend', title: 'Email — Resend', fields: [
+                { key: 'providerUrl', label: 'Provider URL', type: 'url' },
+                { key: 'fromAddress', label: 'From Address' },
+                { key: 'replyTo', label: 'Reply-To' },
+                { key: 'apiKeyLocation', label: 'API Key Location' },
+                { key: 'domainVerification', label: 'Domain Verification', type: 'textarea' },
+                { key: 'currentStatus', label: 'Current Status', type: 'textarea' }
+            ]
+        },
+        {
+            section: 'supabase', title: 'Database — Supabase', fields: [
+                { key: 'providerUrl', label: 'Provider URL', type: 'url' },
+                { key: 'projectUrl', label: 'Project URL', type: 'url' },
+                { key: 'schemaFile', label: 'Schema File' },
+                { key: 'migrations', label: 'Migrations' },
+                { key: 'currentWiring', label: 'Current Wiring', type: 'textarea' },
+                { key: 'serviceRoleKeyLocation', label: 'Service Role Key Location' }
+            ]
+        },
+        {
+            section: 'stripe', title: 'Payments — Stripe', fields: [
+                { key: 'providerUrl', label: 'Provider URL', type: 'url' },
+                { key: 'currentStatus', label: 'Current Status', type: 'textarea' },
+                { key: 'publishableKeyLocation', label: 'Publishable Key Location' },
+                { key: 'secretKeyLocation', label: 'Secret Key Location' },
+                { key: 'webhookEndpoint', label: 'Webhook Endpoint' }
+            ]
+        }
+    ];
+}
+
+var SITE_INFO_EDIT_MODE = false;
+
+function ensureSiteInfo() {
+    if (!DATA.settings) DATA.settings = {};
+    if (!DATA.settings.siteInfo) DATA.settings.siteInfo = getDefaultSiteInfo();
+    // Defensive: fill in any missing section/key with default value
+    var defaults = getDefaultSiteInfo();
+    Object.keys(defaults).forEach(function(s) {
+        if (!DATA.settings.siteInfo[s]) DATA.settings.siteInfo[s] = {};
+        Object.keys(defaults[s]).forEach(function(k) {
+            if (DATA.settings.siteInfo[s][k] == null) DATA.settings.siteInfo[s][k] = defaults[s][k];
+        });
+    });
+    // Auto-populate live values from other settings if blank
+    var si = DATA.settings.siteInfo;
+    var gen = (DATA.settings.general) || {};
+    var em = (DATA.settings.emailFrom) || {};
+    if (!si.ringcentral.mainLine) si.ringcentral.mainLine = gen.storePhone || '';
+    if (!si.resend.fromAddress) si.resend.fromAddress = em.fromEmail || '';
+    if (!si.resend.replyTo) si.resend.replyTo = em.replyTo || '';
+}
+
+function toggleSiteInfoEdit() {
+    SITE_INFO_EDIT_MODE = !SITE_INFO_EDIT_MODE;
+    renderSiteInfo();
+}
+
+function saveSiteInfo() {
+    ensureSiteInfo();
+    var defs = siteInfoCardDefs();
+    defs.forEach(function(card) {
+        card.fields.forEach(function(f) {
+            var el = document.getElementById('si_' + card.section + '_' + f.key);
+            if (el) DATA.settings.siteInfo[card.section][f.key] = el.value.trim();
+        });
+    });
+    saveData();
+    SITE_INFO_EDIT_MODE = false;
+    renderSiteInfo();
+    showToast('Site info saved');
+}
+
+function resetSiteInfoSection(section) {
+    if (!confirm('Reset the "' + section + '" section to default values?')) return;
+    var defaults = getDefaultSiteInfo();
+    DATA.settings.siteInfo[section] = defaults[section];
+    saveData();
+    renderSiteInfo();
+    showToast(section + ' reset to defaults');
+}
+
 function renderSiteInfo() {
+    ensureSiteInfo();
     var container = document.getElementById('adminSiteInfoBody');
     if (!container) return;
-    var infoCard = function(title, rows, extra) {
-        var rowHtml = rows.map(function(r) {
-            return '<tr><th style="text-align:left;padding:10px 16px 10px 0;vertical-align:top;font-weight:600;color:var(--gray-600);width:200px;font-size:12px;text-transform:uppercase;letter-spacing:1px">' + esc(r.label) + '</th>' +
-                '<td style="padding:10px 0;color:var(--ni-charcoal);font-family:var(--sans);font-size:13px">' + (r.html || esc(r.value || '--')) + '</td></tr>';
-        }).join('');
-        return '<div class="card">' +
-            '<div class="card-header"><h2>' + esc(title) + '</h2></div>' +
-            '<table style="width:100%;border-collapse:collapse">' + rowHtml + '</table>' +
-            (extra ? '<div style="padding:12px 0 0;color:var(--gray-600);font-family:var(--sans);font-size:12px;line-height:1.6">' + extra + '</div>' : '') +
-        '</div>';
-    };
+    var data = DATA.settings.siteInfo;
+    var defs = siteInfoCardDefs();
+    var editing = SITE_INFO_EDIT_MODE;
 
     var banner = '<div style="background:#eef2f9;border-left:4px solid var(--ni-deep-blue);padding:14px 18px;border-radius:var(--radius);margin-bottom:24px;font-family:var(--sans);font-size:13px;color:var(--ni-navy);line-height:1.55">' +
-        '<strong>Reference page only.</strong> Account identifiers and dashboard URLs are listed here for the team. No passwords or API keys are stored on this page — they live in environment variables and the respective vendor dashboards.' +
+        '<strong>Site info reference.</strong> Account identifiers and dashboard URLs the team needs. ' +
+        '<strong>Never paste API keys or passwords here</strong> — they live in environment variables and the respective vendor dashboards.' +
         '</div>';
 
-    var html = banner;
+    var toolbar = '<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:16px">' +
+        (editing
+            ? '<button class="btn btn-outline" onclick="toggleSiteInfoEdit()">Cancel</button>' +
+              '<button class="btn btn-primary" onclick="saveSiteInfo()">Save Changes</button>'
+            : '<button class="btn btn-primary" onclick="toggleSiteInfoEdit()">Edit</button>') +
+        '</div>';
 
-    // Deployment
-    html += infoCard('Deployment', [
-        { label: 'Hosting', html: 'Vercel — <a href="https://vercel.com/abrown-pis-projects/ni-wholesale" target="_blank" style="color:var(--ni-deep-blue)">project dashboard</a>' },
-        { label: 'Live URL', html: '<a href="https://www.nutritionalinnovations.net" target="_blank" style="color:var(--ni-deep-blue)">https://www.nutritionalinnovations.net</a> <span style="color:var(--gray-500)">(also: ni-wholesale.vercel.app)</span>' },
-        { label: 'Source Repo', html: '<a href="https://github.com/abrown-PI/ni-wholesale" target="_blank" style="color:var(--ni-deep-blue)">github.com/abrown-PI/ni-wholesale</a>' },
-        { label: 'Deploy Branch', value: 'master (auto-deploy on push)' },
-        { label: 'How to Update', html: 'Edit code locally → <code>git commit</code> → <code>git push origin master</code> → Vercel auto-deploys within ~1 minute.' }
-    ]);
+    var html = banner + toolbar;
 
-    // Domain & DNS
-    html += infoCard('Domain & DNS', [
-        { label: 'Domain', value: 'nutritionalinnovations.net' },
-        { label: 'DNS Host', html: 'A2 Hosting cPanel → Zone Editor' },
-        { label: 'Apex (@) Record', value: 'A 76.76.21.21 (Vercel)' },
-        { label: 'www Record', value: 'CNAME cname.vercel-dns.com' },
-        { label: 'SSL Provider', value: 'Vercel (auto-provisioned via Let’s Encrypt)' }
-    ]);
+    defs.forEach(function(card) {
+        var d = data[card.section];
+        var rowsHtml = card.fields.map(function(f) {
+            var v = d[f.key] || '';
+            var inputId = 'si_' + card.section + '_' + f.key;
+            var rightHtml;
+            if (editing) {
+                if (f.type === 'textarea') {
+                    rightHtml = '<textarea class="form-control" id="' + inputId + '" rows="2" style="width:100%">' + esc(v) + '</textarea>';
+                } else {
+                    rightHtml = '<input type="' + (f.type || 'text') + '" class="form-control" id="' + inputId + '" value="' + esc(v) + '" style="width:100%">';
+                }
+            } else {
+                if (!v) {
+                    rightHtml = '<span style="color:var(--gray-500);font-style:italic">(not set)</span>';
+                } else if (f.type === 'url' || (typeof v === 'string' && /^https?:\/\//.test(v))) {
+                    rightHtml = '<a href="' + esc(v) + '" target="_blank" rel="noopener" style="color:var(--ni-deep-blue);word-break:break-all">' + esc(v) + '</a>';
+                } else {
+                    rightHtml = esc(v);
+                }
+            }
+            return '<tr>' +
+                '<th style="text-align:left;padding:10px 16px 10px 0;vertical-align:top;font-weight:600;color:var(--gray-600);width:220px;font-size:12px;text-transform:uppercase;letter-spacing:1px">' + esc(f.label) + '</th>' +
+                '<td style="padding:10px 0;color:var(--ni-charcoal);font-family:var(--sans);font-size:13px">' + rightHtml + '</td>' +
+            '</tr>';
+        }).join('');
 
-    // Phone (RingCentral)
-    html += infoCard('Phone — RingCentral', [
-        { label: 'Provider', html: '<a href="https://service.ringcentral.com" target="_blank" style="color:var(--ni-deep-blue)">RingCentral admin portal</a>' },
-        { label: 'Account Number', value: '(fill in after login — visible in RingCentral dashboard)' },
-        { label: 'Main Line', value: (DATA.settings && DATA.settings.general && DATA.settings.general.storePhone) || '814-838-2102' },
-        { label: 'Support Contact', value: 'RingCentral Support: 888-528-7464' },
-        { label: 'How to Update Numbers', value: 'Edit in RingCentral admin → Phone System → Phone Numbers. Update the storefront phone in Store Settings.' }
-    ]);
-
-    // Email (Resend)
-    html += infoCard('Email — Resend', [
-        { label: 'Provider', html: '<a href="https://resend.com" target="_blank" style="color:var(--ni-deep-blue)">resend.com</a> — dashboard at <a href="https://resend.com/login" target="_blank" style="color:var(--ni-deep-blue)">resend.com/login</a>' },
-        { label: 'From Address', value: (DATA.settings && DATA.settings.emailFrom && DATA.settings.emailFrom.fromEmail) || 'orders@nutritionalinnovations.net' },
-        { label: 'Reply-To', value: (DATA.settings && DATA.settings.emailFrom && DATA.settings.emailFrom.replyTo) || 'orders@nutritionalinnovations.net' },
-        { label: 'API Key Location', value: 'NOT in this app yet. When wired: store as RESEND_API_KEY in Vercel project Env Vars + local .env.local.' },
-        { label: 'Domain Verification', value: 'Required in Resend dashboard before sending. Add the DNS records Resend provides (DKIM/SPF) at A2 Zone Editor.' },
-        { label: 'Current Status', value: 'NI emails are queued locally only (Email Queue page). Real sending lands when the Next.js layer is wired.' }
-    ]);
-
-    // Database (Supabase)
-    html += infoCard('Database — Supabase', [
-        { label: 'Provider', html: '<a href="https://supabase.com" target="_blank" style="color:var(--ni-deep-blue)">supabase.com</a>' },
-        { label: 'Project URL', value: '(in Supabase dashboard → Project Settings → API)' },
-        { label: 'Schema File', value: 'supabase-schema.sql (canonical target)' },
-        { label: 'Migrations', value: 'migrations/01-07 — run in Supabase SQL Editor in order; back up first' },
-        { label: 'Current Wiring', value: 'Front end is localStorage-only on this build. Schema is ready for the Next.js wiring to land.' },
-        { label: 'Service Role Key Location', value: 'NOT in this app. When wired: store as SUPABASE_SERVICE_ROLE_KEY in Vercel project Env Vars. Never commit.' }
-    ]);
-
-    // Stripe (placeholder for when wired)
-    html += infoCard('Payments — Stripe (stubbed)', [
-        { label: 'Provider', html: '<a href="https://dashboard.stripe.com" target="_blank" style="color:var(--ni-deep-blue)">dashboard.stripe.com</a>' },
-        { label: 'Current Status', value: 'Stubbed — card-method orders create entries in Payments log with payment_status ‘Unpaid’ for manual confirmation. No real charges processed.' },
-        { label: 'Publishable Key Location', value: 'When wired: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (safe to commit to client)' },
-        { label: 'Secret Key Location', value: 'When wired: STRIPE_SECRET_KEY in Vercel Env Vars (server-only, never commit)' },
-        { label: 'Webhook Endpoint', value: 'When wired: /api/stripe/webhook (Stripe dashboard → Webhooks)' }
-    ]);
+        html += '<div class="card">' +
+            '<div class="card-header"><h2>' + esc(card.title) + '</h2>' +
+            (editing ? '<button class="btn btn-sm btn-outline" onclick="resetSiteInfoSection(\'' + card.section + '\')">Reset Section</button>' : '') +
+            '</div>' +
+            '<table style="width:100%;border-collapse:collapse">' + rowsHtml + '</table>' +
+        '</div>';
+    });
 
     container.innerHTML = html;
 }
