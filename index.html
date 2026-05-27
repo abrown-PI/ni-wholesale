@@ -494,9 +494,186 @@
         .cat-page-num { display: none; }
         .admin-tab-count { background: var(--gray-200); color: var(--gray-700); border-radius: 10px; padding: 1px 8px; font-size: 11px; margin-left: 6px; font-weight: 600; }
         .admin-tab.active .admin-tab-count { background: var(--ni-band); color: #fff; }
+
+        /* ══════════════════════════════════════════════════════
+           ADMIN SHELL  (sidebar + dedicated content area)
+           ══════════════════════════════════════════════════════ */
+        .admin-sidebar { position: fixed; top: 0; left: 0; width: 240px; height: 100vh; background: var(--ni-navy); color: var(--ni-cream); display: none; flex-direction: column; overflow-y: auto; z-index: 1100; font-family: var(--sans); border-right: 1px solid rgba(255,255,255,.05); }
+        body.admin-mode-active .admin-sidebar { display: flex; }
+        .admin-sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,.08); }
+        .admin-sidebar-logo img { height: 30px; filter: brightness(0) invert(1); }
+        .admin-sidebar-badge { font-size: 9px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ni-blue); background: rgba(44,132,198,.15); padding: 2px 7px; border-radius: 3px; font-family: var(--sans); }
+        .admin-section { padding: 14px 0 4px; }
+        .admin-section-label { padding: 0 24px 6px; font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(246,245,243,.45); }
+        .admin-nav-link { display: flex; align-items: center; gap: 10px; padding: 9px 24px; font-size: 13px; color: rgba(246,245,243,.65); text-decoration: none; border-left: 3px solid transparent; transition: background .15s, color .15s, border-color .15s; cursor: pointer; }
+        .admin-nav-link:hover { color: var(--ni-cream); background: rgba(255,255,255,.04); }
+        .admin-nav-link.active { color: var(--ni-cream); background: rgba(45,63,130,.18); border-left-color: var(--ni-deep-blue); }
+        .admin-nav-link svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .85; }
+        .admin-sidebar-footer { margin-top: auto; padding: 14px 20px 18px; border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 4px; }
+        .admin-sidebar-user { font-size: 10px; color: rgba(246,245,243,.5); margin: 0 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--sans); }
+        .admin-sidebar-link { color: rgba(246,245,243,.6); font-size: 12px; text-decoration: none; padding: 4px 0; transition: color .15s; cursor: pointer; }
+        .admin-sidebar-link:hover { color: var(--ni-cream); }
+
+        /* Admin main content area (right of sidebar) */
+        body.admin-mode-active { padding-left: 240px; background: var(--ni-cream); }
+        body.admin-mode-active .navbar { display: none !important; }
+        body.admin-mode-active .site-footer { display: none !important; }
+        body.admin-mode-active .page { max-width: none; padding: 24px 28px; margin: 0; }
+
+        /* Sticky topbar within admin shell */
+        .admin-topbar { display: none; }
+        body.admin-mode-active .admin-topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: #fff; border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 900; font-family: var(--sans); }
+        .admin-topbar-title { font-family: var(--serif); font-size: 20px; color: var(--ni-navy); font-weight: 600; }
+        .admin-topbar-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--gray-600); }
+        .admin-topbar-right a { color: var(--ni-blue); text-decoration: none; }
+        .admin-topbar-right a:hover { text-decoration: underline; }
+
+        /* Dashboard widget styling */
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 8px; }
+        .dashboard-grid .card { margin-bottom: 0; }
+        @media (max-width: 1100px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+        /* Responsive: collapse sidebar on small screens */
+        @media (max-width: 900px) {
+            .admin-sidebar { width: 200px; }
+            body.admin-mode-active { padding-left: 200px; }
+        }
+        @media (max-width: 640px) {
+            body.admin-mode-active .admin-sidebar { width: 100%; height: auto; position: relative; }
+            body.admin-mode-active { padding-left: 0; }
+        }
+
+        @media print {
+            .admin-sidebar, .admin-topbar { display: none !important; }
+            body.admin-mode-active { padding-left: 0 !important; }
+            body.admin-mode-active .page { padding: 0 !important; }
+        }
     </style>
 </head>
 <body>
+
+<!-- ═══════════ ADMIN SIDEBAR (shown when admin mode active) ═══════════ -->
+<aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-logo">
+        <img src="ni-logo.png" alt="NI">
+        <span class="admin-sidebar-badge">Admin</span>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-label">Overview</div>
+        <a href="#" data-page="admin-dashboard" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Dashboard
+        </a>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-label">Catalog</div>
+        <a href="#" data-page="admin-products" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 7V5a4 4 0 00-8 0v2"/></svg>
+            Products
+        </a>
+        <a href="#" data-page="admin-inventory" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            Inventory
+        </a>
+        <a href="#" data-page="admin-catalog" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+            Print Catalog
+        </a>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-label">Sales</div>
+        <a href="#" data-page="admin-orders" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
+            Orders
+        </a>
+        <a href="#" data-page="admin-customers" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            Customers
+        </a>
+        <a href="#" data-page="admin-coupons" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            Coupons
+        </a>
+        <a href="#" data-page="admin-payments" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            Payments
+        </a>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-label">Purchasing</div>
+        <a href="#" data-page="admin-vendors" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>
+            Vendors
+        </a>
+        <a href="#" data-page="admin-pos" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            Purchase Orders
+        </a>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-label">Reporting</div>
+        <a href="#" data-page="admin-reports" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Reports
+        </a>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-label">Onboarding</div>
+        <a href="#" data-page="admin-accounts" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+            Applications
+        </a>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-label">Communication</div>
+        <a href="#" data-page="admin-email-settings" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Email Templates
+        </a>
+        <a href="#" data-page="admin-email-queue" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+            Email Queue
+        </a>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-label">Settings</div>
+        <a href="#" data-page="admin-settings-general" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Store Settings
+        </a>
+        <a href="#" data-page="admin-settings-shipping" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            Shipping
+        </a>
+        <a href="#" data-page="admin-users" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            Admin Users
+        </a>
+    </div>
+
+    <div class="admin-sidebar-footer">
+        <p class="admin-sidebar-user" id="adminSidebarUser"></p>
+        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();exitAdminMode()">View Storefront &rarr;</a>
+        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();logoutAccount()">Sign Out</a>
+    </div>
+</aside>
+
+<!-- ═══════════ ADMIN TOPBAR (shown when admin mode active) ═══════════ -->
+<div class="admin-topbar" id="adminTopbar">
+    <div class="admin-topbar-title" id="adminTopbarTitle">Dashboard</div>
+    <div class="admin-topbar-right">
+        <span id="adminTopbarUser"></span>
+        <a href="#" onclick="event.preventDefault();exitAdminMode()">View Storefront &rarr;</a>
+    </div>
+</div>
 
 <!-- ═══════════ NAVBAR ═══════════ -->
 <nav class="navbar">
@@ -519,25 +696,6 @@
             <li><a href="#" data-page="home" class="active">Home</a></li>
             <li><a href="#" data-page="storefront">Shop</a></li>
             <li><a href="#" data-page="quick-order">Quick Order</a></li>
-            <li><a href="#" data-page="faq">FAQ</a></li>
-            <li><a href="#" data-page="shipping-info">Shipping</a></li>
-            <li><a href="#" data-page="returns">Returns</a></li>
-            <li><a href="#" data-page="admin-products" class="admin-link" style="display:none">Products</a></li>
-            <li><a href="#" data-page="admin-inventory" class="admin-link" style="display:none">Inventory</a></li>
-            <li><a href="#" data-page="admin-reports" class="admin-link" style="display:none">Reports</a></li>
-            <li><a href="#" data-page="admin-pos" class="admin-link" style="display:none">Purchase Orders</a></li>
-            <li><a href="#" data-page="admin-catalog" class="admin-link" style="display:none">Catalog</a></li>
-            <li><a href="#" data-page="admin-orders" class="admin-link" style="display:none">Orders</a></li>
-            <li><a href="#" data-page="admin-payments" class="admin-link" style="display:none">Payments</a></li>
-            <li><a href="#" data-page="admin-vendors" class="admin-link" style="display:none">Vendors</a></li>
-            <li><a href="#" data-page="admin-customers" class="admin-link" style="display:none">Customers</a></li>
-            <li><a href="#" data-page="admin-accounts" class="admin-link" style="display:none">Accounts</a></li>
-            <li><a href="#" data-page="admin-users" class="admin-link" style="display:none">Admin Users</a></li>
-            <li><a href="#" data-page="admin-coupons" class="admin-link" style="display:none">Coupons</a></li>
-            <li><a href="#" data-page="admin-email-settings" class="admin-link" style="display:none">Email Settings</a></li>
-            <li><a href="#" data-page="admin-email-queue" class="admin-link" style="display:none">Email Queue</a></li>
-            <li><a href="#" data-page="admin-settings-general" class="admin-link" style="display:none">Store Settings</a></li>
-            <li><a href="#" data-page="admin-settings-shipping" class="admin-link" style="display:none">Shipping Settings</a></li>
         </ul>
         <div class="navbar-right">
             <button class="cart-btn" onclick="toggleCart()">&#128722; Cart <span class="cart-count" id="cartCount">0</span></button>
@@ -703,6 +861,44 @@
         </select>
     </div>
     <div class="product-grid" id="storefrontGrid"></div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — DASHBOARD ═══════════ -->
+<div class="page" id="page-admin-dashboard">
+    <div style="margin-bottom:18px;font-family:var(--sans)">
+        <h2 style="font-family:var(--serif);font-size:22px;color:var(--ni-navy);margin-bottom:4px">Welcome to NI Admin</h2>
+        <p style="font-size:13px;color:var(--gray-500)">Today's snapshot across the wholesale operation.</p>
+    </div>
+    <div class="stats-grid" id="dashboardStats"></div>
+    <div class="dashboard-grid">
+        <div class="card">
+            <div class="card-header"><h2 style="font-size:16px">Recent Orders</h2><a href="#" onclick="event.preventDefault();navigate('admin-orders')" style="font-family:var(--sans);font-size:12px;color:var(--ni-blue);text-decoration:none">View all &rarr;</a></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+                    <tbody id="dashboardRecentOrdersBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2 style="font-size:16px">Low Stock Alerts</h2><a href="#" onclick="event.preventDefault();navigate('admin-products')" style="font-family:var(--sans);font-size:12px;color:var(--ni-blue);text-decoration:none">Manage products &rarr;</a></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>SKU</th><th>Product</th><th>Stock</th><th>Threshold</th></tr></thead>
+                    <tbody id="dashboardLowStockBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card" style="grid-column:1 / -1">
+            <div class="card-header"><h2 style="font-size:16px">Recent Applications</h2><a href="#" onclick="event.preventDefault();navigate('admin-accounts')" style="font-family:var(--sans);font-size:12px;color:var(--ni-blue);text-decoration:none">View all &rarr;</a></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Pharmacy</th><th>Contact</th><th>State</th><th>Submitted</th><th>Status</th></tr></thead>
+                    <tbody id="dashboardRecentAppsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ═══════════ PAGE: ADMIN — PRODUCTS ═══════════ -->
@@ -4317,15 +4513,43 @@ function deleteCoupon(idx) {
 // ════════════════════════════════════════════════════
 // NAV
 // ════════════════════════════════════════════════════
+// Map of page IDs to display titles (used by the admin topbar)
+var ADMIN_PAGE_TITLES = {
+    'admin-dashboard': 'Dashboard',
+    'admin-products': 'Products',
+    'admin-inventory': 'Inventory',
+    'admin-catalog': 'Print Catalog',
+    'admin-orders': 'Orders',
+    'admin-customers': 'Customers',
+    'admin-coupons': 'Coupons',
+    'admin-payments': 'Payments',
+    'admin-vendors': 'Vendors',
+    'admin-pos': 'Purchase Orders',
+    'admin-reports': 'Reports',
+    'admin-accounts': 'Pharmacy Applications',
+    'admin-email-settings': 'Email Templates',
+    'admin-email-queue': 'Email Queue',
+    'admin-settings-general': 'Store Settings',
+    'admin-settings-shipping': 'Shipping Settings',
+    'admin-users': 'Admin Users'
+};
+
 function navigate(pageId) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.navbar-nav a').forEach(a => a.classList.remove('active'));
+    document.querySelectorAll('.admin-nav-link').forEach(a => a.classList.remove('active'));
     const page = document.getElementById('page-' + pageId);
     if (page) page.classList.add('active');
     const link = document.querySelector('.navbar-nav a[data-page="' + pageId + '"]');
     if (link) link.classList.add('active');
+    const sideLink = document.querySelector('.admin-nav-link[data-page="' + pageId + '"]');
+    if (sideLink) sideLink.classList.add('active');
+    // Update admin topbar title
+    var titleEl = document.getElementById('adminTopbarTitle');
+    if (titleEl) titleEl.textContent = ADMIN_PAGE_TITLES[pageId] || 'NI Wholesale';
     if (pageId === 'home') renderFeatured();
     if (pageId === 'storefront') renderStorefront();
+    if (pageId === 'admin-dashboard') renderAdminDashboard();
     if (pageId === 'admin-products') { renderProductTable(); renderProductStats(); renderLowStockAlerts(); }
     if (pageId === 'admin-inventory') { renderInventory(); renderInventoryStats(); }
     if (pageId === 'admin-pos') { renderPurchaseOrders(); renderPOStats(); }
@@ -4350,12 +4574,118 @@ function navigate(pageId) {
     // checkout-confirmation is populated by placeCheckoutOrder()
 }
 document.querySelectorAll('.navbar-nav a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); }));
+document.querySelectorAll('.admin-nav-link').forEach(a => a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); }));
 
 function toggleAdmin() { DATA.adminMode = !DATA.adminMode; saveData(); applyAdminMode(); }
+
+function exitAdminMode() {
+    DATA.adminMode = false;
+    saveData();
+    applyAdminMode();
+}
+
 function applyAdminMode() {
-    const b = document.getElementById('adminToggle'), l = document.querySelectorAll('.admin-link');
-    if (DATA.adminMode) { b.classList.add('active'); l.forEach(x => x.style.display = ''); }
-    else { b.classList.remove('active'); l.forEach(x => x.style.display = 'none'); const a = document.querySelector('.page.active'); if (a && a.id.startsWith('page-admin')) navigate('home'); }
+    const b = document.getElementById('adminToggle');
+    const userEl = document.getElementById('adminSidebarUser');
+    const topUserEl = document.getElementById('adminTopbarUser');
+    var session = loadSession();
+    var userLabel = session ? (session.name || session.email || '') : 'Admin';
+    if (userEl) userEl.textContent = userLabel;
+    if (topUserEl) topUserEl.textContent = userLabel ? 'Signed in as ' + userLabel : '';
+    if (DATA.adminMode) {
+        document.body.classList.add('admin-mode-active');
+        if (b) b.classList.add('active');
+        var active = document.querySelector('.page.active');
+        if (!active || !active.id.startsWith('page-admin')) {
+            navigate('admin-dashboard');
+        } else {
+            // Refresh active sidebar styling for current admin page
+            var curId = active.id.replace(/^page-/, '');
+            navigate(curId);
+        }
+    } else {
+        document.body.classList.remove('admin-mode-active');
+        if (b) b.classList.remove('active');
+        var a = document.querySelector('.page.active');
+        if (a && a.id.startsWith('page-admin')) navigate('home');
+    }
+}
+
+function renderAdminDashboard() {
+    var orders = Array.isArray(DATA.orders) ? DATA.orders : [];
+    var products = Array.isArray(DATA.products) ? DATA.products : [];
+    var accounts = loadAccounts();
+    var now = new Date();
+    var startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Stats
+    var ordersToday = 0, salesToday = 0, pendingOrders = 0;
+    orders.forEach(function(o) {
+        var od = new Date(o.date || o.placed_at || 0);
+        if (od >= startOfDay) {
+            ordersToday++;
+            if (o.status !== 'cancelled') salesToday += (typeof orderTotal === 'function') ? orderTotal(o) : (Number(o.total) || 0);
+        }
+        if (o.status === 'pending') pendingOrders++;
+    });
+    var lowStock = products.filter(function(p) {
+        if (p.status === 'inactive') return false;
+        var s = Number(p.stock) || 0;
+        var t = Number(p.lowStockThreshold) || LOW_STOCK_DEFAULT;
+        return s <= t;
+    });
+    var pendingApps = accounts.filter(function(a) { return a.status === 'Pending Review'; });
+
+    document.getElementById('dashboardStats').innerHTML =
+        '<div class="stat-card" style="border-left-color:var(--ni-deep-blue)"><div class="stat-label">Orders Today</div><div class="stat-value">' + ordersToday + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--success)"><div class="stat-label">Sales Today</div><div class="stat-value">$' + salesToday.toFixed(2) + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--warning)"><div class="stat-label">Pending Orders</div><div class="stat-value">' + pendingOrders + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--danger)"><div class="stat-label">Low Stock Items</div><div class="stat-value">' + lowStock.length + '</div></div>' +
+        '<div class="stat-card" style="border-left-color:var(--info)"><div class="stat-label">Pending Applications</div><div class="stat-value">' + pendingApps.length + '</div></div>';
+
+    // Recent Orders (5 most recent)
+    var recent = orders.slice().sort(function(a, b) {
+        return new Date(b.date || 0) - new Date(a.date || 0);
+    }).slice(0, 5);
+    var roBody = document.getElementById('dashboardRecentOrdersBody');
+    if (recent.length === 0) {
+        roBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:18px">No orders yet.</td></tr>';
+    } else {
+        roBody.innerHTML = recent.map(function(o) {
+            var num = (typeof orderNumberDisplay === 'function') ? orderNumberDisplay(o) : ('#' + (o.orderNumber || ''));
+            var d = o.date ? new Date(o.date).toLocaleDateString() : '';
+            var tot = (typeof orderTotal === 'function') ? orderTotal(o) : (Number(o.total) || 0);
+            var cust = esc(o.shipToName || o.customerName || o.contactName || '');
+            var status = esc(o.status || '');
+            return '<tr><td>' + esc(num) + '</td><td>' + esc(d) + '</td><td>' + cust + '</td><td>$' + tot.toFixed(2) + '</td><td>' + status + '</td></tr>';
+        }).join('');
+    }
+
+    // Low Stock
+    var lsBody = document.getElementById('dashboardLowStockBody');
+    var lsTop = lowStock.slice(0, 8);
+    if (lsTop.length === 0) {
+        lsBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:18px">No low-stock items.</td></tr>';
+    } else {
+        lsBody.innerHTML = lsTop.map(function(p) {
+            return '<tr><td>' + esc(p.sku || '') + '</td><td>' + esc(p.name || '') + '</td><td>' + (Number(p.stock) || 0) + '</td><td>' + (Number(p.lowStockThreshold) || LOW_STOCK_DEFAULT) + '</td></tr>';
+        }).join('');
+    }
+
+    // Recent Applications (pending, newest first)
+    var pendingSorted = pendingApps.slice().sort(function(a, b) {
+        return new Date(b.submittedAt || b.createdAt || 0) - new Date(a.submittedAt || a.createdAt || 0);
+    }).slice(0, 5);
+    var apBody = document.getElementById('dashboardRecentAppsBody');
+    if (pendingSorted.length === 0) {
+        apBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:18px">No pending applications.</td></tr>';
+    } else {
+        apBody.innerHTML = pendingSorted.map(function(a) {
+            var d = a.submittedAt || a.createdAt;
+            var dt = d ? new Date(d).toLocaleDateString() : '';
+            return '<tr><td>' + esc(a.pharmacyName || '') + '</td><td>' + esc(a.contactName || '') + '</td><td>' + esc(a.state || '') + '</td><td>' + esc(dt) + '</td><td>' + esc(a.status || '') + '</td></tr>';
+        }).join('');
+    }
 }
 
 function populateVendorDropdowns() {
