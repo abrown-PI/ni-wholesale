@@ -764,6 +764,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
             Admin Users
         </a>
+        <a href="#" data-page="admin-site-info" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Site Info
+        </a>
     </div>
 
     <div class="admin-sidebar-footer">
@@ -1276,6 +1280,9 @@
         <button class="btn btn-primary" onclick="saveGeneralSettings()">Save Settings</button>
     </div>
 </div>
+
+<!-- ═══════════ PAGE: ADMIN — SITE INFO ═══════════ -->
+<div class="page" id="page-admin-site-info"><div id="adminSiteInfoBody"></div></div>
 
 <!-- ═══════════ PAGE: ADMIN — SHIPPING SETTINGS ═══════════ -->
 <div class="page" id="page-admin-settings-shipping">
@@ -3981,6 +3988,87 @@ function resetGeneralSettings() {
     showToast('Settings reset to defaults');
 }
 
+// ── Site Info / Integrations (read-only reference page) ──
+function renderSiteInfo() {
+    var container = document.getElementById('adminSiteInfoBody');
+    if (!container) return;
+    var infoCard = function(title, rows, extra) {
+        var rowHtml = rows.map(function(r) {
+            return '<tr><th style="text-align:left;padding:10px 16px 10px 0;vertical-align:top;font-weight:600;color:var(--gray-600);width:200px;font-size:12px;text-transform:uppercase;letter-spacing:1px">' + esc(r.label) + '</th>' +
+                '<td style="padding:10px 0;color:var(--ni-charcoal);font-family:var(--sans);font-size:13px">' + (r.html || esc(r.value || '--')) + '</td></tr>';
+        }).join('');
+        return '<div class="card">' +
+            '<div class="card-header"><h2>' + esc(title) + '</h2></div>' +
+            '<table style="width:100%;border-collapse:collapse">' + rowHtml + '</table>' +
+            (extra ? '<div style="padding:12px 0 0;color:var(--gray-600);font-family:var(--sans);font-size:12px;line-height:1.6">' + extra + '</div>' : '') +
+        '</div>';
+    };
+
+    var banner = '<div style="background:#eef2f9;border-left:4px solid var(--ni-deep-blue);padding:14px 18px;border-radius:var(--radius);margin-bottom:24px;font-family:var(--sans);font-size:13px;color:var(--ni-navy);line-height:1.55">' +
+        '<strong>Reference page only.</strong> Account identifiers and dashboard URLs are listed here for the team. No passwords or API keys are stored on this page — they live in environment variables and the respective vendor dashboards.' +
+        '</div>';
+
+    var html = banner;
+
+    // Deployment
+    html += infoCard('Deployment', [
+        { label: 'Hosting', html: 'Vercel — <a href="https://vercel.com/abrown-pis-projects/ni-wholesale" target="_blank" style="color:var(--ni-deep-blue)">project dashboard</a>' },
+        { label: 'Live URL', html: '<a href="https://www.nutritionalinnovations.net" target="_blank" style="color:var(--ni-deep-blue)">https://www.nutritionalinnovations.net</a> <span style="color:var(--gray-500)">(also: ni-wholesale.vercel.app)</span>' },
+        { label: 'Source Repo', html: '<a href="https://github.com/abrown-PI/ni-wholesale" target="_blank" style="color:var(--ni-deep-blue)">github.com/abrown-PI/ni-wholesale</a>' },
+        { label: 'Deploy Branch', value: 'master (auto-deploy on push)' },
+        { label: 'How to Update', html: 'Edit code locally → <code>git commit</code> → <code>git push origin master</code> → Vercel auto-deploys within ~1 minute.' }
+    ]);
+
+    // Domain & DNS
+    html += infoCard('Domain & DNS', [
+        { label: 'Domain', value: 'nutritionalinnovations.net' },
+        { label: 'DNS Host', html: 'A2 Hosting cPanel → Zone Editor' },
+        { label: 'Apex (@) Record', value: 'A 76.76.21.21 (Vercel)' },
+        { label: 'www Record', value: 'CNAME cname.vercel-dns.com' },
+        { label: 'SSL Provider', value: 'Vercel (auto-provisioned via Let’s Encrypt)' }
+    ]);
+
+    // Phone (RingCentral)
+    html += infoCard('Phone — RingCentral', [
+        { label: 'Provider', html: '<a href="https://service.ringcentral.com" target="_blank" style="color:var(--ni-deep-blue)">RingCentral admin portal</a>' },
+        { label: 'Account Number', value: '(fill in after login — visible in RingCentral dashboard)' },
+        { label: 'Main Line', value: (DATA.settings && DATA.settings.general && DATA.settings.general.storePhone) || '814-838-2102' },
+        { label: 'Support Contact', value: 'RingCentral Support: 888-528-7464' },
+        { label: 'How to Update Numbers', value: 'Edit in RingCentral admin → Phone System → Phone Numbers. Update the storefront phone in Store Settings.' }
+    ]);
+
+    // Email (Resend)
+    html += infoCard('Email — Resend', [
+        { label: 'Provider', html: '<a href="https://resend.com" target="_blank" style="color:var(--ni-deep-blue)">resend.com</a> — dashboard at <a href="https://resend.com/login" target="_blank" style="color:var(--ni-deep-blue)">resend.com/login</a>' },
+        { label: 'From Address', value: (DATA.settings && DATA.settings.emailFrom && DATA.settings.emailFrom.fromEmail) || 'orders@nutritionalinnovations.net' },
+        { label: 'Reply-To', value: (DATA.settings && DATA.settings.emailFrom && DATA.settings.emailFrom.replyTo) || 'orders@nutritionalinnovations.net' },
+        { label: 'API Key Location', value: 'NOT in this app yet. When wired: store as RESEND_API_KEY in Vercel project Env Vars + local .env.local.' },
+        { label: 'Domain Verification', value: 'Required in Resend dashboard before sending. Add the DNS records Resend provides (DKIM/SPF) at A2 Zone Editor.' },
+        { label: 'Current Status', value: 'NI emails are queued locally only (Email Queue page). Real sending lands when the Next.js layer is wired.' }
+    ]);
+
+    // Database (Supabase)
+    html += infoCard('Database — Supabase', [
+        { label: 'Provider', html: '<a href="https://supabase.com" target="_blank" style="color:var(--ni-deep-blue)">supabase.com</a>' },
+        { label: 'Project URL', value: '(in Supabase dashboard → Project Settings → API)' },
+        { label: 'Schema File', value: 'supabase-schema.sql (canonical target)' },
+        { label: 'Migrations', value: 'migrations/01-07 — run in Supabase SQL Editor in order; back up first' },
+        { label: 'Current Wiring', value: 'Front end is localStorage-only on this build. Schema is ready for the Next.js wiring to land.' },
+        { label: 'Service Role Key Location', value: 'NOT in this app. When wired: store as SUPABASE_SERVICE_ROLE_KEY in Vercel project Env Vars. Never commit.' }
+    ]);
+
+    // Stripe (placeholder for when wired)
+    html += infoCard('Payments — Stripe (stubbed)', [
+        { label: 'Provider', html: '<a href="https://dashboard.stripe.com" target="_blank" style="color:var(--ni-deep-blue)">dashboard.stripe.com</a>' },
+        { label: 'Current Status', value: 'Stubbed — card-method orders create entries in Payments log with payment_status ‘Unpaid’ for manual confirmation. No real charges processed.' },
+        { label: 'Publishable Key Location', value: 'When wired: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (safe to commit to client)' },
+        { label: 'Secret Key Location', value: 'When wired: STRIPE_SECRET_KEY in Vercel Env Vars (server-only, never commit)' },
+        { label: 'Webhook Endpoint', value: 'When wired: /api/stripe/webhook (Stripe dashboard → Webhooks)' }
+    ]);
+
+    container.innerHTML = html;
+}
+
 // ── Shipping Settings ──
 function renderShippingSettings() {
     if (!DATA.settings) DATA.settings = {};
@@ -4638,6 +4726,7 @@ var ADMIN_PAGE_TITLES = {
     'admin-email-queue': 'Email Queue',
     'admin-settings-general': 'Store Settings',
     'admin-settings-shipping': 'Shipping Settings',
+    'admin-site-info': 'Site Info & Integrations',
     'admin-users': 'Admin Users'
 };
 
@@ -4670,6 +4759,7 @@ function navigate(pageId) {
     if (pageId === 'admin-email-queue') renderEmailQueuePage();
     if (pageId === 'admin-settings-general') renderGeneralSettings();
     if (pageId === 'admin-settings-shipping') renderShippingSettings();
+    if (pageId === 'admin-site-info') renderSiteInfo();
     if (pageId === 'admin-coupons') renderCouponsPage();
     if (pageId === 'admin-payments') renderPaymentLogPage();
     if (pageId === 'checkout') renderCheckoutPage();
