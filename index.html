@@ -4901,20 +4901,22 @@ function navigate(pageId, opts) {
     opts = opts || {};
     // URL path is the source of truth: admin pages → admin mode on; anything else → off.
     var shouldBeAdmin = isAdminPage(pageId);
+    // Always sync body class to URL (don't gate on state change — handles first paint)
+    if (shouldBeAdmin) document.body.classList.add('admin-mode-active');
+    else document.body.classList.remove('admin-mode-active');
+    var tb = document.getElementById('adminToggle');
+    if (tb) tb.classList.toggle('active', shouldBeAdmin);
+    // Update sidebar/topbar user labels every navigate
+    var session = loadSession();
+    var userLabel = session ? (session.name || session.email || '') : 'Admin';
+    var sidebarUser = document.getElementById('adminSidebarUser');
+    var topUser = document.getElementById('adminTopbarUser');
+    if (sidebarUser) sidebarUser.textContent = userLabel;
+    if (topUser) topUser.textContent = userLabel ? 'Signed in as ' + userLabel : '';
+    // Persist adminMode if it changed
     if (DATA.adminMode !== shouldBeAdmin) {
         DATA.adminMode = shouldBeAdmin;
         saveData();
-        // Toggle the body class directly to avoid recursion into navigate.
-        if (shouldBeAdmin) document.body.classList.add('admin-mode-active');
-        else document.body.classList.remove('admin-mode-active');
-        const tb = document.getElementById('adminToggle');
-        if (tb) tb.classList.toggle('active', shouldBeAdmin);
-        var session = loadSession();
-        var userLabel = session ? (session.name || session.email || '') : 'Admin';
-        var userEl = document.getElementById('adminSidebarUser');
-        var topUserEl = document.getElementById('adminTopbarUser');
-        if (userEl) userEl.textContent = userLabel;
-        if (topUserEl) topUserEl.textContent = userLabel ? 'Signed in as ' + userLabel : '';
     }
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.navbar-nav a').forEach(a => a.classList.remove('active'));
@@ -10219,9 +10221,6 @@ window.addEventListener('popstate', function(e) {
 // Initial route: drop the user on the page that matches their URL
 (function initialRoute() {
     var pageId = pathToPage(location.pathname);
-    // Force adminMode boolean to align with URL before navigate runs
-    DATA.adminMode = isAdminPage(pageId);
-    saveData();
     navigate(pageId, { skipHistory: true });
     history.replaceState({ pageId: pageId }, '', pageToPath(pageId));
 })();
