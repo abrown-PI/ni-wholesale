@@ -13,22 +13,34 @@ Things NI needs as its own operational entity, separate from Reviv and (partly) 
 
 ## Email
 
-- [ ] **Microsoft 365 setup** — one of:
-    - **Option A (simpler):** Add a **shared mailbox** under the existing PI 365 tenant (`orders@<ni-domain>`). No new license needed. Ashley admins in PI's Exchange admin.
-    - **Option B (fully separate):** New M365 tenant for NI. Own admin, own users, own billing. ~$6-22/user/month depending on plan. Only necessary if NI is legally separate.
-- [ ] Add MX + TXT records to DNS (Microsoft supplies exact values in tenant setup)
-- [ ] Test send/receive at `orders@<ni-domain>` before going further
+- [x] **New M365 tenant `nutritionalinnovations.onmicrosoft.com`** created (2026-07-03) — separate tenant since NI is legally separate. Admin: `abrown@nutritionalinnovations.net` (transitioning from `.onmicrosoft.com`).
+- [ ] Add `nutritionalinnovations.net` as verified custom domain in the M365 tenant
+    - TXT verification record placed at A2 Hosting DNS (authoritative for the domain — NOT stableserver.net)
+    - Awaiting DNS propagation
+- [ ] Add MX + TXT (SPF) + CNAME (Autodiscover, DKIM) records after domain is verified
+    - Note: existing SPF at A2 Hosting is `v=spf1 +a +mx +ip4:68.66.216.32 ~all` — must MERGE with Microsoft's, not replace
+- [ ] Test send/receive at `abrown@nutritionalinnovations.net` before going further
+- [ ] Add shared mailboxes: `orders@`, `support@`, `no-reply@` — free, no license needed
 
-- [ ] **Resend for transactional email** (see below section) — sends welcome emails, order confirmations, shipped notifications
-    - Coexists with 365: 365 handles the human `orders@` inbox, Resend handles the automated `no-reply@` or `orders@` sends from the app
+- [ ] **Resend for transactional email** — blocked on NI email address
+    - Sign up at resend.com using `abrown@nutritionalinnovations.net` once available
+    - Verify sending domain `mail.nutritionalinnovations.net` or `nutritionalinnovations.net` via DKIM + SPF + DMARC
+    - Add `RESEND_API_KEY` to Supabase Edge Function secrets
+    - Wire welcome email into `approve-customer` Edge Function
+    - Migrate `emailQueue` from localStorage to Resend + Supabase
 
 ## Hosting & code
 
 - [x] GitHub repo (`abrown-PI/ni-wholesale`)
 - [x] Vercel project (currently `ni-wholesale.vercel.app`)
 - [x] Supabase project (`maekiwyawaolvmshiwfb`, region us-east-1)
-- [x] Edge Function `approve-customer` deployed
-- [ ] Custom domain wired into Vercel (once domain registered)
+- [x] Edge Function `approve-customer` deployed (v2, supports `attachAdditionalCustomerIds` for multi-entity)
+- [x] Products migrated to Supabase (all read/write goes through DB)
+- [x] Apply/login/change-password wired to Supabase Auth
+- [x] Orders write to Supabase at checkout
+- [x] Multi-entity purchasing: `customer_users` join table, entity switcher UI, approve modal multi-attach
+- [x] `customers` extended with `netsuite_entity_id`, `tax_id`, `resale_cert_number`, `parent_customer_id` fields
+- [ ] Custom domain wired into Vercel (`wholesale.nutritionalinnovations.net` or similar — once domain choice made)
 
 ## Payments (Phase 2 — not blocking today)
 
@@ -40,9 +52,9 @@ Things NI needs as its own operational entity, separate from Reviv and (partly) 
 
 ## Legal / operational
 
-- [ ] Business entity check: is NI legally separate from PI, or a DBA/product line under PI? Affects Stripe tax + M365 tenant choice
-- [ ] Terms of Service page (customer-facing) — link at footer
-- [ ] Privacy Policy page — required by Stripe + Resend
+- [x] **Business entity confirmed: NI is legally separate from PI** (2026-07-03) — needs own M365 tenant, own Resend, own Stripe
+- [x] Terms of Service page (`/terms`) — customer-facing, linked in footer
+- [x] Privacy Policy page (`/privacy`) — customer-facing, linked in footer
 - [ ] Wholesale-specific: state resale certificates on file per pharmacy customer
 
 ## Content / brand
