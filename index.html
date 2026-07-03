@@ -656,6 +656,8 @@
             background: transparent;
         }
     </style>
+    <!-- Supabase JS SDK (v2.51.0, pinned local copy in vendor/) -->
+    <script src="vendor/supabase.js"></script>
 </head>
 <body>
 
@@ -773,6 +775,8 @@
     <div class="admin-sidebar-footer">
         <p class="admin-sidebar-user" id="adminSidebarUser"></p>
         <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();exitAdminMode()">View Storefront &rarr;</a>
+        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();changeAdminPassword()">Change Password</a>
+        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();lockAdmin()">Lock Admin</a>
         <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();logoutAccount()">Sign Out</a>
     </div>
 </aside>
@@ -1660,6 +1664,20 @@
     </div>
 </div>
 
+<!-- Admin Password Gate Modal -->
+<div class="modal-overlay" id="adminGateModal">
+    <div class="modal" style="max-width:420px">
+        <div class="modal-header"><h2 id="adminGateTitle">Admin Login</h2><button class="modal-close" onclick="cancelAdminGate()">&times;</button></div>
+        <div class="modal-body">
+            <p id="adminGateIntro" style="font-family:var(--sans);font-size:13px;color:var(--gray-600);margin:0 0 16px"></p>
+            <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="adminGatePassword" onkeydown="if(event.key==='Enter')submitAdminGate()"></div>
+            <div class="form-group" id="adminGateConfirmRow" style="display:none"><label>Confirm Password *</label><input type="password" class="form-control" id="adminGateConfirm" onkeydown="if(event.key==='Enter')submitAdminGate()"></div>
+            <button class="btn btn-primary" id="adminGateSubmit" style="width:100%;justify-content:center" onclick="submitAdminGate()">Unlock</button>
+            <p style="font-family:var(--sans);font-size:11px;color:var(--gray-500);margin:14px 0 0;text-align:center">Password is hashed (SHA-256) and stored in this browser only.</p>
+        </div>
+    </div>
+</div>
+
 <!-- Register / Apply Modal (rich pharmacy onboarding form) -->
 <div class="modal-overlay" id="registerModal">
     <div class="modal modal-lg">
@@ -2534,6 +2552,101 @@
 
 <script>
 // ════════════════════════════════════════════════════
+// SUPABASE CLIENT
+// ════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://maekiwyawaolvmshiwfb.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable__t0TF86XJNxSfV-fst37Ow_XeA51aAd';
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, storageKey: 'ni_supa_auth' }
+});
+window.supa = supa;
+
+// Warn early if the client can't be reached (bad key, offline, etc.).
+supa.from('products').select('id', { count: 'exact', head: true }).then(function (r) {
+    if (r.error) console.warn('[supabase] initial ping failed:', r.error.message);
+    else console.log('[supabase] connected — products count:', r.count);
+});
+
+// ── DB ⇄ JS field mappers ──
+// Postgres uses snake_case; the app's JS still uses camelCase throughout.
+function supaProductToLocal(p) {
+    return {
+        id: p.id, sku: p.sku, name: p.name,
+        description: p.description || '',
+        vendorProductName: p.vendor_product_name || '',
+        vendor: p.vendor || '',
+        manufacturer: p.manufacturer || '',
+        vendorPartNum: p.vendor_part_num || '',
+        upc: p.upc || '',
+        packageSize: p.package_size || '',
+        category: p.category || '',
+        costPerUnit: p.cost_per_unit != null ? parseFloat(p.cost_per_unit) : null,
+        wholesalePrice: p.wholesale_price != null ? parseFloat(p.wholesale_price) : null,
+        retailPrice: p.retail_price != null ? parseFloat(p.retail_price) : null,
+        profitMargin: p.profit_margin != null ? parseFloat(p.profit_margin) : null,
+        stock: p.stock || 0,
+        testerStock: p.tester_stock || 0,
+        lowStockThreshold: p.low_stock_threshold != null ? p.low_stock_threshold : 10,
+        minOrderQty: p.min_order_qty != null ? p.min_order_qty : 1,
+        taxable: !!p.taxable,
+        status: p.status || 'active',
+        internalNotes: p.internal_notes || '',
+        paidFrom: p.paid_from || '',
+        images: Array.isArray(p.images) ? p.images : [],
+        createdAt: p.created_at || ''
+    };
+}
+function localProductToSupa(p) {
+    return {
+        sku: p.sku, name: p.name,
+        description: p.description || '',
+        vendor_product_name: p.vendorProductName || null,
+        vendor: p.vendor || null,
+        manufacturer: p.manufacturer || null,
+        vendor_part_num: p.vendorPartNum || null,
+        upc: p.upc || null,
+        package_size: p.packageSize || null,
+        category: p.category || null,
+        cost_per_unit: p.costPerUnit,
+        wholesale_price: p.wholesalePrice,
+        retail_price: p.retailPrice,
+        profit_margin: p.profitMargin,
+        stock: p.stock || 0,
+        tester_stock: p.testerStock || 0,
+        low_stock_threshold: p.lowStockThreshold != null ? p.lowStockThreshold : 10,
+        min_order_qty: p.minOrderQty != null ? p.minOrderQty : 1,
+        taxable: p.taxable !== false,
+        status: p.status || 'active',
+        internal_notes: p.internalNotes || '',
+        paid_from: p.paidFrom || null,
+        images: p.images || []
+    };
+}
+
+// ── Supabase CRUD helpers (products) ──
+async function supaFetchProducts() {
+    const { data, error } = await supa.from('products').select('*').order('sku');
+    if (error) throw error;
+    return data.map(supaProductToLocal);
+}
+async function supaSaveProduct(p) {
+    const row = localProductToSupa(p);
+    if (p.id) {
+        const { data, error } = await supa.from('products').update(row).eq('id', p.id).select().single();
+        if (error) throw error;
+        return supaProductToLocal(data);
+    } else {
+        const { data, error } = await supa.from('products').insert(row).select().single();
+        if (error) throw error;
+        return supaProductToLocal(data);
+    }
+}
+async function supaDeleteProduct(id) {
+    const { error } = await supa.from('products').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ════════════════════════════════════════════════════
 // DATA
 // ════════════════════════════════════════════════════
 const STORAGE_KEY = 'ni_wholesale_data';
@@ -2624,26 +2737,27 @@ function getDefaultData() {
             P({ name:'PMS Formula', vendor:'Formulation Tech', packageSize:'120' }),
             P({ name:'Probiotic Complex', vendor:'Formulation Tech', packageSize:'120' }),
             P({ name:'Vitamin D3 5,000iu', vendor:'Formulation Tech', packageSize:'120' }),
-            P({ sku:'NM236', name:'B-Balanced', vendorProductName:'B Replete', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM236', upc:'814132361805', packageSize:'180 Capsules', stock:18, images:[{url:'images/products/B-Replete.png',isPrimary:true}] }),
-            P({ sku:'NM234', name:'Ubiquinol', vendorProductName:'CoQ Clear Ubiquinol', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM234', upc:'814132340602', packageSize:'60 Softgel Caps', stock:24, images:[{url:'images/products/CoQ-Clear-100-Ubiquinol.png',isPrimary:true}] }),
-            P({ sku:'NM980', name:'D3K25000', vendorProductName:'D3-5000+K2-200', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM980', upc:'814139800604', packageSize:'60 Softgel Caps', stock:35, images:[{url:'images/products/D3-5000+K2.png',isPrimary:true}] }),
-            P({ sku:'NM331', name:'DHEA 5mg', vendorProductName:'DHEA 5mg', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM331', upc:'814133310604', packageSize:'120 Capsules', stock:18 }),
-            P({ sku:'NM074', name:'DHEA 25mg', vendorProductName:'DHEA 25mg', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM074', upc:'814130740602', packageSize:'90 Capsules', stock:24, images:[{url:'images/products/DHEA-25-mg.png',isPrimary:true}] }),
-            P({ sku:'NM112', name:'E-Balanced', vendorProductName:'Elite E Complex', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM112', upc:'814131120601', packageSize:'60 Softgel Caps', stock:0, images:[{url:'images/products/Elite-E.png',isPrimary:true}] }),
-            P({ sku:'NM555', name:'Ultra Flora', vendorProductName:'HiFlora 50', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM555', upc:'814135550503', packageSize:'60 Softgel Caps', stock:18, images:[{url:'images/products/Hi-Flora.png',isPrimary:true}] }),
-            P({ sku:'NM250', name:'Max Multi', vendorProductName:'MultiMedica without Iron', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM250', upc:'814132501201', packageSize:'120 Capsules', stock:34, images:[{url:'images/products/MultiMedica-without-Iron.png',isPrimary:true}] }),
-            P({ sku:'NM035', name:'EPADHA950', vendorProductName:'Omega 950', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM035', upc:'814130350603', packageSize:'60 Softgel Caps', stock:29, images:[{url:'images/products/Omega-950.png',isPrimary:true}] }),
-            P({ sku:'NM061', name:'OsteoPlus', vendorProductName:'OsteoMedica', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM061', upc:'814130611209', packageSize:'120 Capsules', stock:18, images:[{url:'images/products/OsteoMedica.png',isPrimary:true}] }),
-            P({ sku:'NM052', name:'Red Yeast Rice', vendorProductName:'Red Yeast Rice', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM052', upc:'814130520600', packageSize:'90 Capsules', stock:0, images:[{url:'images/products/Red-Yeast-Rice.png',isPrimary:true}] }),
-            P({ sku:'NM185', name:'Organic Iodine', vendorProductName:'Thyroxodine', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM185', upc:'814131850607', packageSize:'2 oz', stock:0, images:[{url:'images/products/Thyroxidine.png',isPrimary:true}] }),
-            P({ sku:'NM586', name:'VitA', vendorProductName:'Vitamin A', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM586', upc:'814135860602', packageSize:'90 Capsules', stock:0, images:[{url:'images/products/Vitamin-A.png',isPrimary:true}] }),
-            P({ sku:'NM148', name:'Absorbable Zinc', vendorProductName:'Zinc Glycinate', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM148', upc:'814131481207', packageSize:'120 Capsules', stock:12, images:[{url:'images/products/Zinc-Glycinate.png',isPrimary:true}] }),
-            P({ sku:'NM25', name:'DIM', vendorProductName:'DIM', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM25', upc:'814130251207', packageSize:'120 Capsules', stock:36, images:[{url:'images/products/DIM-Estro.png',isPrimary:true}] }),
-            P({ sku:'ML001', name:'FemFlora Balance', vendorProductName:'Vaginal Balance', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML001', upc:'813120010602', packageSize:'60 Capsules', category:'Probiotics', costPerUnit:16.83, retailPrice:33.65, internalNotes:'Private label of Microbiome Labs Vaginal Balance', images:[{url:'images/products/FemFlora-Balance-Front.png',isPrimary:true},{url:'images/products/FemFlora-Balance-Left.png'},{url:'images/products/FemFlora-Balance-Right.png'}] }),
-            P({ sku:'ML002', name:'Ultra Spore Biotic', vendorProductName:'MegaSporeBiotic', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML002', upc:'813120020601', packageSize:'60 Capsules', category:'Probiotics', costPerUnit:36.43, retailPrice:66.25, internalNotes:'Private label of Microbiome Labs MegaSporeBiotic', images:[{url:'images/products/Ultra-Spore-Biotic-Front.png',isPrimary:true},{url:'images/products/Ultra-Spore-Biotic-Left.png'},{url:'images/products/Ultra-Spore-Biotic-Right.png'}] }),
-            P({ sku:'ML003', name:'FloraRestore', vendorProductName:'RestorFlora', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML003', upc:'813120030211', packageSize:'21 Capsules', category:'Probiotics', internalNotes:'Private label of Microbiome Labs RestorFlora', images:[{url:'images/products/FloraRestore-Front.png',isPrimary:true},{url:'images/products/FloraRestore-Left.png'},{url:'images/products/FloraRestore-Right.png'}] }),
-            P({ sku:'ML004', name:'Ultra Pre Powder', vendorProductName:'MegaPre Precision Prebiotic', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML004', upc:'813120040517', packageSize:'5.1 oz Powder', category:'Probiotics', costPerUnit:36.61, retailPrice:66.58, internalNotes:'Private label of Microbiome Labs MegaPre Powder', images:[{url:'images/products/Ultra-Pre-Powder-Front.png',isPrimary:true},{url:'images/products/Ultra-Pre-Powder-Left.png'},{url:'images/products/Ultra-Pre-Powder-Left2.png'},{url:'images/products/Ultra-Pre-Powder-Right.png'}] }),
-            P({ sku:'ML005', name:'GastroGuard', vendorProductName:'MegaGuard', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML005', upc:'813120050608', packageSize:'60 Capsules', category:'Specialty', internalNotes:'Private label of Microbiome Labs MegaGuard', images:[{url:'images/products/GastroGuard-Front.png',isPrimary:true},{url:'images/products/GastroGuard-Left.png'},{url:'images/products/GastroGuard-Right.png'}] }),
+            P({ sku:'PINM236', name:'B-Balanced', vendorProductName:'B Replete', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM236', upc:'814132361805', packageSize:'180 Capsules', costPerUnit:55.00, wholesalePrice:61.11, retailPrice:90.00, profitMargin:10, stock:18, images:[{url:'images/products/B-Replete.png',isPrimary:true}] }),
+            P({ sku:'PINM234', name:'Ubiquinol', vendorProductName:'CoQ Clear Ubiquinol', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM234', upc:'814132340602', packageSize:'60 Softgel Caps', costPerUnit:35.95, wholesalePrice:39.94, retailPrice:64.95, profitMargin:10, stock:18, images:[{url:'images/products/CoQ-Clear-100-Ubiquinol.png',isPrimary:true}] }),
+            P({ sku:'PINM980', name:'D3K25000', vendorProductName:'D3-5000+K2-200', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM980', upc:'814139800604', packageSize:'60 Softgel Caps', costPerUnit:22.45, wholesalePrice:24.94, retailPrice:44.90, profitMargin:10, stock:36, images:[{url:'images/products/D3-5000+K2.png',isPrimary:true}] }),
+            P({ sku:'PINM331', name:'DHEA 5mg', vendorProductName:'DHEA 5mg', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM331', upc:'814133310604', packageSize:'120 Capsules', costPerUnit:9.75, wholesalePrice:10.83, retailPrice:19.90, profitMargin:10, stock:18 }),
+            P({ sku:'PINM074', name:'DHEA 25mg', vendorProductName:'DHEA 25mg', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM074', upc:'814130740602', packageSize:'90 Capsules', costPerUnit:11.45, wholesalePrice:12.72, retailPrice:22.90, profitMargin:10, stock:24, images:[{url:'images/products/DHEA-25-mg.png',isPrimary:true}] }),
+            P({ sku:'PINM112', name:'E-Balanced', vendorProductName:'Elite E Complex', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM112', upc:'814131120601', packageSize:'60 Softgel Caps', costPerUnit:18.95, wholesalePrice:21.06, retailPrice:37.90, profitMargin:10, stock:0, images:[{url:'images/products/Elite-E.png',isPrimary:true}] }),
+            P({ sku:'PINM555', name:'Ultra Flora', vendorProductName:'HiFlora 50', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM555', upc:'814135550503', packageSize:'60 Softgel Caps', costPerUnit:32.95, wholesalePrice:36.61, retailPrice:62.95, profitMargin:10, stock:17, internalNotes:'1 unit expires 8/26', images:[{url:'images/products/Hi-Flora.png',isPrimary:true}] }),
+            P({ sku:'PINM250', name:'Max Multi', vendorProductName:'MultiMedica without Iron', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM250', upc:'814132501201', packageSize:'120 Capsules', costPerUnit:19.95, wholesalePrice:22.17, retailPrice:39.90, profitMargin:10, stock:32, images:[{url:'images/products/MultiMedica-without-Iron.png',isPrimary:true}] }),
+            P({ sku:'PINM035', name:'EPADHA950', vendorProductName:'Omega 950', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM035', upc:'814130350603', packageSize:'60 Softgel Caps', costPerUnit:19.95, wholesalePrice:22.17, retailPrice:38.90, profitMargin:10, stock:29, images:[{url:'images/products/Omega-950.png',isPrimary:true}] }),
+            P({ sku:'PINM061', name:'OsteoPlus', vendorProductName:'OsteoMedica', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM061', upc:'814130611209', packageSize:'120 Capsules', costPerUnit:17.95, wholesalePrice:19.94, retailPrice:35.90, profitMargin:10, stock:18, images:[{url:'images/products/OsteoMedica.png',isPrimary:true}] }),
+            P({ sku:'PINM052', name:'Red Yeast Rice', vendorProductName:'Red Yeast Rice', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM052', upc:'814130520600', packageSize:'90 Capsules', costPerUnit:18.75, wholesalePrice:20.83, retailPrice:37.50, profitMargin:10, stock:0, images:[{url:'images/products/Red-Yeast-Rice.png',isPrimary:true}] }),
+            P({ sku:'PINM185', name:'Organic Iodine', vendorProductName:'Thyroxodine', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM185', upc:'814131850607', packageSize:'2 oz', costPerUnit:15.95, wholesalePrice:17.72, retailPrice:31.90, profitMargin:10, stock:0, images:[{url:'images/products/Thyroxidine.png',isPrimary:true}] }),
+            P({ sku:'PINM586', name:'Vit A', vendorProductName:'Vitamin A', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM586', upc:'814135860602', packageSize:'90 Capsules', costPerUnit:7.95, wholesalePrice:8.83, retailPrice:15.90, profitMargin:10, stock:0, images:[{url:'images/products/Vitamin-A.png',isPrimary:true}] }),
+            P({ sku:'PINM148', name:'Absorbable Zinc', vendorProductName:'Zinc Glycinate', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM148', upc:'814131481207', packageSize:'120 Capsules', costPerUnit:10.95, wholesalePrice:12.17, retailPrice:21.90, profitMargin:10, stock:9, images:[{url:'images/products/Zinc-Glycinate.png',isPrimary:true}] }),
+            P({ sku:'PINM025', name:'DIM', vendorProductName:'DIM', vendor:'NuMedica', manufacturer:'NuMedica', vendorPartNum:'NM25', upc:'814130251207', packageSize:'120 Capsules', costPerUnit:25.95, wholesalePrice:28.83, retailPrice:49.95, profitMargin:10, stock:36, images:[{url:'images/products/DIM-Estro.png',isPrimary:true}] }),
+            P({ sku:'RECODE', name:'Recode', vendorProductName:'Recode G you are.', vendor:'Iconic Beauty Labs', manufacturer:'Iconic Beauty Labs', costPerUnit:55.00, wholesalePrice:61.11, retailPrice:90.00, profitMargin:10, stock:16, internalNotes:'1 sample on hand (not for sale)' }),
+            P({ sku:'ML001', name:'FemFlora Balance', vendorProductName:'Vaginal Balance', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML001', upc:'813120010602', packageSize:'60 Capsules', category:'Probiotics', costPerUnit:16.83, retailPrice:33.65, stock:12, internalNotes:'Private label of Microbiome Labs Vaginal Balance', images:[{url:'images/products/FemFlora-Balance-Front.png',isPrimary:true},{url:'images/products/FemFlora-Balance-Left.png'},{url:'images/products/FemFlora-Balance-Right.png'}] }),
+            P({ sku:'ML002', name:'Ultra Spore Biotic', vendorProductName:'MegaSporeBiotic', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML002', upc:'813120020601', packageSize:'60 Capsules', category:'Probiotics', costPerUnit:36.43, retailPrice:66.25, stock:12, internalNotes:'Private label of Microbiome Labs MegaSporeBiotic', images:[{url:'images/products/Ultra-Spore-Biotic-Front.png',isPrimary:true},{url:'images/products/Ultra-Spore-Biotic-Left.png'},{url:'images/products/Ultra-Spore-Biotic-Right.png'}] }),
+            P({ sku:'ML003', name:'FloraRestore', vendorProductName:'RestorFlora', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML003', upc:'813120030211', packageSize:'21 Capsules', category:'Probiotics', costPerUnit:9.72, wholesalePrice:10.80, retailPrice:22.87, stock:12, internalNotes:'Private label of Microbiome Labs RestorFlora', images:[{url:'images/products/FloraRestore-Front.png',isPrimary:true},{url:'images/products/FloraRestore-Left.png'},{url:'images/products/FloraRestore-Right.png'}] }),
+            P({ sku:'ML004', name:'Ultra Pre Powder', vendorProductName:'MegaPre Precision Prebiotic', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML004', upc:'813120040517', packageSize:'5.1 oz Powder', category:'Probiotics', costPerUnit:36.61, retailPrice:66.58, stock:12, internalNotes:'Private label of Microbiome Labs MegaPre Powder', images:[{url:'images/products/Ultra-Pre-Powder-Front.png',isPrimary:true},{url:'images/products/Ultra-Pre-Powder-Left.png'},{url:'images/products/Ultra-Pre-Powder-Left2.png'},{url:'images/products/Ultra-Pre-Powder-Right.png'}] }),
+            P({ sku:'ML005', name:'GastroGuard', vendorProductName:'MegaGuard', vendor:'Microbiome Labs', manufacturer:'Microbiome Labs', vendorPartNum:'ML005', upc:'813120050608', packageSize:'60 Capsules', category:'Specialty', stock:12, internalNotes:'Private label of Microbiome Labs MegaGuard', images:[{url:'images/products/GastroGuard-Front.png',isPrimary:true},{url:'images/products/GastroGuard-Left.png'},{url:'images/products/GastroGuard-Right.png'}] }),
         ],
         vendors: [
             { name:'NuMedica', contact:'Nate Gentile', email:'ngt@novonesis.com' },
@@ -4897,8 +5011,99 @@ function pathToPage(path) {
 }
 function isAdminPage(pageId) { return pageId && pageId.indexOf('admin-') === 0; }
 
+// ════════════════════════════════════════════════════
+// ADMIN PASSWORD GATE
+// ════════════════════════════════════════════════════
+const ADMIN_PASS_HASH_KEY = 'ni_admin_pass_hash';
+const ADMIN_SESSION_KEY = 'ni_admin_authed';
+let pendingAdminPage = null;       // page to route to after successful unlock
+let adminGateMode = 'login';        // 'login' | 'setup' | 'change'
+
+async function sha256Hex(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function hasAdminPassword() { return !!localStorage.getItem(ADMIN_PASS_HASH_KEY); }
+function isAdminAuthed() { return sessionStorage.getItem(ADMIN_SESSION_KEY) === '1'; }
+
+function openAdminGate(intendedPage) {
+    pendingAdminPage = intendedPage || 'admin-dashboard';
+    adminGateMode = hasAdminPassword() ? 'login' : 'setup';
+    const isSetup = adminGateMode === 'setup';
+    document.getElementById('adminGateTitle').textContent = isSetup ? 'Set Admin Password' : 'Admin Login';
+    document.getElementById('adminGateIntro').textContent = isSetup
+        ? 'No admin password has been set on this browser. Choose one to lock the admin area.'
+        : 'Enter the admin password to continue.';
+    document.getElementById('adminGateConfirmRow').style.display = isSetup ? '' : 'none';
+    document.getElementById('adminGatePassword').value = '';
+    document.getElementById('adminGateConfirm').value = '';
+    document.getElementById('adminGateSubmit').textContent = isSetup ? 'Set Password' : 'Unlock';
+    openModal('adminGateModal');
+    setTimeout(function () { document.getElementById('adminGatePassword').focus(); }, 50);
+}
+
+function cancelAdminGate() {
+    closeModal('adminGateModal');
+    if (adminGateMode !== 'change' && !isAdminAuthed()) {
+        // Cancelled before unlocking — bounce back to home
+        navigate('home');
+    }
+}
+
+async function submitAdminGate() {
+    const pw = document.getElementById('adminGatePassword').value;
+    if (!pw) { showToast('Password required', 'error'); return; }
+    if (adminGateMode === 'setup' || adminGateMode === 'change') {
+        const c = document.getElementById('adminGateConfirm').value;
+        if (pw.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
+        if (pw !== c) { showToast('Passwords do not match', 'error'); return; }
+        const h = await sha256Hex(pw);
+        localStorage.setItem(ADMIN_PASS_HASH_KEY, h);
+        sessionStorage.setItem(ADMIN_SESSION_KEY, '1');
+        closeModal('adminGateModal');
+        showToast(adminGateMode === 'setup' ? 'Admin password set' : 'Admin password updated');
+        if (adminGateMode === 'setup') navigate(pendingAdminPage || 'admin-dashboard');
+        adminGateMode = 'login';
+    } else {
+        const stored = localStorage.getItem(ADMIN_PASS_HASH_KEY);
+        const h = await sha256Hex(pw);
+        if (h !== stored) { showToast('Incorrect password', 'error'); return; }
+        sessionStorage.setItem(ADMIN_SESSION_KEY, '1');
+        closeModal('adminGateModal');
+        navigate(pendingAdminPage || 'admin-dashboard');
+    }
+}
+
+function lockAdmin() {
+    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+    showToast('Admin locked');
+    navigate('home');
+}
+
+function changeAdminPassword() {
+    adminGateMode = 'change';
+    document.getElementById('adminGateTitle').textContent = 'Change Admin Password';
+    document.getElementById('adminGateIntro').textContent = 'Choose a new admin password. It replaces the current one on this browser.';
+    document.getElementById('adminGateConfirmRow').style.display = '';
+    document.getElementById('adminGatePassword').value = '';
+    document.getElementById('adminGateConfirm').value = '';
+    document.getElementById('adminGateSubmit').textContent = 'Save Password';
+    openModal('adminGateModal');
+    setTimeout(function () { document.getElementById('adminGatePassword').focus(); }, 50);
+}
+
 function navigate(pageId, opts) {
     opts = opts || {};
+    // Gate admin pages behind password (per browser-session unlock).
+    if (isAdminPage(pageId) && !isAdminAuthed()) {
+        document.body.classList.remove('admin-mode-active');
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        const home = document.getElementById('page-home');
+        if (home) home.classList.add('active');
+        if (!opts.skipHistory) history.replaceState({ pageId: 'home' }, '', '/');
+        openAdminGate(pageId);
+        return;
+    }
     // URL path is the source of truth: admin pages → admin mode on; anything else → off.
     var shouldBeAdmin = isAdminPage(pageId);
     // Always sync body class to URL (don't gate on state change — handles first paint)
@@ -6908,7 +7113,7 @@ function removeVariantRow(i) {
     renderVariantsSectionInModal();
 }
 
-function saveProduct() {
+async function saveProduct() {
     var sku = document.getElementById('pSku').value.trim();
     var name = document.getElementById('pName').value.trim();
     var vendor = document.getElementById('pVendor').value;
@@ -6922,7 +7127,10 @@ function saveProduct() {
     if (profitMargin == null && costPerUnit && wholesalePrice && costPerUnit > 0) {
         profitMargin = ((wholesalePrice - costPerUnit) / wholesalePrice) * 100;
     }
+    var idx = parseInt(document.getElementById('productEditIndex').value);
+    var existing = idx >= 0 ? DATA.products[idx] : null;
     var product = {
+        id: existing ? existing.id : undefined,
         sku: sku,
         name: name,
         description: document.getElementById('pDescription').value.trim(),
@@ -6945,20 +7153,27 @@ function saveProduct() {
         status: document.getElementById('pStatus').value,
         internalNotes: document.getElementById('pInternalNotes').value.trim(),
         paidFrom: document.getElementById('pPaidFrom').value.trim(),
-        images: currentEditImages.slice(), // copy current images
-        createdAt: ''
+        images: currentEditImages.slice(),
+        createdAt: existing ? (existing.createdAt || '') : ''
     };
-    var idx = parseInt(document.getElementById('productEditIndex').value);
-    var prevSku = (idx >= 0 && DATA.products[idx]) ? DATA.products[idx].sku : null;
+    // Write to Supabase first — bail on error so local state stays consistent.
+    var saved;
+    try {
+        saved = await supaSaveProduct(product);
+    } catch (e) {
+        showToast('Save failed: ' + (e.message || 'Supabase error'), 'error');
+        return;
+    }
+    var prevSku = existing ? existing.sku : null;
     if (idx >= 0) {
-        product.createdAt = DATA.products[idx].createdAt || '';
-        DATA.products[idx] = product;
+        DATA.products[idx] = saved;
         showToast('Product updated');
     } else {
-        product.createdAt = new Date().toISOString();
-        DATA.products.push(product);
+        DATA.products.push(saved);
         showToast('Product added');
     }
+    // Overwrite `product` reference so variant logic below sees canonical DB row.
+    product = saved;
     // Validate variant SKUs are unique across all variants and persist them.
     // Variants are re-keyed to the current product.sku so SKU renames carry through.
     if (!Array.isArray(DATA.variants)) DATA.variants = [];
@@ -6996,8 +7211,14 @@ function saveProduct() {
     currentEditVariants = [];
     saveData(); closeProductModal(); renderProductTable(); renderProductStats(); renderLowStockAlerts();
 }
-function deleteProduct(idx) {
-    if (!confirm('Delete "' + DATA.products[idx].name + '"?')) return;
+async function deleteProduct(idx) {
+    var p = DATA.products[idx];
+    if (!p) return;
+    if (!confirm('Delete "' + p.name + '"?')) return;
+    if (p.id) {
+        try { await supaDeleteProduct(p.id); }
+        catch (e) { showToast('Delete failed: ' + (e.message || 'Supabase error'), 'error'); return; }
+    }
     DATA.products.splice(idx, 1); saveData(); renderProductTable(); renderProductStats(); showToast('Product deleted');
 }
 
@@ -10229,6 +10450,30 @@ window.addEventListener('popstate', function(e) {
 if (!localStorage.getItem(ADMIN_USERS_KEY)) {
     saveAdminUsers(getDefaultAdminUsers());
 }
+
+// ── Pull products from Supabase (source of truth) — replaces localStorage seed ──
+// Runs AFTER initial render so first paint is fast; then swaps in live data.
+(async function hydrateFromSupabase() {
+    try {
+        const products = await supaFetchProducts();
+        if (products && products.length) {
+            DATA.products = products;
+            saveData();
+            // Re-render whatever the user is currently looking at.
+            var active = document.querySelector('.page.active');
+            var pageId = active ? active.id.replace(/^page-/, '') : 'home';
+            if (pageId === 'home') renderFeatured();
+            if (pageId === 'storefront') renderStorefront();
+            if (pageId === 'admin-products') { renderProductTable(); renderProductStats(); renderLowStockAlerts(); }
+            if (pageId === 'admin-dashboard') renderAdminDashboard();
+            if (pageId === 'admin-inventory') { renderInventory(); renderInventoryStats(); }
+            renderCart();
+            console.log('[supabase] hydrated', products.length, 'products');
+        }
+    } catch (e) {
+        console.warn('[supabase] product hydrate failed, using local cache:', e.message);
+    }
+})();
 </script>
 </body>
 </html>
