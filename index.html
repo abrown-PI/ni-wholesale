@@ -1762,11 +1762,8 @@
             <h3 style="font-family:var(--sans);font-size:14px;text-transform:uppercase;letter-spacing:.5px;color:var(--ni-deep-blue);margin:20px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--ni-cream)">Additional Notes</h3>
             <div class="form-group"><label>Notes</label><textarea class="form-control" id="regNotes" rows="3" placeholder="Anything else you'd like us to know"></textarea></div>
 
-            <!-- ── Account Credentials ── -->
-            <h3 style="font-family:var(--sans);font-size:14px;text-transform:uppercase;letter-spacing:.5px;color:var(--ni-deep-blue);margin:20px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--ni-cream)">Account Credentials</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="regPassword" placeholder="Min 6 characters"></div>
-                <div class="form-group"><label>Confirm Password *</label><input type="password" class="form-control" id="regPasswordConfirm"></div>
+            <div style="background:var(--ni-cream);border-left:3px solid var(--ni-blue);padding:12px 16px;font-family:var(--sans);font-size:12px;color:var(--gray-600);border-radius:var(--radius);margin-top:20px">
+                After we review your application, we'll email you a temporary login password. On first login you'll be prompted to set your own password.
             </div>
         </div>
         <div class="modal-footer">
@@ -2646,6 +2643,180 @@ async function supaDeleteProduct(id) {
     if (error) throw error;
 }
 
+// ── Customer / application mappers ──
+// Local `accounts` array uses camelCase + legacy fields; DB `customers` uses snake_case.
+function supaCustomerToLocalAccount(c, locations) {
+    return {
+        id: c.id, // uuid; also used as accountId across the codebase
+        pharmacyName: c.company_name || '',
+        pharmacyType: c.pharmacy_type || '',
+        website: c.website || '',
+        expectedVolume: c.expected_volume || '',
+        requestedPaymentTerms: c.payment_terms || 'Net-30',
+        licenseNumber: c.license_number || '',
+        licenseState: c.license_state_col || '',
+        dea: c.dea_number || '',
+        npi: c.npi_number || '',
+        resaleCert: c.resale_cert || '',
+        businessLicense: c.business_license || '',
+        address: c.billing_address || '',
+        city: c.billing_city || '',
+        state: c.billing_state || '',
+        zip: c.billing_zip || '',
+        phone: c.phone || '',
+        email: c.email || '',
+        contactName: c.contact_name || '',
+        title: c.contact_title || '',
+        notes: c.notes || '',
+        password: '', // never stored client-side; auth handles it
+        locations: (locations || []).map(function(l) {
+            return {
+                name: l.location_name || '',
+                address: l.address || '',
+                city: l.city || '',
+                state: l.state || '',
+                zip: l.zip || '',
+                contactName: l.contact_name || '',
+                phone: l.phone || '',
+                email: l.email || ''
+            };
+        }),
+        customerId: c.id,
+        declineReason: c.decline_reason || '',
+        status: dbStatusToLocalStatus(c.status),
+        dateRegistered: c.created_at || ''
+    };
+}
+function dbStatusToLocalStatus(s) {
+    // customers.status is 'pending' | 'active' | 'suspended' | 'declined'
+    // Local UI uses 'Pending Review' | 'Approved' | 'Suspended' | 'Declined'
+    switch ((s || '').toLowerCase()) {
+        case 'pending': return 'Pending Review';
+        case 'active': return 'Approved';
+        case 'suspended': return 'Suspended';
+        case 'declined': return 'Declined';
+        default: return s || 'Pending Review';
+    }
+}
+function localStatusToDbStatus(s) {
+    switch ((s || '').toLowerCase()) {
+        case 'pending review': return 'pending';
+        case 'approved': return 'active';
+        case 'suspended': return 'suspended';
+        case 'declined': return 'declined';
+        default: return 'pending';
+    }
+}
+
+// ── Supabase CRUD helpers (customers, auth, orders) ──
+async function supaFetchCustomers() {
+    // Fetch customers + their locations; assemble local-account-shaped objects.
+    const { data: customers, error } = await supa.from('customers').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    if (!customers.length) return [];
+    const ids = customers.map(function(c) { return c.id; });
+    const { data: locs, error: e2 } = await supa.from('customer_locations').select('*').in('customer_id', ids);
+    if (e2) throw e2;
+    const byCustomer = {};
+    (locs || []).forEach(function(l) { (byCustomer[l.customer_id] = byCustomer[l.customer_id] || []).push(l); });
+    return customers.map(function(c) { return supaCustomerToLocalAccount(c, byCustomer[c.id] || []); });
+}
+
+async function supaSubmitApplication(app) {
+    // Match Reviv's pattern: application creates customers + customer_locations rows
+    // ANONYMOUSLY (no auth user yet). Auth user is created later by the approve
+    // Edge Function using service_role. This avoids email-confirmation friction and
+    // matches Reviv's production posture.
+
+    // 1) Insert customers row with pending status.
+    var customerRow = {
+        company_name: app.pharmacyName,
+        pharmacy_type: app.pharmacyType,
+        contact_name: app.contactName,
+        email: app.email,
+        phone: app.phone,
+        billing_address: app.address,
+        billing_city: app.city,
+        billing_state: app.state,
+        billing_zip: app.zip,
+        license_number: app.licenseNumber,
+        dea_number: app.dea,
+        npi_number: app.npi,
+        payment_terms: app.requestedPaymentTerms || 'Net-30',
+        status: 'pending',
+        notes: app.notes || ''
+    };
+    var insertCust = await supa.from('customers').insert(customerRow).select().single();
+    if (insertCust.error) throw insertCust.error;
+    var customer = insertCust.data;
+
+    // 2) Insert customer_locations rows.
+    if (app.locations && app.locations.length) {
+        var locRows = app.locations.map(function(l) {
+            return {
+                customer_id: customer.id,
+                location_name: l.name || 'Main',
+                address: l.address || null,
+                city: l.city || null,
+                state: l.state || null,
+                zip: l.zip || null,
+                contact_name: l.contactName || null,
+                phone: l.phone || null,
+                email: l.email || null,
+                status: 'active'
+            };
+        });
+        var insertLocs = await supa.from('customer_locations').insert(locRows);
+        if (insertLocs.error) throw insertLocs.error;
+    }
+
+    return supaCustomerToLocalAccount(customer, []);
+}
+
+async function supaLogin(email, password) {
+    var res = await supa.auth.signInWithPassword({ email: email, password: password });
+    if (res.error) throw res.error;
+    // Load matching customer row so we have their pharmacy info.
+    var user = res.data.user;
+    var prof = await supa.from('profiles').select('customer_id').eq('id', user.id).single();
+    var customer = null;
+    if (prof.data && prof.data.customer_id) {
+        var c = await supa.from('customers').select('*').eq('id', prof.data.customer_id).single();
+        if (c.data) customer = c.data;
+    }
+    return { user: user, customer: customer };
+}
+async function supaLogout() {
+    await supa.auth.signOut();
+}
+
+async function supaUpdateCustomerStatus(customerId, newStatus, extras) {
+    var patch = Object.assign({ status: newStatus }, extras || {});
+    var res = await supa.from('customers').update(patch).eq('id', customerId);
+    if (res.error) throw res.error;
+}
+
+// ── Orders ──
+async function supaCreateOrder(order, items) {
+    // order: fields snake_case; items: array of order_items rows.
+    var { data: session } = await supa.auth.getSession();
+    if (session && session.session) order.placed_by = session.session.user.id;
+    var res = await supa.from('orders').insert(order).select().single();
+    if (res.error) throw res.error;
+    var orderId = res.data.id;
+    if (items && items.length) {
+        var rows = items.map(function(it) { return Object.assign({ order_id: orderId }, it); });
+        var res2 = await supa.from('order_items').insert(rows);
+        if (res2.error) throw res2.error;
+    }
+    return res.data;
+}
+async function supaFetchOrders() {
+    var { data, error } = await supa.from('orders').select('*, order_items(*)').order('placed_at', { ascending: false });
+    if (error) throw error;
+    return data;
+}
+
 // ════════════════════════════════════════════════════
 // DATA
 // ════════════════════════════════════════════════════
@@ -3275,7 +3446,7 @@ function resetApplyForm() {
     renderApplyLocations();
 }
 
-function doRegister() {
+async function doRegister() {
     const pharmacyName = document.getElementById('regPharmacyName').value.trim();
     const pharmacyType = document.getElementById('regPharmacyType').value;
     const website = document.getElementById('regWebsite').value.trim();
@@ -3296,8 +3467,10 @@ function doRegister() {
     const contactName = document.getElementById('regContactName').value.trim();
     const title = document.getElementById('regContactTitle').value.trim();
     const notes = document.getElementById('regNotes').value.trim();
-    const password = document.getElementById('regPassword').value;
-    const passwordConfirm = document.getElementById('regPasswordConfirm').value;
+    // Password is no longer collected on apply form. Approval flow generates
+    // a temp password server-side (Edge Function) and emails it to the customer.
+    const password = '';
+    const passwordConfirm = '';
 
     captureApplyLocationsFromDom();
     var locations = APPLY_LOCATIONS.filter(function(l) { return l.name || l.address || l.city; });
@@ -3315,44 +3488,33 @@ function doRegister() {
     if (!city) errors.push('Billing City');
     if (!state || state.length !== 2) errors.push('Billing State (2 letters)');
     if (!zip || !/^\d{5}$/.test(zip)) errors.push('Billing ZIP (5 digits)');
-    if (!password) errors.push('Password');
     if (!locations.length || !locations[0].name) errors.push('At least one shipping location with a name');
     if (errors.length) { showToast('Missing or invalid: ' + errors.join(', '), 'error'); return; }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Email format looks invalid', 'error'); return; }
-    if (password !== passwordConfirm) { showToast('Passwords do not match', 'error'); return; }
-    if (password.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
 
-    const accounts = loadAccounts();
-    if (accounts.find(function(a) { return a.email === email; })) {
-        showToast('An account with this email already exists', 'error'); return;
+    // Submit via Supabase (creates auth user + customer + customer_locations).
+    // Local `accounts` cache is refreshed after the DB write succeeds so the rest
+    // of the app (which reads loadAccounts()) stays consistent.
+    var newAccount;
+    try {
+        newAccount = await supaSubmitApplication({
+            pharmacyName: pharmacyName, pharmacyType: pharmacyType, website: website,
+            expectedVolume: expectedVolume, requestedPaymentTerms: requestedPaymentTerms,
+            licenseNumber: licenseNumber, licenseState: licenseState,
+            dea: dea, npi: npi, resaleCert: resaleCert, businessLicense: businessLicense,
+            address: address, city: city, state: state, zip: zip,
+            phone: phone, email: email, contactName: contactName, title: title,
+            notes: notes, password: password, locations: locations
+        });
+    } catch (e) {
+        var msg = e.message || 'Signup failed';
+        if (/already registered/i.test(msg) || /already exists/i.test(msg)) msg = 'An account with this email already exists';
+        showToast(msg, 'error');
+        return;
     }
-
-    var accountId = 'ACCT-' + Date.now().toString(36).toUpperCase();
-    accounts.push({
-        id: accountId,
-        pharmacyName: pharmacyName,
-        pharmacyType: pharmacyType,
-        website: website,
-        expectedVolume: expectedVolume,
-        requestedPaymentTerms: requestedPaymentTerms,
-        licenseNumber: licenseNumber,
-        licenseState: licenseState,
-        dea: dea,
-        npi: npi,
-        resaleCert: resaleCert,
-        businessLicense: businessLicense,
-        address: address, city: city, state: state, zip: zip,
-        phone: phone, email: email,
-        contactName: contactName,
-        title: title,
-        notes: notes,
-        password: password, // plaintext today — see DEFERRED.md
-        locations: locations,
-        customerId: '',
-        declineReason: '',
-        status: 'Pending Review',
-        dateRegistered: new Date().toISOString()
-    });
+    var accountId = newAccount.id;
+    var accounts = loadAccounts();
+    accounts.push(newAccount);
     saveAccounts(accounts);
 
     // ── Queue emails ──
@@ -3375,26 +3537,46 @@ function doRegister() {
     resetApplyForm();
 }
 
-function doLogin() {
+async function doLogin() {
     const email = document.getElementById('loginEmail').value.trim().toLowerCase();
     const password = document.getElementById('loginPassword').value;
     if (!email || !password) { showToast('Email and password required', 'error'); return; }
 
-    const accounts = loadAccounts();
-    const account = accounts.find(a => a.email === email && a.password === password);
-    if (!account) { showToast('Invalid email or password', 'error'); return; }
-    if (account.status === 'Pending Review') { showToast('Your account is pending review. You will be notified when approved.', 'error'); return; }
-    if (account.status === 'Suspended') { showToast('Your account has been suspended. Please contact us.', 'error'); return; }
+    // Try Supabase Auth first. On success we still populate the local accounts
+    // cache so the rest of the app (which reads loadAccounts()) keeps working.
+    var authResult;
+    try {
+        authResult = await supaLogin(email, password);
+    } catch (e) {
+        showToast('Invalid email or password', 'error'); return;
+    }
+    if (!authResult.customer) {
+        // Auth succeeded but no customer record found — probably an admin-only user.
+        // Fall through to update session anyway; storefront gating comes from customer.status.
+        showToast('Signed in, but no wholesale account found — contact us.', 'error'); return;
+    }
+    var localStatus = dbStatusToLocalStatus(authResult.customer.status);
+    if (localStatus === 'Pending Review') { await supa.auth.signOut(); showToast('Your account is pending review. You will be notified when approved.', 'error'); return; }
+    if (localStatus === 'Suspended')      { await supa.auth.signOut(); showToast('Your account has been suspended. Please contact us.', 'error'); return; }
+    if (localStatus === 'Declined')       { await supa.auth.signOut(); showToast('Your application was not approved. Please contact us.', 'error'); return; }
 
-    saveSession({ accountId: account.id, pharmacyName: account.pharmacyName, email: account.email });
+    // Sync into local accounts cache
+    var accountObj = supaCustomerToLocalAccount(authResult.customer, []);
+    var accounts = loadAccounts();
+    var idx = accounts.findIndex(function(a) { return a.email === accountObj.email; });
+    if (idx >= 0) accounts[idx] = accountObj; else accounts.push(accountObj);
+    saveAccounts(accounts);
+
+    saveSession({ accountId: accountObj.id, pharmacyName: accountObj.pharmacyName, email: accountObj.email });
     closeModal('loginModal');
     document.getElementById('loginEmail').value = '';
     document.getElementById('loginPassword').value = '';
     updateLoginUI();
-    showToast('Welcome, ' + account.pharmacyName + '!');
+    showToast('Welcome, ' + accountObj.pharmacyName + '!');
 }
 
-function logoutAccount() {
+async function logoutAccount() {
+    try { await supa.auth.signOut(); } catch (e) { /* ignore */ }
     saveSession(null);
     updateLoginUI();
     showToast('Logged out');
@@ -3551,7 +3733,7 @@ function openApproveApplication(accountId) {
     document.getElementById('approveSendEmail').checked = true;
     openModal('approveApplicationModal');
 }
-function confirmApproveApplication() {
+async function confirmApproveApplication() {
     var accountId = document.getElementById('approveAccountId').value;
     var accounts = loadAccounts();
     var a = accounts.find(function(x) { return x.id === accountId; });
@@ -3560,6 +3742,13 @@ function confirmApproveApplication() {
     var doCreateLocations = document.getElementById('approveCreateLocations').checked;
     var doSendEmail = document.getElementById('approveSendEmail').checked;
     var now = new Date().toISOString();
+    // Flip status in Supabase first; local UI updates only after success.
+    try {
+        await supaUpdateCustomerStatus(a.customerId || a.id, 'active');
+    } catch (e) {
+        showToast('Approve failed: ' + (e.message || 'Supabase error'), 'error');
+        return;
+    }
 
     if (doCreateCustomer && !a.customerId) {
         var customerId = 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
@@ -3644,13 +3833,19 @@ function openDeclineApplication(accountId) {
     document.getElementById('declineReason').value = '';
     openModal('declineApplicationModal');
 }
-function confirmDeclineApplication() {
+async function confirmDeclineApplication() {
     var accountId = document.getElementById('declineAccountId').value;
     var reason = document.getElementById('declineReason').value.trim();
     if (!reason) { showToast('Please provide a reason', 'error'); return; }
     var accounts = loadAccounts();
     var a = accounts.find(function(x) { return x.id === accountId; });
     if (!a) { showToast('Application not found', 'error'); return; }
+    try {
+        await supaUpdateCustomerStatus(a.customerId || a.id, 'declined', { notes: reason });
+    } catch (e) {
+        showToast('Decline failed: ' + (e.message || 'Supabase error'), 'error');
+        return;
+    }
     a.status = 'Declined';
     a.declineReason = reason;
     a.declinedAt = new Date().toISOString();
@@ -6312,7 +6507,7 @@ function validateCheckoutForm() {
     return null;
 }
 
-function placeCheckoutOrder() {
+async function placeCheckoutOrder() {
     var err = validateCheckoutForm();
     if (err) { showToast(err, 'error'); return; }
     var ctx = getCheckoutContext();
@@ -6464,6 +6659,45 @@ function placeCheckoutOrder() {
         DATA.cartCoupon = null;
         saveData();
         renderCart();
+
+        // ── Write to Supabase (source of truth for cross-device admin visibility) ──
+        try {
+            var supaOrder = {
+                order_number: String(orderNumber),
+                customer_id: customerId || null,
+                customer_location_id: (locId && locId.indexOf('__') !== 0) ? locId : null,
+                customer_name: customerName,
+                customer_email: email,
+                ship_to_name: shipName, ship_to_address: shipAddress,
+                ship_to_city: shipCity, ship_to_state: shipState, ship_to_zip: shipZip,
+                ship_to_phone: shipPhone,
+                bill_to_name: billName || null, bill_to_address: billAddress || null,
+                bill_to_city: billCity || null, bill_to_state: billState || null, bill_to_zip: billZip || null,
+                subtotal: sub, tax: tax, shipping: shipAmount, total: total,
+                discount_amount: discountAmount, coupon_code: couponCode || null,
+                payment_method: order.paymentMethod, payment_status: 'Unpaid',
+                status: 'pending', carrier: shipPick.carrier || null,
+                notes: order.notes || null, internal_notes: ''
+            };
+            var supaItems = order.items.map(function(it) {
+                var p = DATA.products[it.productIndex];
+                return {
+                    product_id: (p && p.id) || null,
+                    product_name: it.productName || it.name,
+                    sku: it.sku,
+                    qty: it.qty,
+                    unit_price: it.unitPrice,
+                    line_total: it.unitPrice * it.qty
+                };
+            });
+            var saved = await supaCreateOrder(supaOrder, supaItems);
+            // Attach the DB uuid so admin dashboards can reconcile.
+            order.supabaseOrderId = saved.id;
+            saveData();
+        } catch (supaErr) {
+            console.warn('[supabase] order write failed (kept locally):', supaErr && supaErr.message);
+            showToast('Order placed but sync to server failed — admin has been notified', 'error');
+        }
 
         // Queue order_confirmation email
         if (email) {
@@ -10451,29 +10685,106 @@ if (!localStorage.getItem(ADMIN_USERS_KEY)) {
     saveAdminUsers(getDefaultAdminUsers());
 }
 
-// ── Pull products from Supabase (source of truth) — replaces localStorage seed ──
+// ── Pull products + accounts + orders from Supabase (source of truth) ──
 // Runs AFTER initial render so first paint is fast; then swaps in live data.
 (async function hydrateFromSupabase() {
+    // Products
     try {
         const products = await supaFetchProducts();
         if (products && products.length) {
             DATA.products = products;
             saveData();
-            // Re-render whatever the user is currently looking at.
-            var active = document.querySelector('.page.active');
-            var pageId = active ? active.id.replace(/^page-/, '') : 'home';
-            if (pageId === 'home') renderFeatured();
-            if (pageId === 'storefront') renderStorefront();
-            if (pageId === 'admin-products') { renderProductTable(); renderProductStats(); renderLowStockAlerts(); }
-            if (pageId === 'admin-dashboard') renderAdminDashboard();
-            if (pageId === 'admin-inventory') { renderInventory(); renderInventoryStats(); }
-            renderCart();
             console.log('[supabase] hydrated', products.length, 'products');
         }
     } catch (e) {
         console.warn('[supabase] product hydrate failed, using local cache:', e.message);
     }
+    // Accounts (customers)
+    try {
+        const accounts = await supaFetchCustomers();
+        if (accounts && accounts.length >= 0) {
+            saveAccounts(accounts);
+            console.log('[supabase] hydrated', accounts.length, 'customers');
+        }
+    } catch (e) {
+        console.warn('[supabase] customer hydrate failed, using local cache:', e.message);
+    }
+    // Orders
+    try {
+        const orders = await supaFetchOrders();
+        if (Array.isArray(orders)) {
+            DATA.orders = orders.map(supaOrderToLocal);
+            saveData();
+            console.log('[supabase] hydrated', orders.length, 'orders');
+        }
+    } catch (e) {
+        console.warn('[supabase] order hydrate failed, using local cache:', e.message);
+    }
+    // Refresh whatever the user is currently looking at.
+    var active = document.querySelector('.page.active');
+    var pageId = active ? active.id.replace(/^page-/, '') : 'home';
+    try {
+        if (pageId === 'home') renderFeatured();
+        if (pageId === 'storefront') renderStorefront();
+        if (pageId === 'admin-products') { renderProductTable(); renderProductStats(); renderLowStockAlerts(); }
+        if (pageId === 'admin-dashboard') renderAdminDashboard();
+        if (pageId === 'admin-inventory') { renderInventory(); renderInventoryStats(); }
+        if (pageId === 'admin-accounts') renderAccounts();
+        if (pageId === 'admin-orders') renderOrders();
+        renderCart();
+        updateLoginUI();
+    } catch (e) { console.warn('[supabase] post-hydrate render error:', e); }
 })();
+
+// Restore session from Supabase Auth on load (cross-tab / cross-device).
+(async function restoreSupaSession() {
+    try {
+        var { data } = await supa.auth.getSession();
+        if (!data || !data.session) return;
+        var email = data.session.user && data.session.user.email;
+        if (!email) return;
+        var accts = loadAccounts();
+        var match = accts.find(function(a) { return a.email === email; });
+        if (match && match.status === 'Approved') {
+            saveSession({ accountId: match.id, pharmacyName: match.pharmacyName, email: match.email });
+            updateLoginUI();
+        }
+    } catch (e) { /* silent */ }
+})();
+
+// Map a Supabase orders row (with order_items joined) back to the local order shape.
+function supaOrderToLocal(o) {
+    var items = (o.order_items || []).map(function(it) {
+        return {
+            id: it.id, orderId: o.id, sku: it.sku || '', productName: it.product_name || it.sku || '',
+            productId: it.product_id, variantId: it.variant_id, qty: it.qty || 0,
+            unitPrice: parseFloat(it.unit_price || 0), lineTotal: parseFloat(it.line_total || 0)
+        };
+    });
+    return {
+        id: o.id, orderNumber: o.order_number || '', legacyId: '',
+        date: o.placed_at || '',
+        customerId: o.customer_id || '', customerLocationId: o.customer_location_id || '',
+        customerName: o.customer_name || '', email: o.customer_email || '',
+        contactName: o.ship_to_name || '', phone: o.ship_to_phone || '',
+        shipToName: o.ship_to_name || '', shipToAddress: o.ship_to_address || '',
+        shipToCity: o.ship_to_city || '', shipToState: o.ship_to_state || '', shipToZip: o.ship_to_zip || '',
+        shipToPhone: o.ship_to_phone || '',
+        billToName: o.bill_to_name || '', billToAddress: o.bill_to_address || '',
+        billToCity: o.bill_to_city || '', billToState: o.bill_to_state || '', billToZip: o.bill_to_zip || '',
+        subtotal: parseFloat(o.subtotal || 0), tax: parseFloat(o.tax || 0),
+        shipping: parseFloat(o.shipping || 0), total: parseFloat(o.total || 0),
+        discountAmount: parseFloat(o.discount_amount || 0),
+        couponCode: o.coupon_code || '', refundAmount: parseFloat(o.refund_amount || 0),
+        refundedAt: o.refunded_at || '', trackingNumber: o.tracking_number || '',
+        carrier: o.carrier || '', shippedAt: o.shipped_at || '',
+        deliveredAt: o.delivered_at || '', cancelledAt: o.cancelled_at || '',
+        cancelReason: o.cancel_reason || '', paymentMethod: o.payment_method || 'card',
+        paymentStatus: o.payment_status || 'Unpaid', payment_status: o.payment_status || 'Unpaid',
+        status: o.status || 'pending', notes: o.notes || '', internalNotes: o.internal_notes || '',
+        items: items
+    };
+}
 </script>
 </body>
 </html>
