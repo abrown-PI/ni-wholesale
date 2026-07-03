@@ -774,8 +774,9 @@
 
     <div class="admin-sidebar-footer">
         <p class="admin-sidebar-user" id="adminSidebarUser"></p>
+        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();openAdminSignIn()" id="adminSupaSignInLink">Sign in for full admin</a>
         <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();exitAdminMode()">View Storefront &rarr;</a>
-        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();changeAdminPassword()">Change Password</a>
+        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();changeAdminPassword()">Change Gate Password</a>
         <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();lockAdmin()">Lock Admin</a>
         <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();logoutAccount()">Sign Out</a>
     </div>
@@ -1660,6 +1661,36 @@
             <div style="text-align:center;margin-top:16px;font-family:var(--sans);font-size:13px;color:var(--gray-500)">
                 Don't have an account? <a href="#" style="color:var(--ni-blue)" onclick="closeModal('loginModal');openApplyModal();return false">Register your pharmacy</a>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Password Modal (shown when auth user has must_change_password=true) -->
+<div class="modal-overlay" id="changePasswordModal">
+    <div class="modal" style="max-width:420px">
+        <div class="modal-header"><h2>Set your password</h2></div>
+        <div class="modal-body">
+            <p style="font-family:var(--sans);font-size:13px;color:var(--gray-600);margin:0 0 16px">
+                Welcome! For your first login you'll set a new password. Choose one you'll remember.
+            </p>
+            <div class="form-group"><label>New Password *</label><input type="password" class="form-control" id="cpwNew" placeholder="Min 8 characters"></div>
+            <div class="form-group"><label>Confirm New Password *</label><input type="password" class="form-control" id="cpwConfirm" onkeydown="if(event.key==='Enter')submitChangePassword()"></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="submitChangePassword()">Save Password</button>
+        </div>
+    </div>
+</div>
+
+<!-- Admin Sign-In Modal (Supabase Auth admin) -->
+<div class="modal-overlay" id="adminSignInModal">
+    <div class="modal" style="max-width:420px">
+        <div class="modal-header"><h2>Admin Sign In</h2><button class="modal-close" onclick="closeModal('adminSignInModal')">&times;</button></div>
+        <div class="modal-body">
+            <p style="font-family:var(--sans);font-size:13px;color:var(--gray-600);margin:0 0 16px">
+                Sign in with your Supabase admin account to approve customers and see live orders across devices.
+            </p>
+            <div class="form-group"><label>Email *</label><input type="email" class="form-control" id="adminSignInEmail"></div>
+            <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="adminSignInPassword" onkeydown="if(event.key==='Enter')submitAdminSignIn()"></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="submitAdminSignIn()">Sign In</button>
         </div>
     </div>
 </div>
@@ -2796,6 +2827,100 @@ async function supaUpdateCustomerStatus(customerId, newStatus, extras) {
     if (res.error) throw res.error;
 }
 
+// ── Admin auth (Supabase) & approval Edge Function call ──
+async function supaAdminSignIn(email, password) {
+    var res = await supa.auth.signInWithPassword({ email: email, password: password });
+    if (res.error) throw res.error;
+    var user = res.data.user;
+    var prof = await supa.from('profiles').select('role, customer_id').eq('id', user.id).single();
+    if (!prof.data || prof.data.role !== 'admin') {
+        await supa.auth.signOut();
+        throw new Error('Signed in but this account is not an admin');
+    }
+    return user;
+}
+
+async function supaApproveCustomer(customerId) {
+    // Calls the deployed Edge Function. Uses the currently signed-in admin's JWT.
+    var { data: session } = await supa.auth.getSession();
+    if (!session || !session.session) throw new Error('Please sign in as an admin first');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/approve-customer', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + session.session.access_token,
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_PUBLISHABLE_KEY
+        },
+        body: JSON.stringify({ customerId: customerId })
+    });
+    var body = await res.json().catch(function() { return {}; });
+    if (!res.ok) throw new Error(body.error || 'Approve failed (status ' + res.status + ')');
+    return body; // { success, email, tempPassword, customerName, contactName }
+}
+
+async function supaChangePassword(newPassword) {
+    var res = await supa.auth.updateUser({
+        password: newPassword,
+        data: { must_change_password: false }
+    });
+    if (res.error) throw res.error;
+    return res.data;
+}
+
+function openChangePasswordModal() {
+    document.getElementById('cpwNew').value = '';
+    document.getElementById('cpwConfirm').value = '';
+    openModal('changePasswordModal');
+    setTimeout(function() { document.getElementById('cpwNew').focus(); }, 50);
+}
+async function submitChangePassword() {
+    var pw = document.getElementById('cpwNew').value;
+    var confirmPw = document.getElementById('cpwConfirm').value;
+    if (!pw || pw.length < 8) { showToast('Password must be at least 8 characters', 'error'); return; }
+    if (pw !== confirmPw) { showToast('Passwords do not match', 'error'); return; }
+    try {
+        await supaChangePassword(pw);
+    } catch (e) {
+        showToast('Change failed: ' + (e.message || 'Supabase error'), 'error');
+        return;
+    }
+    closeModal('changePasswordModal');
+    showToast('Password updated');
+}
+
+function openAdminSignIn() {
+    document.getElementById('adminSignInEmail').value = '';
+    document.getElementById('adminSignInPassword').value = '';
+    openModal('adminSignInModal');
+    setTimeout(function() { document.getElementById('adminSignInEmail').focus(); }, 50);
+}
+async function submitAdminSignIn() {
+    var email = document.getElementById('adminSignInEmail').value.trim().toLowerCase();
+    var password = document.getElementById('adminSignInPassword').value;
+    if (!email || !password) { showToast('Email and password required', 'error'); return; }
+    try {
+        await supaAdminSignIn(email, password);
+    } catch (e) {
+        showToast(e.message || 'Sign in failed', 'error');
+        return;
+    }
+    closeModal('adminSignInModal');
+    showToast('Signed in as admin');
+    // Refresh admin data now that we have proper RLS access.
+    try {
+        var accts = await supaFetchCustomers();
+        saveAccounts(accts);
+        var ords = await supaFetchOrders();
+        DATA.orders = ords.map(supaOrderToLocal);
+        saveData();
+        var active = document.querySelector('.page.active');
+        var pageId = active ? active.id.replace(/^page-/, '') : '';
+        if (pageId === 'admin-accounts') renderAccounts();
+        if (pageId === 'admin-orders') renderOrders();
+        if (pageId === 'admin-dashboard') renderAdminDashboard();
+    } catch (e) { console.warn('post-signin refresh:', e); }
+}
+
 // ── Orders ──
 async function supaCreateOrder(order, items) {
     // order: fields snake_case; items: array of order_items rows.
@@ -3573,6 +3698,10 @@ async function doLogin() {
     document.getElementById('loginPassword').value = '';
     updateLoginUI();
     showToast('Welcome, ' + accountObj.pharmacyName + '!');
+
+    // If the auth user still has must_change_password=true, prompt now.
+    var meta = authResult.user && authResult.user.user_metadata;
+    if (meta && meta.must_change_password === true) openChangePasswordModal();
 }
 
 async function logoutAccount() {
@@ -3742,12 +3871,27 @@ async function confirmApproveApplication() {
     var doCreateLocations = document.getElementById('approveCreateLocations').checked;
     var doSendEmail = document.getElementById('approveSendEmail').checked;
     var now = new Date().toISOString();
-    // Flip status in Supabase first; local UI updates only after success.
+
+    // Call approve-customer Edge Function. It creates the auth user with a temp
+    // password + flips customers.status='active' + links the profile. Returns the
+    // temp password so the admin can email it to the customer.
+    var approveResult;
     try {
-        await supaUpdateCustomerStatus(a.customerId || a.id, 'active');
+        approveResult = await supaApproveCustomer(a.customerId || a.id);
     } catch (e) {
-        showToast('Approve failed: ' + (e.message || 'Supabase error'), 'error');
+        showToast('Approve failed: ' + (e.message || 'Edge Function error'), 'error');
         return;
+    }
+    // Show temp password to admin so they can email it out.
+    if (approveResult && approveResult.tempPassword) {
+        // Copy to clipboard best-effort.
+        try { navigator.clipboard.writeText(approveResult.tempPassword); } catch (e) { /* ignore */ }
+        alert(
+            'Approved!\n\n' +
+            'Email: ' + approveResult.email + '\n' +
+            'Temp password: ' + approveResult.tempPassword + '\n\n' +
+            '(Copied to clipboard.) Email this password to ' + (approveResult.contactName || 'the customer') + '. They will be prompted to change it on first login.'
+        );
     }
 
     if (doCreateCustomer && !a.customerId) {
