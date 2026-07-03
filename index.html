@@ -801,6 +801,10 @@
             </div>
         </div>
         <div class="navbar-top-right">
+            <span class="entity-switcher" id="entitySwitcherWrap" style="display:none;font-family:var(--sans);font-size:12px;color:var(--gray-600);gap:6px;align-items:center">
+                <span>Buying for:</span>
+                <select id="entitySwitcher" onchange="switchEntity(this.value)" style="padding:4px 8px;border:1px solid var(--gray-300);border-radius:var(--radius);font-family:var(--sans);font-size:12px;background:#fff"></select>
+            </span>
             <span class="logged-in-name" id="loggedInName" style="display:none"></span>
             <button class="login-btn" id="loginRegisterBtn" onclick="openModal('loginModal')">&#128100; Login / Register</button>
             <button class="login-btn" id="logoutBtn" style="display:none" onclick="logoutAccount()">Logout</button>
@@ -2807,15 +2811,29 @@ async function supaSubmitApplication(app) {
 async function supaLogin(email, password) {
     var res = await supa.auth.signInWithPassword({ email: email, password: password });
     if (res.error) throw res.error;
-    // Load matching customer row so we have their pharmacy info.
     var user = res.data.user;
-    var prof = await supa.from('profiles').select('customer_id').eq('id', user.id).single();
-    var customer = null;
-    if (prof.data && prof.data.customer_id) {
-        var c = await supa.from('customers').select('*').eq('id', prof.data.customer_id).single();
-        if (c.data) customer = c.data;
+
+    // Load ALL customer memberships (multi-entity purchasing).
+    var memRes = await supa.from('customer_users')
+        .select('customer_id, role, is_default, customers(*)')
+        .eq('user_id', user.id);
+    var memberships = (memRes.data || []).map(function(m) {
+        return { customerId: m.customer_id, role: m.role, isDefault: m.is_default, customer: m.customers };
+    });
+
+    // Fallback: if no customer_users rows yet, fall back to profile.customer_id (legacy single-entity).
+    if (!memberships.length) {
+        var prof = await supa.from('profiles').select('customer_id').eq('id', user.id).single();
+        if (prof.data && prof.data.customer_id) {
+            var c = await supa.from('customers').select('*').eq('id', prof.data.customer_id).single();
+            if (c.data) memberships = [{ customerId: c.data.id, role: 'purchaser', isDefault: true, customer: c.data }];
+        }
     }
-    return { user: user, customer: customer };
+
+    // Pick default customer (is_default=true wins; else first).
+    var defaultMem = memberships.find(function(m) { return m.isDefault; }) || memberships[0];
+    var customer = defaultMem ? defaultMem.customer : null;
+    return { user: user, customer: customer, memberships: memberships };
 }
 async function supaLogout() {
     await supa.auth.signOut();
@@ -3692,11 +3710,23 @@ async function doLogin() {
     if (idx >= 0) accounts[idx] = accountObj; else accounts.push(accountObj);
     saveAccounts(accounts);
 
-    saveSession({ accountId: accountObj.id, pharmacyName: accountObj.pharmacyName, email: accountObj.email });
+    // Persist memberships + selected entity for multi-entity purchasing.
+    var memberships = (authResult.memberships || []).map(function(m) {
+        return { customerId: m.customerId, isDefault: m.isDefault, companyName: m.customer && m.customer.company_name };
+    });
+    var selectedCustomerId = accountObj.id;
+    saveSession({
+        accountId: accountObj.id,
+        pharmacyName: accountObj.pharmacyName,
+        email: accountObj.email,
+        memberships: memberships,
+        selectedCustomerId: selectedCustomerId
+    });
     closeModal('loginModal');
     document.getElementById('loginEmail').value = '';
     document.getElementById('loginPassword').value = '';
     updateLoginUI();
+    renderEntitySwitcher();
     showToast('Welcome, ' + accountObj.pharmacyName + '!');
 
     // If the auth user still has must_change_password=true, prompt now.
@@ -3708,7 +3738,39 @@ async function logoutAccount() {
     try { await supa.auth.signOut(); } catch (e) { /* ignore */ }
     saveSession(null);
     updateLoginUI();
+    renderEntitySwitcher();
     showToast('Logged out');
+}
+
+function renderEntitySwitcher() {
+    var wrap = document.getElementById('entitySwitcherWrap');
+    var sel = document.getElementById('entitySwitcher');
+    if (!wrap || !sel) return;
+    var s = loadSession();
+    var mems = (s && s.memberships) || [];
+    if (!s || mems.length < 2) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'inline-flex';
+    sel.innerHTML = mems.map(function(m) {
+        return '<option value="' + esc(m.customerId) + '"' + (m.customerId === s.selectedCustomerId ? ' selected' : '') + '>' + esc(m.companyName || '(unnamed)') + '</option>';
+    }).join('');
+}
+function switchEntity(customerId) {
+    var s = loadSession();
+    if (!s) return;
+    s.selectedCustomerId = customerId;
+    saveSession(s);
+    showToast('Now buying for ' + (
+        (s.memberships || []).find(function(m) { return m.customerId === customerId; }) || {}
+    ).companyName || 'selected entity');
+}
+
+// Return the account object for the CURRENTLY-SELECTED billing entity (multi-entity).
+function currentBillingAccount() {
+    var s = loadSession();
+    if (!s) return null;
+    var picked = s.selectedCustomerId || s.accountId;
+    var accts = loadAccounts();
+    return accts.find(function(a) { return a.id === picked || a.customerId === picked; }) || null;
 }
 
 function updateLoginUI() {
@@ -3726,6 +3788,7 @@ function updateLoginUI() {
         loginBtn.style.display = '';
         logoutBtn.style.display = 'none';
     }
+    if (typeof renderEntitySwitcher === 'function') renderEntitySwitcher();
 }
 
 // ════════════════════════════════════════════════════
@@ -6181,14 +6244,17 @@ function proceedToCheckout() {
 }
 
 function getCheckoutContext() {
-    // Returns { session, account, customer, locations } or partial nulls
+    // Returns { session, account, customer, locations }. In multi-entity mode
+    // the account/customer come from session.selectedCustomerId, not accountId.
     var session = loadSession();
     var account = null, customer = null, locations = [];
     if (session) {
         var accounts = loadAccounts();
-        account = accounts.find(function(a) { return a.id === session.accountId; }) || null;
-        if (account && account.customerId) {
-            customer = findCustomerById(account.customerId) || null;
+        var pickedId = session.selectedCustomerId || session.accountId;
+        account = accounts.find(function(a) { return a.id === pickedId || a.customerId === pickedId; }) || null;
+        if (account) {
+            var lookupId = account.customerId || account.id;
+            customer = findCustomerById(lookupId) || null;
             if (customer) {
                 locations = (DATA.customerLocations || []).filter(function(l) { return l.customerId === customer.id; });
             }
