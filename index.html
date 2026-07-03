@@ -861,11 +861,11 @@
         <div class="hero-content">
             <div class="hero-text">
                 <img src="ni-logo.png" alt="Nutritional Innovations" class="hero-logo">
-                <h1>Premium Supplements for<br>Pharmacy Professionals</h1>
-                <p>High-quality nutritional supplements formulated for pharmacies. Pharmaceutical-grade ingredients, competitive wholesale pricing, and trusted formulations your patients can rely on.</p>
+                <h1>Wholesale Supplements Built for<br>the Pharmacy Shelf</h1>
+                <p>Pharmaceutical-grade formulations, honest wholesale pricing, and direct-to-pharmacy fulfillment. Sold exclusively to licensed independent, compounding, and hospital pharmacies.</p>
                 <div class="hero-actions" style="justify-content:flex-start">
-                    <button class="btn btn-lg btn-white" onclick="navigate('storefront')">Browse Products</button>
-                    <button class="btn btn-lg" style="color:#fff;background:transparent;border:2px solid rgba(255,255,255,.7)" onclick="navigate('storefront')">Place an Order</button>
+                    <button class="btn btn-lg btn-white" onclick="openModal('registerModal')">Apply for Account</button>
+                    <button class="btn btn-lg" style="color:#fff;background:transparent;border:2px solid rgba(255,255,255,.7)" onclick="navigate('storefront')">Browse Catalog</button>
                 </div>
             </div>
             <div class="hero-product-img">
@@ -875,29 +875,29 @@
     </div>
 
     <div class="home-section">
-        <h2>Why Nutritional Innovations</h2>
+        <h2>Why pharmacies choose NI</h2>
         <div class="section-divider"></div>
-        <p class="section-sub">Purpose-built for independent and compounding pharmacies</p>
+        <p class="section-sub">Built for the way independent, compounding, and hospital pharmacies actually stock the shelf</p>
         <div class="features-grid">
             <div class="feature-card">
                 <div class="feature-icon">&#9883;</div>
                 <h3>Pharmaceutical Grade</h3>
-                <p>Every product meets rigorous quality standards. GMP-compliant manufacturing with full traceability and COAs available.</p>
+                <p>cGMP-certified manufacturing. Full batch traceability. Certificates of Analysis available on request for every SKU in your order.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">&#9733;</div>
-                <h3>Trusted Formulations</h3>
-                <p>Expertly developed supplements backed by science. Consistent potency, purity, and bioavailability in every batch.</p>
+                <h3>Formulator-backed</h3>
+                <p>Every SKU is designed with a licensed compounding pharmacist — not a marketing team. Consistent potency, verified bioavailability, honest labels.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">&#128176;</div>
-                <h3>Wholesale Pricing</h3>
-                <p>Competitive cost-per-unit with healthy margins built in. Volume discounts available for multi-location pharmacies.</p>
+                <h3>Real Dispensing Margins</h3>
+                <p>30–45% margin on our best-moving SKUs. Straight wholesale pricing — no confusing tiers, no MOQs designed to trap you.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">&#128666;</div>
-                <h3>Direct Fulfillment</h3>
-                <p>Ship directly to any pharmacy location. Fast turnaround with order tracking and packing slip documentation.</p>
+                <h3>Ships Direct</h3>
+                <p>From our warehouse to any pharmacy address you specify. Tracking on every shipment. Multi-location? Ship each store separately in one order.</p>
             </div>
         </div>
     </div>
@@ -905,9 +905,9 @@
     <div class="about-strip">
         <div class="about-content">
             <div class="about-text">
-                <h2 style="font-family:var(--serif);font-size:28px;color:var(--ni-navy)">About Nutritional Innovations</h2>
-                <p>Nutritional Innovations is a division of Pharmacy Innovations, providing premium dietary supplements specifically for the pharmacy market. Our product line includes vitamins, minerals, probiotics, and specialty formulations — all held to pharmaceutical-grade quality standards.</p>
-                <p style="margin-top:12px">Every NI product is formulated to deliver consistent potency and bioavailability, giving your patients supplements they can trust and your pharmacy margins it deserves.</p>
+                <h2 style="font-family:var(--serif);font-size:28px;color:var(--ni-navy)">Built by pharmacists, for pharmacists</h2>
+                <p>Nutritional Innovations is a spin-out of Pharmacy Innovations — a family of eleven pharmacies across the northeast. We built NI because we couldn't find a wholesale supplement supplier we'd stock ourselves: consistent quality, transparent margins, and formulations backed by an actual pharmacist.</p>
+                <p style="margin-top:12px">Our microbiome line launched May 2026 with five private-label formulations manufactured in partnership with Microbiome Labs. Our broader vitamin and mineral catalog is manufactured under strict cGMP controls in the United States.</p>
             </div>
             <div class="about-details">
                 <dl>
@@ -7657,15 +7657,37 @@ function openProductModal(idx) {
 }
 function editProduct(idx) { openProductModal(idx); }
 
-function handleImageUpload(input) {
+async function handleImageUpload(input) {
     if (!input.files || !input.files[0]) return;
-    var reader = new FileReader();
-    reader.onload = function(e) {
+    var file = input.files[0];
+    // Basic guardrails
+    if (file.size > 8 * 1024 * 1024) {
+        showToast('Image too large (max 8 MB)', 'error');
+        input.value = ''; return;
+    }
+    if (!/^image\//.test(file.type)) {
+        showToast('File must be an image', 'error');
+        input.value = ''; return;
+    }
+    // Upload to Supabase Storage (bucket `product-images` is public read; admin-only write).
+    var ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+    var safeName = (file.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 40);
+    var path = 'products/' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + safeName + (safeName.endsWith('.' + ext) ? '' : ('.' + ext));
+    var uploading = showToast('Uploading image…', 'success');
+    try {
+        var up = await supa.storage.from('product-images').upload(path, file, {
+            cacheControl: '31536000', upsert: false, contentType: file.type
+        });
+        if (up.error) throw up.error;
+        var pub = supa.storage.from('product-images').getPublicUrl(up.data.path);
+        var url = pub.data.publicUrl;
         var isFirst = currentEditImages.length === 0;
-        currentEditImages.push({ data: e.target.result, url: '', isPrimary: isFirst });
+        currentEditImages.push({ data: '', url: url, isPrimary: isFirst });
         renderProductImagesGallery();
-    };
-    reader.readAsDataURL(input.files[0]);
+        showToast('Image uploaded');
+    } catch (e) {
+        showToast('Upload failed: ' + (e.message || 'Supabase Storage error'), 'error');
+    }
     input.value = ''; // reset so same file can be re-uploaded
 }
 
