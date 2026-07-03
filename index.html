@@ -1841,6 +1841,11 @@
                     <input type="checkbox" id="approveSendEmail" checked> Send approval email (queued)
                 </label>
             </div>
+            <div class="form-group" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200)">
+                <label style="font-size:12px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;font-family:var(--sans);margin-bottom:8px;display:block">Attach purchaser to additional companies (optional)</label>
+                <p style="font-size:12px;color:var(--gray-500);font-family:var(--sans);margin:0 0 8px">For chain pharmacies or MSOs: check every legal entity this purchaser will buy for. They'll see an entity switcher at checkout.</p>
+                <div id="approveExtraCustomerList" style="max-height:200px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:var(--radius);padding:8px;background:var(--ni-cream)"></div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline" onclick="closeModal('approveApplicationModal')">Cancel</button>
@@ -2362,6 +2367,13 @@
                 <div class="form-group"><label>NPI Number</label><input type="text" class="form-control" id="custNpiNumber"></div>
             </div>
 
+            <div style="margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Billing / Accounting</label></div>
+            <div class="form-row">
+                <div class="form-group"><label>Tax ID / EIN</label><input type="text" class="form-control" id="custTaxId" placeholder="e.g., 12-3456789"></div>
+                <div class="form-group"><label>Resale Certificate #</label><input type="text" class="form-control" id="custResaleCertNumber"></div>
+                <div class="form-group"><label>NetSuite Entity ID</label><input type="text" class="form-control" id="custNetsuiteEntityId" placeholder="e.g., 1234"></div>
+            </div>
+
             <div style="margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Notes</label></div>
             <div class="form-group"><textarea class="form-control" id="custNotes" rows="2" placeholder="Internal notes about this customer..."></textarea></div>
 
@@ -2858,10 +2870,14 @@ async function supaAdminSignIn(email, password) {
     return user;
 }
 
-async function supaApproveCustomer(customerId) {
+async function supaApproveCustomer(customerId, extraCustomerIds) {
     // Calls the deployed Edge Function. Uses the currently signed-in admin's JWT.
     var { data: session } = await supa.auth.getSession();
     if (!session || !session.session) throw new Error('Please sign in as an admin first');
+    var payload = { customerId: customerId };
+    if (Array.isArray(extraCustomerIds) && extraCustomerIds.length) {
+        payload.attachAdditionalCustomerIds = extraCustomerIds;
+    }
     var res = await fetch(SUPABASE_URL + '/functions/v1/approve-customer', {
         method: 'POST',
         headers: {
@@ -2869,11 +2885,71 @@ async function supaApproveCustomer(customerId) {
             'Content-Type': 'application/json',
             'apikey': SUPABASE_PUBLISHABLE_KEY
         },
-        body: JSON.stringify({ customerId: customerId })
+        body: JSON.stringify(payload)
     });
     var body = await res.json().catch(function() { return {}; });
     if (!res.ok) throw new Error(body.error || 'Approve failed (status ' + res.status + ')');
-    return body; // { success, email, tempPassword, customerName, contactName }
+    return body; // { success, email, tempPassword, customerName, contactName, attachedCustomerIds }
+}
+
+// Save a customer row (create or update). Returns the DB row shape.
+async function supaSaveCustomer(cust, locations) {
+    var row = {
+        company_name: cust.companyName || null,
+        account_code: cust.accountCode || null,
+        contact_name: cust.contactName || null,
+        email: cust.email || null,
+        phone: cust.phone || null,
+        billing_address: cust.billingAddress || null,
+        billing_city: cust.billingCity || null,
+        billing_state: cust.billingState || null,
+        billing_zip: cust.billingZip || null,
+        pharmacy_type: cust.pharmacyType || null,
+        license_number: cust.licenseNumber || null,
+        dea_number: cust.deaNumber || null,
+        npi_number: cust.npiNumber || null,
+        tax_id: cust.taxId || null,
+        resale_cert_number: cust.resaleCertNumber || null,
+        netsuite_entity_id: cust.netsuiteEntityId || null,
+        payment_terms: cust.paymentTerms || 'Net-30',
+        status: cust.status || 'active',
+        notes: cust.notes || ''
+    };
+    var saved;
+    // Look up by id if we have one (32-char uuid); otherwise create.
+    if (cust.id && /^[0-9a-f-]{36}$/i.test(cust.id)) {
+        var upd = await supa.from('customers').update(row).eq('id', cust.id).select().single();
+        if (upd.error) throw upd.error;
+        saved = upd.data;
+    } else {
+        var ins = await supa.from('customers').insert(row).select().single();
+        if (ins.error) throw ins.error;
+        saved = ins.data;
+    }
+    // Replace locations for this customer.
+    await supa.from('customer_locations').delete().eq('customer_id', saved.id);
+    if (locations && locations.length) {
+        var locRows = locations.map(function(l) {
+            return {
+                customer_id: saved.id,
+                location_name: l.locationName || 'Main',
+                address: l.address || null, city: l.city || null,
+                state: l.state || null, zip: l.zip || null,
+                contact_name: l.contactName || null,
+                phone: l.phone || null, email: l.email || null,
+                status: l.status || 'active'
+            };
+        });
+        var locIns = await supa.from('customer_locations').insert(locRows);
+        if (locIns.error) throw locIns.error;
+    }
+    return saved;
+}
+
+async function supaDeleteCustomer(customerId) {
+    // customer_locations cascade via FK; customer_users cascade too.
+    var res = await supa.from('customers').delete().eq('id', customerId);
+    if (res.error) throw res.error;
 }
 
 async function supaChangePassword(newPassword) {
@@ -3923,6 +3999,18 @@ function openApproveApplication(accountId) {
     document.getElementById('approveCreateCustomer').checked = true;
     document.getElementById('approveCreateLocations').checked = true;
     document.getElementById('approveSendEmail').checked = true;
+    // Render list of OTHER active customers to optionally attach the purchaser to.
+    var listEl = document.getElementById('approveExtraCustomerList');
+    var others = accounts.filter(function(c) { return c.id !== accountId && c.status === 'Approved'; });
+    if (!others.length) {
+        listEl.innerHTML = '<div style="color:var(--gray-400);font-size:12px;font-family:var(--sans);padding:8px">No other approved companies yet. You can attach this purchaser later from the customer edit page.</div>';
+    } else {
+        listEl.innerHTML = others.map(function(c) {
+            return '<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer">' +
+                '<input type="checkbox" class="approve-extra-customer" value="' + esc(c.customerId || c.id) + '"> ' +
+                esc(c.pharmacyName) + '</label>';
+        }).join('');
+    }
     openModal('approveApplicationModal');
 }
 async function confirmApproveApplication() {
@@ -3935,12 +4023,18 @@ async function confirmApproveApplication() {
     var doSendEmail = document.getElementById('approveSendEmail').checked;
     var now = new Date().toISOString();
 
+    // Collect any additional customer IDs the admin checked (multi-entity).
+    var extraIds = Array.prototype.map.call(
+        document.querySelectorAll('#approveExtraCustomerList .approve-extra-customer:checked'),
+        function(el) { return el.value; }
+    );
     // Call approve-customer Edge Function. It creates the auth user with a temp
-    // password + flips customers.status='active' + links the profile. Returns the
-    // temp password so the admin can email it to the customer.
+    // password + flips customers.status='active' + links the profile + attaches
+    // the purchaser to any additional customers. Returns the temp password so
+    // the admin can email it to the customer.
     var approveResult;
     try {
-        approveResult = await supaApproveCustomer(a.customerId || a.id);
+        approveResult = await supaApproveCustomer(a.customerId || a.id, extraIds);
     } catch (e) {
         showToast('Approve failed: ' + (e.message || 'Edge Function error'), 'error');
         return;
@@ -9131,27 +9225,31 @@ function openCustomerModal(i) {
         custContactName:'', custEmail:'', custPhone:'',
         custBillingAddress:'', custBillingCity:'', custBillingState:'', custBillingZip:'',
         custLicenseNumber:'', custDeaNumber:'', custNpiNumber:'',
+        custTaxId:'', custResaleCertNumber:'', custNetsuiteEntityId:'',
         custNotes:''
     };
     if (i >= 0) {
         var c = DATA.customers[i];
         document.getElementById('customerEditId').value = c.id || '';
-        fields.custCompanyName    = c.companyName    || '';
-        fields.custAccountCode    = c.accountCode    || '';
-        fields.custPharmacyType   = c.pharmacyType   || '';
-        fields.custStatus         = c.status         || 'active';
-        fields.custPaymentTerms   = c.paymentTerms   || 'Net-30';
-        fields.custContactName    = c.contactName    || '';
-        fields.custEmail          = c.email          || '';
-        fields.custPhone          = c.phone          || '';
-        fields.custBillingAddress = c.billingAddress || '';
-        fields.custBillingCity    = c.billingCity    || '';
-        fields.custBillingState   = c.billingState   || '';
-        fields.custBillingZip     = c.billingZip     || '';
-        fields.custLicenseNumber  = c.licenseNumber  || '';
-        fields.custDeaNumber      = c.deaNumber      || '';
-        fields.custNpiNumber      = c.npiNumber      || '';
-        fields.custNotes          = c.notes          || '';
+        fields.custCompanyName      = c.companyName        || '';
+        fields.custAccountCode      = c.accountCode        || '';
+        fields.custPharmacyType     = c.pharmacyType       || '';
+        fields.custStatus           = c.status             || 'active';
+        fields.custPaymentTerms     = c.paymentTerms       || 'Net-30';
+        fields.custContactName      = c.contactName        || '';
+        fields.custEmail            = c.email              || '';
+        fields.custPhone            = c.phone              || '';
+        fields.custBillingAddress   = c.billingAddress     || '';
+        fields.custBillingCity      = c.billingCity        || '';
+        fields.custBillingState     = c.billingState       || '';
+        fields.custBillingZip       = c.billingZip         || '';
+        fields.custLicenseNumber    = c.licenseNumber      || '';
+        fields.custDeaNumber        = c.deaNumber          || '';
+        fields.custNpiNumber        = c.npiNumber          || '';
+        fields.custTaxId            = c.taxId              || '';
+        fields.custResaleCertNumber = c.resaleCertNumber   || '';
+        fields.custNetsuiteEntityId = c.netsuiteEntityId   || '';
+        fields.custNotes            = c.notes              || '';
         // Clone locations into working copy
         currentEditLocations = getCustomerLocations(c.id).map(function(l) { return Object.assign({}, l); });
     } else {
@@ -9232,7 +9330,7 @@ function removeCustomerLocationRow(i) {
     renderCustomerLocationsInModal();
 }
 
-function saveCustomer() {
+async function saveCustomer() {
     var companyName = document.getElementById('custCompanyName').value.trim();
     if (!companyName) { showToast('Company Name is required', 'error'); return; }
     // Validate locations
@@ -9271,12 +9369,28 @@ function saveCustomer() {
     customer.billingCity    = document.getElementById('custBillingCity').value.trim();
     customer.billingState   = document.getElementById('custBillingState').value.trim();
     customer.billingZip     = document.getElementById('custBillingZip').value.trim();
-    customer.licenseNumber  = document.getElementById('custLicenseNumber').value.trim();
-    customer.deaNumber      = document.getElementById('custDeaNumber').value.trim();
-    customer.npiNumber      = document.getElementById('custNpiNumber').value.trim();
-    customer.notes          = document.getElementById('custNotes').value.trim();
+    customer.licenseNumber     = document.getElementById('custLicenseNumber').value.trim();
+    customer.deaNumber         = document.getElementById('custDeaNumber').value.trim();
+    customer.npiNumber         = document.getElementById('custNpiNumber').value.trim();
+    customer.taxId             = document.getElementById('custTaxId').value.trim();
+    customer.resaleCertNumber  = document.getElementById('custResaleCertNumber').value.trim();
+    customer.netsuiteEntityId  = document.getElementById('custNetsuiteEntityId').value.trim();
+    customer.notes             = document.getElementById('custNotes').value.trim();
     if (!customer.createdAt) customer.createdAt = nowIso;
     customer.updatedAt = nowIso;
+
+    // Write to Supabase first; bail if it fails so local state stays in sync.
+    var saved;
+    try {
+        saved = await supaSaveCustomer(customer, trimmedLocations);
+    } catch (e) {
+        showToast('Save failed: ' + (e.message || 'Supabase error'), 'error');
+        return;
+    }
+    // Overwrite the local id/timestamps with what the DB returned.
+    customer.id = saved.id;
+    customer.createdAt = saved.created_at || customer.createdAt;
+    customer.updatedAt = saved.updated_at || customer.updatedAt;
 
     if (i >= 0) {
         DATA.customers[i] = customer;
@@ -9286,7 +9400,7 @@ function saveCustomer() {
         showToast('Customer added');
     }
 
-    // Replace customer's locations with the working copy
+    // Replace customer's locations with the working copy (mirror to local cache).
     if (!Array.isArray(DATA.customerLocations)) DATA.customerLocations = [];
     DATA.customerLocations = DATA.customerLocations.filter(function(l) { return l.customerId !== customer.id; });
     trimmedLocations.forEach(function(l) {
@@ -9303,10 +9417,14 @@ function saveCustomer() {
     renderCustomers();
 }
 
-function deleteCustomer(i) {
+async function deleteCustomer(i) {
     var c = DATA.customers[i];
     if (!c) return;
     if (!confirm('Delete "' + (c.companyName || 'this customer') + '"? This also deletes its locations.')) return;
+    if (c.id && /^[0-9a-f-]{36}$/i.test(c.id)) {
+        try { await supaDeleteCustomer(c.id); }
+        catch (e) { showToast('Delete failed: ' + (e.message || 'Supabase error'), 'error'); return; }
+    }
     if (Array.isArray(DATA.customerLocations)) {
         DATA.customerLocations = DATA.customerLocations.filter(function(l) { return l.customerId !== c.id; });
     }
