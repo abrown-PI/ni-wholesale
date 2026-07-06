@@ -4289,16 +4289,23 @@ async function confirmApproveApplication() {
         showToast('Approve failed: ' + (e.message || 'Edge Function error'), 'error');
         return;
     }
-    // Show temp password to admin so they can email it out.
-    if (approveResult && approveResult.tempPassword) {
-        // Copy to clipboard best-effort.
+    // Handle approval result — email delivery is now handled server-side via Resend.
+    if (approveResult && approveResult.emailSent) {
+        showToast('Approved — welcome email sent to ' + approveResult.email);
+    } else if (approveResult && approveResult.tempPassword) {
+        // Email failed or was skipped — fall back to showing the admin the temp password so they can email it manually.
         try { navigator.clipboard.writeText(approveResult.tempPassword); } catch (e) { /* ignore */ }
         alert(
-            'Approved!\n\n' +
-            'Email: ' + approveResult.email + '\n' +
-            'Temp password: ' + approveResult.tempPassword + '\n\n' +
-            '(Copied to clipboard.) Email this password to ' + (approveResult.contactName || 'the customer') + '. They will be prompted to change it on first login.'
+            'Approved, but the welcome email could not be sent'
+            + (approveResult.emailError ? ' (' + approveResult.emailError + ')' : '')
+            + '.\n\nEmail: ' + approveResult.email
+            + '\nTemp password: ' + approveResult.tempPassword
+            + '\n\n(Copied to clipboard.) Please email this to ' + (approveResult.contactName || 'the customer') + ' manually.'
         );
+    } else if (approveResult && approveResult.userPreexisted) {
+        showToast('Approved — user already existed, no email sent');
+    } else {
+        showToast('Approved');
     }
 
     if (doCreateCustomer && !a.customerId) {
