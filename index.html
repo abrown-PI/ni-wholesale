@@ -7977,7 +7977,11 @@ async function saveProduct() {
     try {
         saved = await supaSaveProduct(product);
     } catch (e) {
-        showToast('Save failed: ' + (e.message || 'Supabase error'), 'error');
+        var msg = e.message || 'Supabase error';
+        if (/coerce.*single/i.test(msg) || /permission denied/i.test(msg) || /policy/i.test(msg)) {
+            msg = 'Not signed in as admin. Click "Sign in for full admin" in the sidebar, then try again.';
+        }
+        showToast('Save failed: ' + msg, 'error');
         return;
     }
     var prevSku = existing ? existing.sku : null;
@@ -9667,7 +9671,11 @@ async function saveCustomer() {
     try {
         saved = await supaSaveCustomer(customer, trimmedLocations);
     } catch (e) {
-        showToast('Save failed: ' + (e.message || 'Supabase error'), 'error');
+        var msg = e.message || 'Supabase error';
+        if (/coerce.*single/i.test(msg) || /permission denied/i.test(msg) || /policy/i.test(msg)) {
+            msg = 'Not signed in as admin. Click "Sign in for full admin" in the sidebar, then try again.';
+        }
+        showToast('Save failed: ' + msg, 'error');
         return;
     }
     // Overwrite the local id/timestamps with what the DB returned.
