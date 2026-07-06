@@ -2951,7 +2951,7 @@ async function supaLogin(email, password) {
         return { customerId: m.customer_id, role: m.role, isDefault: m.is_default, customer: m.customers };
     });
 
-    // Fallback: if no customer_users rows yet, fall back to profile.customer_id (legacy single-entity).
+    // Fallback: if no customer_users rows yet, fall back to profile.customer_id.
     if (!memberships.length) {
         var prof = await supa.from('profiles').select('customer_id').eq('id', user.id).single();
         if (prof.data && prof.data.customer_id) {
@@ -2960,10 +2960,22 @@ async function supaLogin(email, password) {
         }
     }
 
-    // Pick default customer (is_default=true wins; else first).
+    // Fetch ALL locations across every membership — purchaser picks the store, we
+    // resolve the parent legal entity from the location for billing/NetSuite.
+    var locations = [];
+    if (memberships.length) {
+        var custIds = memberships.map(function(m) { return m.customerId; });
+        var locRes = await supa.from('customer_locations')
+            .select('*, customers(id, company_name, netsuite_entity_id, payment_terms, billing_address, billing_city, billing_state, billing_zip)')
+            .in('customer_id', custIds)
+            .eq('status', 'active')
+            .order('location_name');
+        locations = (locRes.data || []);
+    }
+
     var defaultMem = memberships.find(function(m) { return m.isDefault; }) || memberships[0];
     var customer = defaultMem ? defaultMem.customer : null;
-    return { user: user, customer: customer, memberships: memberships };
+    return { user: user, customer: customer, memberships: memberships, locations: locations };
 }
 async function supaLogout() {
     await supa.auth.signOut();
@@ -3923,16 +3935,36 @@ async function doLogin() {
     if (idx >= 0) accounts[idx] = accountObj; else accounts.push(accountObj);
     saveAccounts(accounts);
 
-    // Persist memberships + selected entity for multi-entity purchasing.
+    // Persist memberships + all locations. Purchaser picks a location; we resolve
+    // the parent customer_id from that for billing/NetSuite invoice routing.
     var memberships = (authResult.memberships || []).map(function(m) {
         return { customerId: m.customerId, isDefault: m.isDefault, companyName: m.customer && m.customer.company_name };
     });
-    var selectedCustomerId = accountObj.id;
+    var locations = (authResult.locations || []).map(function(l) {
+        return {
+            id: l.id,
+            customerId: l.customer_id,
+            locationName: l.location_name || '',
+            city: l.city || '', state: l.state || '',
+            address: l.address || '', zip: l.zip || '',
+            companyName: (l.customers && l.customers.company_name) || ''
+        };
+    });
+    // Default: first location; if a customer_users row was marked is_default, prefer
+    // any location under that customer.
+    var defaultMem = memberships.find(function(m) { return m.isDefault; }) || memberships[0];
+    var defaultLoc = defaultMem
+        ? (locations.find(function(l) { return l.customerId === defaultMem.customerId; }) || locations[0])
+        : locations[0];
+    var selectedLocationId = defaultLoc ? defaultLoc.id : '';
+    var selectedCustomerId = defaultLoc ? defaultLoc.customerId : accountObj.id;
     saveSession({
         accountId: accountObj.id,
         pharmacyName: accountObj.pharmacyName,
         email: accountObj.email,
         memberships: memberships,
+        locations: locations,
+        selectedLocationId: selectedLocationId,
         selectedCustomerId: selectedCustomerId
     });
     closeModal('loginModal');
@@ -3956,25 +3988,30 @@ async function logoutAccount() {
 }
 
 function renderEntitySwitcher() {
+    // "Ordering for:" location switcher. When >1 location, show a dropdown.
     var wrap = document.getElementById('entitySwitcherWrap');
     var sel = document.getElementById('entitySwitcher');
+    var label = wrap ? wrap.querySelector('span') : null;
     if (!wrap || !sel) return;
     var s = loadSession();
-    var mems = (s && s.memberships) || [];
-    if (!s || mems.length < 2) { wrap.style.display = 'none'; return; }
+    var locs = (s && s.locations) || [];
+    if (!s || locs.length < 2) { wrap.style.display = 'none'; return; }
+    if (label) label.textContent = 'Ordering for:';
     wrap.style.display = 'inline-flex';
-    sel.innerHTML = mems.map(function(m) {
-        return '<option value="' + esc(m.customerId) + '"' + (m.customerId === s.selectedCustomerId ? ' selected' : '') + '>' + esc(m.companyName || '(unnamed)') + '</option>';
+    sel.innerHTML = locs.map(function(l) {
+        var label = l.locationName + (l.city ? ' — ' + l.city : '') + (l.state ? ', ' + l.state : '');
+        return '<option value="' + esc(l.id) + '"' + (l.id === s.selectedLocationId ? ' selected' : '') + '>' + esc(label) + '</option>';
     }).join('');
 }
-function switchEntity(customerId) {
+function switchEntity(locationId) {
     var s = loadSession();
     if (!s) return;
-    s.selectedCustomerId = customerId;
+    var loc = (s.locations || []).find(function(l) { return l.id === locationId; });
+    if (!loc) return;
+    s.selectedLocationId = locationId;
+    s.selectedCustomerId = loc.customerId;
     saveSession(s);
-    showToast('Now buying for ' + (
-        (s.memberships || []).find(function(m) { return m.customerId === customerId; }) || {}
-    ).companyName || 'selected entity');
+    showToast('Now ordering for ' + loc.locationName + (loc.city ? ' — ' + loc.city : ''));
 }
 
 // Return the account object for the CURRENTLY-SELECTED billing entity (multi-entity).
