@@ -3126,6 +3126,27 @@ async function supaDeleteCustomer(customerId) {
     if (res.error) throw res.error;
 }
 
+// Notify email flow (calls the notify-order Edge Function).
+async function supaNotifyOrder(orderId, action) {
+    if (!orderId || !action) return { ok: false, error: 'orderId + action required' };
+    try {
+        const res = await fetch(SUPABASE_URL + '/functions/v1/notify-order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_PUBLISHABLE_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_PUBLISHABLE_KEY
+            },
+            body: JSON.stringify({ orderId: orderId, action: action })
+        });
+        const body = await res.json().catch(function () { return {}; });
+        if (!res.ok) return { ok: false, error: body.error || ('HTTP ' + res.status) };
+        return body;
+    } catch (e) {
+        return { ok: false, error: e && e.message ? e.message : String(e) };
+    }
+}
+
 async function supaChangePassword(newPassword) {
     var res = await supa.auth.updateUser({
         password: newPassword,
@@ -3195,6 +3216,9 @@ async function submitAdminSignIn() {
     try {
         var accts = await supaFetchCustomers();
         saveAccounts(accts);
+        var adminCust = await supaFetchAdminCustomers();
+        DATA.customers = adminCust.customers;
+        DATA.customerLocations = adminCust.locations;
         var ords = await supaFetchOrders();
         DATA.orders = ords.map(supaOrderToLocal);
         saveData();
@@ -3202,6 +3226,7 @@ async function submitAdminSignIn() {
         var pageId = active ? active.id.replace(/^page-/, '') : '';
         if (pageId === 'admin-accounts') renderAccounts();
         if (pageId === 'admin-orders') renderOrders();
+        if (pageId === 'admin-customers') renderCustomers();
         if (pageId === 'admin-dashboard') renderAdminDashboard();
     } catch (e) { console.warn('post-signin refresh:', e); }
 }
@@ -7238,6 +7263,12 @@ async function placeCheckoutOrder() {
             // Attach the DB uuid so admin dashboards can reconcile.
             order.supabaseOrderId = saved.id;
             saveData();
+            // Kick off order notifications (customer confirmation + orders@ + accounting if invoice).
+            // Fire-and-forget so the user isn't blocked; log any failure.
+            supaNotifyOrder(saved.id, 'placed').then(function (r) {
+                if (!r || !r.ok) console.warn('[notify-order placed] failed:', r && r.error);
+                else console.log('[notify-order placed]', r.results);
+            });
         } catch (supaErr) {
             console.warn('[supabase] order write failed (kept locally):', supaErr && supaErr.message);
             showToast('Order placed but sync to server failed — admin has been notified', 'error');
@@ -9060,7 +9091,7 @@ function markShipped(idx) {
     openModal('markShippedModal');
 }
 
-function confirmMarkShipped() {
+async function confirmMarkShipped() {
     var idx = parseInt(document.getElementById('markShippedIndex').value);
     var o = DATA.orders[idx];
     if (!o) return;
@@ -9074,19 +9105,26 @@ function confirmMarkShipped() {
     if (notes) o.internalNotes = ('[' + shippedAt.slice(0,10) + ' shipped] ' + notes + (o.internalNotes ? '\n' + o.internalNotes : ''));
     saveData();
 
-    if (o.email) {
-        queueEmail({
-            templateKey: 'order_shipped',
-            toEmail: o.email,
-            toName: o.contactName || o.customerName,
-            vars: {
-                contact_name: o.contactName || o.customerName || '',
-                order_num: '#' + o.orderNumber,
-                tracking_number: o.trackingNumber || '',
-                carrier: o.carrier || ''
-            },
-            orderId: o.id,
-            customerId: o.customerId || null
+    // Push status to Supabase (source of truth) so cross-device admin + notify-order see it.
+    var dbOrderId = o.supabaseOrderId || o.id;
+    if (dbOrderId && /^[0-9a-f-]{36}$/i.test(dbOrderId)) {
+        try {
+            var upd = await supa.from('orders').update({
+                status: 'shipped',
+                shipped_at: shippedAt,
+                tracking_number: o.trackingNumber || null,
+                carrier: o.carrier || null,
+                internal_notes: o.internalNotes || ''
+            }).eq('id', dbOrderId);
+            if (upd.error) console.warn('[supabase] order status update failed:', upd.error.message);
+        } catch (e) { console.warn('[supabase] order status update error:', e); }
+    }
+
+    // Kick off notify-order emails (customer tracking + NetSuite CSV if invoice payment).
+    if (dbOrderId && /^[0-9a-f-]{36}$/i.test(dbOrderId)) {
+        supaNotifyOrder(dbOrderId, 'shipped').then(function (r) {
+            if (!r || !r.ok) console.warn('[notify-order shipped] failed:', r && r.error);
+            else console.log('[notify-order shipped]', r.results);
         });
     }
 
