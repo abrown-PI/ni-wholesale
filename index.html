@@ -3147,6 +3147,37 @@ async function supaNotifyOrder(orderId, action) {
     }
 }
 
+async function supaResendWelcome(customerId) {
+    var { data: session } = await supa.auth.getSession();
+    if (!session || !session.session) throw new Error('Please sign in as admin first');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/resend-welcome', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + session.session.access_token,
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_PUBLISHABLE_KEY
+        },
+        body: JSON.stringify({ customerId: customerId })
+    });
+    var body = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(body.error || ('Resend failed (HTTP ' + res.status + ')'));
+    return body;
+}
+
+async function resendWelcomeForCustomer(customerId, customerName) {
+    if (!customerId) return;
+    if (!confirm('Resend welcome email + reset temp password for ' + (customerName || 'this customer') + '?')) return;
+    var r;
+    try { r = await supaResendWelcome(customerId); }
+    catch (e) { showToast(e.message || 'Resend failed', 'error'); return; }
+    if (r.emailSent) {
+        showToast('Welcome email resent to ' + r.email);
+    } else if (r.tempPassword) {
+        try { navigator.clipboard.writeText(r.tempPassword); } catch (e) { /* ignore */ }
+        alert('Password reset, but the email could not be sent.\n\nEmail: ' + r.email + '\nTemp password: ' + r.tempPassword + '\n\n(Copied to clipboard.) Please deliver manually.');
+    }
+}
+
 async function supaChangePassword(newPassword) {
     var res = await supa.auth.updateUser({
         password: newPassword,
@@ -9513,6 +9544,7 @@ function renderCustomers() {
             '<td>' +
                 '<button class="btn btn-sm btn-outline" onclick="showCustomerDetail(' + i + ')">View</button> ' +
                 '<button class="btn btn-sm btn-outline" onclick="editCustomer(' + i + ')">Edit</button> ' +
+                '<button class="btn btn-sm btn-outline" title="Send a new temp password + welcome email" onclick="resendWelcomeForCustomer(\'' + esc(c.id) + '\',\'' + esc((c.companyName || '').replace(/[\'"\\\\]/g,'')) + '\')">&#128231; Resend</button> ' +
                 '<button class="btn btn-sm btn-danger" onclick="deleteCustomer(' + i + ')">Del</button>' +
             '</td>' +
         '</tr>';
