@@ -4031,6 +4031,14 @@ async function doLogin() {
 async function logoutAccount() {
     try { await supa.auth.signOut(); } catch (e) { /* ignore */ }
     saveSession(null);
+    // If we're currently on an admin page, also lock the admin gate and route home.
+    // (Admin operations require Supabase auth anyway, so leaving the sidebar visible
+    // after signout would just show a broken state.)
+    var onAdmin = isAdminPage((document.querySelector('.page.active') || {}).id ? document.querySelector('.page.active').id.replace(/^page-/, '') : '');
+    if (onAdmin) {
+        sessionStorage.removeItem(ADMIN_SESSION_KEY);
+        navigate('home');
+    }
     updateLoginUI();
     renderEntitySwitcher();
     showToast('Logged out');
