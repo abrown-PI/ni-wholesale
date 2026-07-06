@@ -2835,7 +2835,11 @@ function supaCustomerToLocalAccount(c, locations) {
                 zip: l.zip || '',
                 contactName: l.contact_name || '',
                 phone: l.phone || '',
-                email: l.email || ''
+                email: l.email || '',
+                licenseNumber: l.license_number || '',
+                licenseState: l.license_state || '',
+                dea: l.dea_number || '',
+                npi: l.npi_number || ''
             };
         }),
         customerId: c.id,
@@ -2907,7 +2911,7 @@ async function supaSubmitApplication(app) {
     if (insertCust.error) throw insertCust.error;
     var customer = insertCust.data;
 
-    // 2) Insert customer_locations rows.
+    // 2) Insert customer_locations rows (with per-location licensing).
     if (app.locations && app.locations.length) {
         var locRows = app.locations.map(function(l) {
             return {
@@ -2920,6 +2924,10 @@ async function supaSubmitApplication(app) {
                 contact_name: l.contactName || null,
                 phone: l.phone || null,
                 email: l.email || null,
+                license_number: l.licenseNumber || null,
+                license_state: l.licenseState || null,
+                dea_number: l.dea || null,
+                npi_number: l.npi || null,
                 status: 'active'
             };
         });
@@ -3036,7 +3044,7 @@ async function supaSaveCustomer(cust, locations) {
         if (ins.error) throw ins.error;
         saved = ins.data;
     }
-    // Replace locations for this customer.
+    // Replace locations for this customer (with per-location licensing).
     await supa.from('customer_locations').delete().eq('customer_id', saved.id);
     if (locations && locations.length) {
         var locRows = locations.map(function(l) {
@@ -3047,6 +3055,10 @@ async function supaSaveCustomer(cust, locations) {
                 state: l.state || null, zip: l.zip || null,
                 contact_name: l.contactName || null,
                 phone: l.phone || null, email: l.email || null,
+                license_number: l.licenseNumber || null,
+                license_state: l.licenseState || null,
+                dea_number: l.deaNumber || null,
+                npi_number: l.npiNumber || null,
                 status: l.status || 'active'
             };
         });
@@ -3716,6 +3728,17 @@ function applyLocationRowHtml(loc, idx) {
             '<div class="form-group"><label>Phone</label><input type="tel" class="form-control apply-loc-phone" data-idx="' + idx + '" value="' + esc(loc.phone) + '"></div>' +
             '<div class="form-group"><label>Email</label><input type="email" class="form-control apply-loc-email" data-idx="' + idx + '" value="' + esc(loc.email) + '"></div>' +
         '</div>' +
+        '<div style="margin-top:8px;padding-top:10px;border-top:1px dashed var(--gray-300)">' +
+            '<div style="font-size:11px;font-weight:600;color:var(--ni-deep-blue);text-transform:uppercase;letter-spacing:.5px;font-family:var(--sans);margin-bottom:8px">Licensing for this location</div>' +
+            '<div class="form-row">' +
+                '<div class="form-group"><label>State License #</label><input type="text" class="form-control apply-loc-license" data-idx="' + idx + '" value="' + esc(loc.licenseNumber || '') + '"></div>' +
+                '<div class="form-group"><label>License State</label><input type="text" class="form-control apply-loc-license-state" data-idx="' + idx + '" maxlength="2" placeholder="PA" value="' + esc(loc.licenseState || '') + '"></div>' +
+            '</div>' +
+            '<div class="form-row">' +
+                '<div class="form-group"><label>DEA #</label><input type="text" class="form-control apply-loc-dea" data-idx="' + idx + '" value="' + esc(loc.dea || '') + '"></div>' +
+                '<div class="form-group"><label>NPI #</label><input type="text" class="form-control apply-loc-npi" data-idx="' + idx + '" value="' + esc(loc.npi || '') + '"></div>' +
+            '</div>' +
+        '</div>' +
     '</div>';
 }
 function renderApplyLocations() {
@@ -3749,7 +3772,11 @@ function captureApplyLocationsFromDom() {
             zip: v('apply-loc-zip'),
             contactName: v('apply-loc-contact'),
             phone: v('apply-loc-phone'),
-            email: v('apply-loc-email')
+            email: v('apply-loc-email'),
+            licenseNumber: v('apply-loc-license'),
+            licenseState: (v('apply-loc-license-state') || '').toUpperCase(),
+            dea: v('apply-loc-dea'),
+            npi: v('apply-loc-npi')
         };
     });
 }
@@ -4048,10 +4075,18 @@ function viewApplication(accountId) {
     if (!a) { showToast('Application not found', 'error'); return; }
     document.getElementById('applicationDetailTitle').textContent = 'Application — ' + a.pharmacyName;
     var locsHtml = (a.locations || []).map(function(l, i) {
+        var licParts = [];
+        if (l.licenseNumber || l.licenseState) licParts.push('License: ' + (l.licenseNumber || '—') + (l.licenseState ? ' (' + l.licenseState + ')' : ''));
+        if (l.dea) licParts.push('DEA: ' + l.dea);
+        if (l.npi) licParts.push('NPI: ' + l.npi);
+        var licHtml = licParts.length
+            ? '<div style="font-size:12px;color:var(--gray-600);margin-top:6px;padding-top:6px;border-top:1px dashed var(--gray-300)"><strong style="color:var(--ni-deep-blue)">Licensing:</strong> ' + esc(licParts.join(' &nbsp;•&nbsp; ')) + '</div>'
+            : '';
         return '<div style="border:1px solid var(--gray-200);border-radius:var(--radius);padding:10px;margin-bottom:8px;background:var(--ni-cream)">' +
             '<div style="font-weight:600;font-size:13px;color:var(--ni-deep-blue);margin-bottom:4px">Location ' + (i + 1) + ': ' + esc(l.name || '--') + '</div>' +
             '<div style="font-size:13px">' + esc([l.address, l.city, l.state, l.zip].filter(Boolean).join(', ') || '--') + '</div>' +
             (l.contactName || l.phone || l.email ? '<div style="font-size:12px;color:var(--gray-500);margin-top:4px">' + esc([l.contactName, l.phone, l.email].filter(Boolean).join(' • ')) + '</div>' : '') +
+            licHtml +
         '</div>';
     }).join('') || '<div style="color:var(--gray-400);font-size:13px">No locations submitted</div>';
 
@@ -9405,37 +9440,41 @@ function renderCustomerLocationsInModal() {
         container.innerHTML = '<div style="font-size:12px;color:var(--gray-400);font-family:var(--sans);padding:8px 0">No locations yet. Click "+ Add Location" above to add one.</div>';
         return;
     }
-    var cell = 'padding:4px;vertical-align:middle';
-    var input = 'width:100%;padding:5px 6px;font-size:12px;font-family:var(--sans);border:1px solid var(--gray-200);border-radius:4px;box-sizing:border-box';
-    var rows = currentEditLocations.map(function(l, i) {
+    var input = 'width:100%;padding:6px 8px;font-size:13px;font-family:var(--sans);border:1px solid var(--gray-200);border-radius:4px;box-sizing:border-box';
+    var lbl = 'display:block;font-size:11px;color:var(--gray-500);font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px;font-family:var(--sans)';
+    var cards = currentEditLocations.map(function(l, i) {
         var statusOptions = ['active','suspended'].map(function(s) {
             return '<option value="' + s + '"' + (l.status === s ? ' selected' : '') + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
         }).join('');
-        return '<tr>' +
-            '<td style="' + cell + '"><input type="text" style="' + input + '" value="' + esc(l.locationName || '') + '" placeholder="Main / FL / HST" onchange="updateCustomerLocationField(' + i + ',\'locationName\',this.value)"></td>' +
-            '<td style="' + cell + '"><input type="text" style="' + input + '" value="' + esc(l.address || '') + '" placeholder="Address" onchange="updateCustomerLocationField(' + i + ',\'address\',this.value)"></td>' +
-            '<td style="' + cell + ';width:110px"><input type="text" style="' + input + '" value="' + esc(l.city || '') + '" placeholder="City" onchange="updateCustomerLocationField(' + i + ',\'city\',this.value)"></td>' +
-            '<td style="' + cell + ';width:60px"><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.state || '') + '" placeholder="ST" onchange="updateCustomerLocationField(' + i + ',\'state\',this.value)"></td>' +
-            '<td style="' + cell + ';width:80px"><input type="text" style="' + input + '" value="' + esc(l.zip || '') + '" placeholder="ZIP" onchange="updateCustomerLocationField(' + i + ',\'zip\',this.value)"></td>' +
-            '<td style="' + cell + ';width:120px"><input type="text" style="' + input + '" value="' + esc(l.phone || '') + '" placeholder="Phone" onchange="updateCustomerLocationField(' + i + ',\'phone\',this.value)"></td>' +
-            '<td style="' + cell + ';min-width:150px"><input type="email" style="' + input + '" value="' + esc(l.email || '') + '" placeholder="Email" onchange="updateCustomerLocationField(' + i + ',\'email\',this.value)"></td>' +
-            '<td style="' + cell + ';width:100px"><select style="' + input + '" onchange="updateCustomerLocationField(' + i + ',\'status\',this.value)">' + statusOptions + '</select></td>' +
-            '<td style="' + cell + ';width:70px;text-align:center"><button type="button" class="btn btn-sm btn-danger" onclick="removeCustomerLocationRow(' + i + ')">Remove</button></td>' +
-        '</tr>';
+        return '<div style="border:1px solid var(--gray-200);border-radius:var(--radius);padding:12px;margin-bottom:12px;background:var(--ni-cream)">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+                '<strong style="font-family:var(--sans);font-size:13px;color:var(--ni-deep-blue)">Location ' + (i+1) + '</strong>' +
+                '<button type="button" class="btn btn-sm btn-danger" onclick="removeCustomerLocationRow(' + i + ')">Remove</button>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:2fr 3fr 1fr;gap:8px;margin-bottom:8px">' +
+                '<div><label style="' + lbl + '">Name *</label><input type="text" style="' + input + '" value="' + esc(l.locationName || '') + '" placeholder="Main / FL / HST" onchange="updateCustomerLocationField(' + i + ',\'locationName\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">Address</label><input type="text" style="' + input + '" value="' + esc(l.address || '') + '" onchange="updateCustomerLocationField(' + i + ',\'address\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">Status</label><select style="' + input + '" onchange="updateCustomerLocationField(' + i + ',\'status\',this.value)">' + statusOptions + '</select></div>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr 2fr;gap:8px;margin-bottom:8px">' +
+                '<div><label style="' + lbl + '">City</label><input type="text" style="' + input + '" value="' + esc(l.city || '') + '" onchange="updateCustomerLocationField(' + i + ',\'city\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.state || '') + '" onchange="updateCustomerLocationField(' + i + ',\'state\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">ZIP</label><input type="text" style="' + input + '" value="' + esc(l.zip || '') + '" onchange="updateCustomerLocationField(' + i + ',\'zip\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">Phone</label><input type="text" style="' + input + '" value="' + esc(l.phone || '') + '" onchange="updateCustomerLocationField(' + i + ',\'phone\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">Email</label><input type="email" style="' + input + '" value="' + esc(l.email || '') + '" onchange="updateCustomerLocationField(' + i + ',\'email\',this.value)"></div>' +
+            '</div>' +
+            '<div style="margin-top:6px;padding-top:8px;border-top:1px dashed var(--gray-300)">' +
+                '<div style="font-size:10px;font-weight:700;color:var(--ni-deep-blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-family:var(--sans)">Licensing (this location)</div>' +
+                '<div style="display:grid;grid-template-columns:2fr 1fr 1.5fr 1.5fr;gap:8px">' +
+                    '<div><label style="' + lbl + '">State License #</label><input type="text" style="' + input + '" value="' + esc(l.licenseNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseNumber\',this.value)"></div>' +
+                    '<div><label style="' + lbl + '">Lic State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.licenseState || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseState\',this.value.toUpperCase())"></div>' +
+                    '<div><label style="' + lbl + '">DEA #</label><input type="text" style="' + input + '" value="' + esc(l.deaNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'deaNumber\',this.value)"></div>' +
+                    '<div><label style="' + lbl + '">NPI #</label><input type="text" style="' + input + '" value="' + esc(l.npiNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'npiNumber\',this.value)"></div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
     }).join('');
-    container.innerHTML =
-        '<div style="overflow-x:auto"><table style="width:100%;font-family:var(--sans);font-size:12px;border-collapse:collapse">' +
-            '<thead><tr style="background:var(--gray-100)">' +
-                '<th style="padding:6px;text-align:left">Location Name *</th>' +
-                '<th style="padding:6px;text-align:left">Address</th>' +
-                '<th style="padding:6px;text-align:left">City</th>' +
-                '<th style="padding:6px;text-align:left">State</th>' +
-                '<th style="padding:6px;text-align:left">ZIP</th>' +
-                '<th style="padding:6px;text-align:left">Phone</th>' +
-                '<th style="padding:6px;text-align:left">Email</th>' +
-                '<th style="padding:6px;text-align:left">Status</th>' +
-                '<th style="padding:6px;text-align:center">Actions</th>' +
-            '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    container.innerHTML = cards;
 }
 
 function updateCustomerLocationField(i, field, value) {
@@ -9450,6 +9489,7 @@ function addCustomerLocationRow() {
         locationName: '',
         address: '', city: '', state: '', zip: '',
         contactName: '', phone: '', email: '',
+        licenseNumber: '', licenseState: '', deaNumber: '', npiNumber: '',
         status: 'active',
         createdAt: new Date().toISOString()
     });
