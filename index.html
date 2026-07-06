@@ -2883,6 +2883,47 @@ async function supaFetchCustomers() {
     return customers.map(function(c) { return supaCustomerToLocalAccount(c, byCustomer[c.id] || []); });
 }
 
+// Fetch customers + locations in the shape the ADMIN customer list expects
+// (DATA.customers + DATA.customerLocations). Populates the localStorage cache
+// so the admin UI (which still reads DATA.customers) shows Supabase as truth.
+async function supaFetchAdminCustomers() {
+    const { data: customers, error } = await supa.from('customers').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    const localCustomers = (customers || []).map(function(c) {
+        return {
+            id: c.id, companyName: c.company_name || '', accountCode: c.account_code || '',
+            contactName: c.contact_name || '', email: c.email || '', phone: c.phone || '',
+            billingAddress: c.billing_address || '', billingCity: c.billing_city || '',
+            billingState: c.billing_state || '', billingZip: c.billing_zip || '',
+            pharmacyType: c.pharmacy_type || '', licenseNumber: c.license_number || '',
+            deaNumber: c.dea_number || '', npiNumber: c.npi_number || '',
+            taxId: c.tax_id || '', resaleCertNumber: c.resale_cert_number || '',
+            netsuiteEntityId: c.netsuite_entity_id || '',
+            paymentTerms: c.payment_terms || 'Net-30',
+            status: c.status || 'active',
+            notes: c.notes || '',
+            createdAt: c.created_at || '', updatedAt: c.updated_at || ''
+        };
+    });
+    const ids = (customers || []).map(function(c) { return c.id; });
+    let localLocations = [];
+    if (ids.length) {
+        const { data: locs, error: e2 } = await supa.from('customer_locations').select('*').in('customer_id', ids);
+        if (e2) throw e2;
+        localLocations = (locs || []).map(function(l) {
+            return {
+                id: l.id, customerId: l.customer_id, locationName: l.location_name || '',
+                address: l.address || '', city: l.city || '', state: l.state || '', zip: l.zip || '',
+                contactName: l.contact_name || '', phone: l.phone || '', email: l.email || '',
+                licenseNumber: l.license_number || '', licenseState: l.license_state || '',
+                deaNumber: l.dea_number || '', npiNumber: l.npi_number || '',
+                status: l.status || 'active', createdAt: l.created_at || ''
+            };
+        });
+    }
+    return { customers: localCustomers, locations: localLocations };
+}
+
 async function supaSubmitApplication(app) {
     // Match Reviv's pattern: application creates customers + customer_locations rows
     // ANONYMOUSLY (no auth user yet). Auth user is created later by the approve
@@ -11258,15 +11299,25 @@ if (!localStorage.getItem(ADMIN_USERS_KEY)) {
     } catch (e) {
         console.warn('[supabase] product hydrate failed, using local cache:', e.message);
     }
-    // Accounts (customers)
+    // Accounts (application-status shape) — for the Applications page
     try {
         const accounts = await supaFetchCustomers();
         if (accounts && accounts.length >= 0) {
             saveAccounts(accounts);
-            console.log('[supabase] hydrated', accounts.length, 'customers');
+            console.log('[supabase] hydrated', accounts.length, 'accounts');
         }
     } catch (e) {
-        console.warn('[supabase] customer hydrate failed, using local cache:', e.message);
+        console.warn('[supabase] account hydrate failed, using local cache:', e.message);
+    }
+    // Customers (admin list shape) — for the Customer list + edit UI
+    try {
+        const { customers, locations } = await supaFetchAdminCustomers();
+        DATA.customers = customers;
+        DATA.customerLocations = locations;
+        saveData();
+        console.log('[supabase] hydrated', customers.length, 'customers with', locations.length, 'locations');
+    } catch (e) {
+        console.warn('[supabase] admin-customer hydrate failed, using local cache:', e.message);
     }
     // Orders
     try {
