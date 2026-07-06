@@ -774,11 +774,9 @@
 
     <div class="admin-sidebar-footer">
         <p class="admin-sidebar-user" id="adminSidebarUser"></p>
-        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();openAdminSignIn()" id="adminSupaSignInLink">Sign in for full admin</a>
         <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();exitAdminMode()">View Storefront &rarr;</a>
-        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();changeAdminPassword()">Change Gate Password</a>
-        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();lockAdmin()">Lock Admin</a>
-        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();logoutAccount()">Sign Out</a>
+        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();openChangePasswordModal()">Change Password</a>
+        <a href="#" class="admin-sidebar-link" onclick="event.preventDefault();lockAdmin()">Sign Out</a>
     </div>
 </aside>
 
@@ -3175,14 +3173,24 @@ async function submitAdminSignIn() {
     var email = document.getElementById('adminSignInEmail').value.trim().toLowerCase();
     var password = document.getElementById('adminSignInPassword').value;
     if (!email || !password) { showToast('Email and password required', 'error'); return; }
+    var user;
     try {
-        await supaAdminSignIn(email, password);
+        user = await supaAdminSignIn(email, password);
     } catch (e) {
         showToast(e.message || 'Sign in failed', 'error');
         return;
     }
+    IS_SUPA_ADMIN = true;
     closeModal('adminSignInModal');
     showToast('Signed in as admin');
+    // If we were routed here from a /admin-* URL, drop the user there now.
+    if (pendingAdminPage) {
+        var target = pendingAdminPage; pendingAdminPage = null;
+        navigate(target);
+    }
+    // Force-prompt password change on first login (temp password from admin.createUser or reset).
+    var meta = user && user.user_metadata;
+    if (meta && meta.must_change_password === true) openChangePasswordModal({ forced: true });
     // Refresh admin data now that we have proper RLS access.
     try {
         var accts = await supaFetchCustomers();
@@ -5750,85 +5758,46 @@ function pathToPage(path) {
 function isAdminPage(pageId) { return pageId && pageId.indexOf('admin-') === 0; }
 
 // ════════════════════════════════════════════════════
-// ADMIN PASSWORD GATE
+// ADMIN AUTH (Supabase Auth only — no more per-browser SHA-256 gate)
 // ════════════════════════════════════════════════════
-const ADMIN_PASS_HASH_KEY = 'ni_admin_pass_hash';
-const ADMIN_SESSION_KEY = 'ni_admin_authed';
-let pendingAdminPage = null;       // page to route to after successful unlock
-let adminGateMode = 'login';        // 'login' | 'setup' | 'change'
+const ADMIN_SESSION_KEY = 'ni_admin_authed'; // legacy key, still cleared on logout
+let pendingAdminPage = null;   // page to route to after successful sign-in
+let IS_SUPA_ADMIN = false;
 
-async function sha256Hex(text) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-function hasAdminPassword() { return !!localStorage.getItem(ADMIN_PASS_HASH_KEY); }
-function isAdminAuthed() { return sessionStorage.getItem(ADMIN_SESSION_KEY) === '1'; }
+function isAdminAuthed() { return IS_SUPA_ADMIN; }
 
 function openAdminGate(intendedPage) {
+    // "Gate" now = Supabase Auth sign-in with email + password (email visible).
     pendingAdminPage = intendedPage || 'admin-dashboard';
-    adminGateMode = hasAdminPassword() ? 'login' : 'setup';
-    const isSetup = adminGateMode === 'setup';
-    document.getElementById('adminGateTitle').textContent = isSetup ? 'Set Admin Password' : 'Admin Login';
-    document.getElementById('adminGateIntro').textContent = isSetup
-        ? 'No admin password has been set on this browser. Choose one to lock the admin area.'
-        : 'Enter the admin password to continue.';
-    document.getElementById('adminGateConfirmRow').style.display = isSetup ? '' : 'none';
-    document.getElementById('adminGatePassword').value = '';
-    document.getElementById('adminGateConfirm').value = '';
-    document.getElementById('adminGateSubmit').textContent = isSetup ? 'Set Password' : 'Unlock';
-    openModal('adminGateModal');
-    setTimeout(function () { document.getElementById('adminGatePassword').focus(); }, 50);
+    document.getElementById('adminSignInEmail').value = '';
+    document.getElementById('adminSignInPassword').value = '';
+    openModal('adminSignInModal');
+    setTimeout(function () { document.getElementById('adminSignInEmail').focus(); }, 50);
 }
 
-function cancelAdminGate() {
-    closeModal('adminGateModal');
-    if (adminGateMode !== 'change' && !isAdminAuthed()) {
-        // Cancelled before unlocking — bounce back to home
-        navigate('home');
-    }
-}
-
-async function submitAdminGate() {
-    const pw = document.getElementById('adminGatePassword').value;
-    if (!pw) { showToast('Password required', 'error'); return; }
-    if (adminGateMode === 'setup' || adminGateMode === 'change') {
-        const c = document.getElementById('adminGateConfirm').value;
-        if (pw.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
-        if (pw !== c) { showToast('Passwords do not match', 'error'); return; }
-        const h = await sha256Hex(pw);
-        localStorage.setItem(ADMIN_PASS_HASH_KEY, h);
-        sessionStorage.setItem(ADMIN_SESSION_KEY, '1');
-        closeModal('adminGateModal');
-        showToast(adminGateMode === 'setup' ? 'Admin password set' : 'Admin password updated');
-        if (adminGateMode === 'setup') navigate(pendingAdminPage || 'admin-dashboard');
-        adminGateMode = 'login';
-    } else {
-        const stored = localStorage.getItem(ADMIN_PASS_HASH_KEY);
-        const h = await sha256Hex(pw);
-        if (h !== stored) { showToast('Incorrect password', 'error'); return; }
-        sessionStorage.setItem(ADMIN_SESSION_KEY, '1');
-        closeModal('adminGateModal');
-        navigate(pendingAdminPage || 'admin-dashboard');
-    }
-}
-
-function lockAdmin() {
-    sessionStorage.removeItem(ADMIN_SESSION_KEY);
-    showToast('Admin locked');
+async function lockAdmin() {
+    try { await supa.auth.signOut(); } catch (e) { /* silent */ }
+    IS_SUPA_ADMIN = false;
+    sessionStorage.removeItem(ADMIN_SESSION_KEY); // legacy cleanup
+    showToast('Signed out');
     navigate('home');
 }
 
-function changeAdminPassword() {
-    adminGateMode = 'change';
-    document.getElementById('adminGateTitle').textContent = 'Change Admin Password';
-    document.getElementById('adminGateIntro').textContent = 'Choose a new admin password. It replaces the current one on this browser.';
-    document.getElementById('adminGateConfirmRow').style.display = '';
-    document.getElementById('adminGatePassword').value = '';
-    document.getElementById('adminGateConfirm').value = '';
-    document.getElementById('adminGateSubmit').textContent = 'Save Password';
-    openModal('adminGateModal');
-    setTimeout(function () { document.getElementById('adminGatePassword').focus(); }, 50);
-}
+// Check Supabase session on boot; if signed in as admin, unlock.
+(async function checkAdminSessionOnBoot() {
+    try {
+        var { data: sess } = await supa.auth.getSession();
+        if (!sess || !sess.session) return;
+        var { data: prof } = await supa.from('profiles').select('role').eq('id', sess.session.user.id).single();
+        if (prof && prof.role === 'admin') {
+            IS_SUPA_ADMIN = true;
+            // If we landed on an admin page, re-navigate now that we're authed.
+            var active = document.querySelector('.page.active');
+            var curPageId = active ? active.id.replace(/^page-/, '') : '';
+            if (isAdminPage(curPageId)) navigate(curPageId, { skipHistory: true });
+        }
+    } catch (e) { /* silent */ }
+})();
 
 function navigate(pageId, opts) {
     opts = opts || {};
