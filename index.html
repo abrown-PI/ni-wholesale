@@ -806,6 +806,7 @@
                 <select id="entitySwitcher" onchange="switchEntity(this.value)" style="padding:4px 8px;border:1px solid var(--gray-300);border-radius:var(--radius);font-family:var(--sans);font-size:12px;background:#fff"></select>
             </span>
             <span class="logged-in-name" id="loggedInName" style="display:none"></span>
+            <button class="login-btn" id="changePwBtn" style="display:none" onclick="openChangePasswordModal()" title="Change your password">&#128274; Password</button>
             <button class="login-btn" id="loginRegisterBtn" onclick="openModal('loginModal')">&#128100; Login / Register</button>
             <button class="login-btn" id="logoutBtn" style="display:none" onclick="logoutAccount()">Logout</button>
             <button class="admin-toggle" id="adminToggle" onclick="toggleAdmin()" style="display:none">Admin</button>
@@ -1782,10 +1783,10 @@
 <!-- Change Password Modal (shown when auth user has must_change_password=true) -->
 <div class="modal-overlay" id="changePasswordModal">
     <div class="modal" style="max-width:420px">
-        <div class="modal-header"><h2>Set your password</h2></div>
+        <div class="modal-header"><h2 id="cpwTitle">Change your password</h2><button class="modal-close" id="cpwCloseBtn" onclick="closeModal('changePasswordModal')" style="display:none">&times;</button></div>
         <div class="modal-body">
-            <p style="font-family:var(--sans);font-size:13px;color:var(--gray-600);margin:0 0 16px">
-                Welcome! For your first login you'll set a new password. Choose one you'll remember.
+            <p id="cpwIntro" style="font-family:var(--sans);font-size:13px;color:var(--gray-600);margin:0 0 16px">
+                Choose a new password. Minimum 8 characters.
             </p>
             <div class="form-group"><label>New Password *</label><input type="password" class="form-control" id="cpwNew" placeholder="Min 8 characters"></div>
             <div class="form-group"><label>Confirm New Password *</label><input type="password" class="form-control" id="cpwConfirm" onkeydown="if(event.key==='Enter')submitChangePassword()"></div>
@@ -3136,9 +3137,16 @@ async function supaChangePassword(newPassword) {
     return res.data;
 }
 
-function openChangePasswordModal() {
+function openChangePasswordModal(opts) {
+    opts = opts || {};
+    var isForced = !!opts.forced;
     document.getElementById('cpwNew').value = '';
     document.getElementById('cpwConfirm').value = '';
+    document.getElementById('cpwTitle').textContent = isForced ? 'Set your password' : 'Change your password';
+    document.getElementById('cpwIntro').textContent = isForced
+        ? "Welcome! For your first login you'll set a new password. Choose one you'll remember."
+        : 'Choose a new password. Minimum 8 characters.';
+    document.getElementById('cpwCloseBtn').style.display = isForced ? 'none' : '';
     openModal('changePasswordModal');
     setTimeout(function() { document.getElementById('cpwNew').focus(); }, 50);
 }
@@ -4015,9 +4023,9 @@ async function doLogin() {
     renderEntitySwitcher();
     showToast('Welcome, ' + accountObj.pharmacyName + '!');
 
-    // If the auth user still has must_change_password=true, prompt now.
+    // If the auth user still has must_change_password=true, force-prompt now.
     var meta = authResult.user && authResult.user.user_metadata;
-    if (meta && meta.must_change_password === true) openChangePasswordModal();
+    if (meta && meta.must_change_password === true) openChangePasswordModal({ forced: true });
 }
 
 async function logoutAccount() {
@@ -4069,15 +4077,18 @@ function updateLoginUI() {
     const nameEl = document.getElementById('loggedInName');
     const loginBtn = document.getElementById('loginRegisterBtn');
     const logoutBtn = document.getElementById('logoutBtn');
+    const changePwBtn = document.getElementById('changePwBtn');
     if (session) {
         nameEl.textContent = session.pharmacyName;
         nameEl.style.display = '';
         loginBtn.style.display = 'none';
         logoutBtn.style.display = '';
+        if (changePwBtn) changePwBtn.style.display = '';
     } else {
         nameEl.style.display = 'none';
         loginBtn.style.display = '';
         logoutBtn.style.display = 'none';
+        if (changePwBtn) changePwBtn.style.display = 'none';
     }
     if (typeof renderEntitySwitcher === 'function') renderEntitySwitcher();
 }
