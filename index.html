@@ -6522,6 +6522,8 @@ function proceedToCheckout() {
 function getCheckoutContext() {
     // Returns { session, account, customer, locations }. In multi-entity mode
     // the account/customer come from session.selectedCustomerId, not accountId.
+    // Locations come from session.locations (fetched from Supabase on login) so
+    // multi-entity purchasers see every store they can ship to.
     var session = loadSession();
     var account = null, customer = null, locations = [];
     if (session) {
@@ -6531,9 +6533,29 @@ function getCheckoutContext() {
         if (account) {
             var lookupId = account.customerId || account.id;
             customer = findCustomerById(lookupId) || null;
-            if (customer) {
-                locations = (DATA.customerLocations || []).filter(function(l) { return l.customerId === customer.id; });
-            }
+        }
+        // Prefer session.locations (Supabase source of truth) — filter to the
+        // currently-selected customer so ship-to options match the billing entity.
+        var allLocs = Array.isArray(session.locations) ? session.locations : null;
+        if (allLocs && allLocs.length) {
+            var pickCid = session.selectedCustomerId || (account && (account.customerId || account.id));
+            locations = allLocs
+                .filter(function(l) { return !pickCid || l.customerId === pickCid; })
+                .map(function(l) {
+                    return {
+                        id: l.id,
+                        customerId: l.customerId,
+                        locationName: l.locationName,
+                        address: l.address || '',
+                        city: l.city || '', state: l.state || '', zip: l.zip || '',
+                        contactName: l.contactName || '',
+                        phone: l.phone || '', email: l.email || '',
+                        status: 'active'
+                    };
+                });
+        } else if (customer) {
+            // Fallback to localStorage cache (older/legacy code path)
+            locations = (DATA.customerLocations || []).filter(function(l) { return l.customerId === customer.id; });
         }
     }
     return { session: session, account: account, customer: customer, locations: locations };
