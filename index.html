@@ -2976,6 +2976,8 @@ async function supaFetchAdminCustomers() {
                 contactName: l.contact_name || '', phone: l.phone || '', email: l.email || '',
                 billingEntityName: l.billing_entity_name || '',
                 netsuiteEntityId: l.netsuite_entity_id || '',
+                netsuiteLocationId: l.netsuite_location_id || '',
+                netsuiteSubsidiaryId: l.netsuite_subsidiary_id || '',
                 licenseNumber: l.license_number || '', licenseState: l.license_state || '',
                 licenseExpiration: l.license_expiration || '',
                 licenseDocumentUrl: l.license_document_url || '',
@@ -3180,6 +3182,8 @@ async function supaSaveCustomer(cust, locations) {
                 phone: l.phone || null, email: l.email || null,
                 billing_entity_name: l.billingEntityName || null,
                 netsuite_entity_id: l.netsuiteEntityId || null,
+                netsuite_location_id: l.netsuiteLocationId || null,
+                netsuite_subsidiary_id: l.netsuiteSubsidiaryId || null,
                 license_number: l.licenseNumber || null,
                 license_state: l.licenseState || null,
                 license_expiration: l.licenseExpiration || null,
@@ -9759,6 +9763,8 @@ async function renderCsvMappingPage(kind) {
 
     var activeCfg = CSV_MAPPING_KINDS[activeKind];
     var isInvoice = activeKind === 'invoice'; // only invoice has global settings + line labels
+    var isBill = activeKind === 'bill';
+    var siteSettings = await loadSiteSettings();
     body.innerHTML =
         '<div style="max-width:1200px">' +
         tabsHtml +
@@ -9775,6 +9781,14 @@ async function renderCsvMappingPage(kind) {
                 '<div class="form-group"><label>Tax line label</label><input type="text" class="form-control" id="csvLblTax" value="' + esc((mapping.line_labels && mapping.line_labels.tax) || 'Sales tax') + '"></div>' +
                 '<div class="form-group"><label>Discount line label</label><input type="text" class="form-control" id="csvLblDisc" value="' + esc((mapping.line_labels && mapping.line_labels.discount) || 'Discount') + '"></div>' +
             '</div>' +
+        '</div>' : '') +
+        (isBill ? '<div class="card"><div class="card-header"><h2>Bill CSV Settings</h2></div>' +
+            '<div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);padding:0 20px 8px">Fixed values that get injected into the Bill CSV via the <code>settings.*</code> source options. Persist to Supabase; used across all intercompany customers.</div>' +
+            '<div class="form-row">' +
+                '<div class="form-group"><label>NI\'s Vendor ID inside PI\'s NetSuite</label><input type="text" class="form-control" id="billSetVendorId" placeholder="e.g., 12345" value="' + esc(siteSettings.ni_vendor_id_in_pi || '') + '"></div>' +
+                '<div class="form-group"><label>Default Expense Account ID</label><input type="text" class="form-control" id="billSetExpAcct" placeholder="e.g., 5000" value="' + esc(siteSettings.default_expense_account_id || '') + '"></div>' +
+            '</div>' +
+            '<div style="padding:0 20px 16px"><button class="btn btn-sm btn-outline" onclick="saveBillCsvSettings()">Save Bill Settings</button></div>' +
         '</div>' : '') +
         '<div class="card"><div class="card-header"><h2>Columns (' + (mapping.columns.length) + ')</h2><button class="btn btn-sm btn-primary" onclick="csvMappingAddColumn()">+ Add Column</button></div>' +
             '<div id="csvColumnsList"></div>' +
@@ -9865,6 +9879,24 @@ async function csvMappingSave() {
         showToast('Save failed: ' + msg, 'error');
     }
 }
+async function saveBillCsvSettings() {
+    var vendorId = (document.getElementById('billSetVendorId') || {}).value || '';
+    var expAcct = (document.getElementById('billSetExpAcct') || {}).value || '';
+    try {
+        var upserts = await Promise.all([
+            supa.from('settings').upsert({ key: 'ni_vendor_id_in_pi', value: vendorId }),
+            supa.from('settings').upsert({ key: 'default_expense_account_id', value: expAcct })
+        ]);
+        for (var i = 0; i < upserts.length; i++) if (upserts[i].error) throw upserts[i].error;
+        SITE_SETTINGS_CACHE = null; // force reload next time
+        showToast('Bill settings saved');
+    } catch (e) {
+        var msg = e.message || 'Save error';
+        if (/coerce|permission|policy/i.test(msg)) msg = 'Not signed in as admin. Sign in first.';
+        showToast('Save failed: ' + msg, 'error');
+    }
+}
+
 async function csvMappingResetDefault() {
     if (CURRENT_MAPPING_KIND !== 'invoice') { showToast('Reset only supported for the Invoice CSV default', 'error'); return; }
     if (!confirm('Reset the Invoice CSV mapping to the built-in 23-column default?')) return;
@@ -10555,6 +10587,10 @@ function renderCustomerLocationsInModal() {
                 '<div><label style="' + lbl + '">NetSuite Entity ID</label><input type="text" style="' + input + '" placeholder="e.g., 1234" value="' + esc(l.netsuiteEntityId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteEntityId\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Status</label><select style="' + input + '" onchange="updateCustomerLocationField(' + i + ',\'status\',this.value)">' + statusOptions + '</select></div>' +
             '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">' +
+                '<div><label style="' + lbl + '">NetSuite Location ID (per store)</label><input type="text" style="' + input + '" placeholder="e.g., 42" value="' + esc(l.netsuiteLocationId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteLocationId\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">NetSuite Subsidiary ID (per legal entity)</label><input type="text" style="' + input + '" placeholder="e.g., 3" value="' + esc(l.netsuiteSubsidiaryId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteSubsidiaryId\',this.value)"></div>' +
+            '</div>' +
             '<div style="display:grid;grid-template-columns:1.5fr 0.8fr 1.2fr 1.5fr;gap:10px;margin-top:10px">' +
                 '<div><label style="' + lbl + '">State License #</label><input type="text" style="' + input + '" value="' + esc(l.licenseNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseNumber\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Lic State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.licenseState || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseState\',this.value.toUpperCase())"></div>' +
@@ -10588,6 +10624,7 @@ function addCustomerLocationRow() {
         address: '', city: '', state: '', zip: '',
         contactName: '', phone: '', email: '',
         billingEntityName: '', netsuiteEntityId: '',
+        netsuiteLocationId: '', netsuiteSubsidiaryId: '',
         licenseNumber: '', licenseState: '', deaNumber: '', npiNumber: '',
         licenseExpiration: '', licenseDocumentUrl: '', licenseDocumentUploadedAt: '',
         resaleCertExpiration: '', resaleCertDocumentUrl: '', resaleCertDocumentUploadedAt: '',
@@ -10614,7 +10651,8 @@ async function saveCustomer() {
             return l.locationName || l.address || l.city || l.state || l.zip || l.phone || l.email
                 || l.licenseNumber || l.npiNumber || l.licenseExpiration
                 || l.licenseDocumentUrl || l.resaleCertDocumentUrl || l.w9DocumentUrl
-                || l.billingEntityName || l.netsuiteEntityId;
+                || l.billingEntityName || l.netsuiteEntityId
+                || l.netsuiteLocationId || l.netsuiteSubsidiaryId;
         });
     for (var li = 0; li < trimmedLocations.length; li++) {
         if (!trimmedLocations[li].locationName) {
