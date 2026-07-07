@@ -2965,6 +2965,8 @@ async function supaFetchAdminCustomers() {
                 id: l.id, customerId: l.customer_id, locationName: l.location_name || '',
                 address: l.address || '', city: l.city || '', state: l.state || '', zip: l.zip || '',
                 contactName: l.contact_name || '', phone: l.phone || '', email: l.email || '',
+                billingEntityName: l.billing_entity_name || '',
+                netsuiteEntityId: l.netsuite_entity_id || '',
                 licenseNumber: l.license_number || '', licenseState: l.license_state || '',
                 deaNumber: l.dea_number || '', npiNumber: l.npi_number || '',
                 status: l.status || 'active', createdAt: l.created_at || ''
@@ -3158,6 +3160,8 @@ async function supaSaveCustomer(cust, locations) {
                 state: l.state || null, zip: l.zip || null,
                 contact_name: l.contactName || null,
                 phone: l.phone || null, email: l.email || null,
+                billing_entity_name: l.billingEntityName || null,
+                netsuite_entity_id: l.netsuiteEntityId || null,
                 license_number: l.licenseNumber || null,
                 license_state: l.licenseState || null,
                 dea_number: l.deaNumber || null,
@@ -9354,6 +9358,10 @@ var CSV_SOURCE_OPTIONS = [
         ['location.zip', 'Location Zip'],
         ['location.contact_name', 'Location Contact'],
         ['location.phone', 'Location Phone'],
+        ['location.billing_entity_name', 'Billing Entity Name (per location)'],
+        ['location.netsuite_entity_id', 'NetSuite Entity ID (per location)'],
+        ['location.billing_entity_name_or_customer', 'Billing Entity Name (or Customer)'],
+        ['location.netsuite_entity_id_or_customer', 'NetSuite Entity ID (or Customer)'],
         ['location.license_number', 'State License #'],
         ['location.dea_number', 'DEA #'],
         ['location.npi_number', 'NPI #'],
@@ -9477,6 +9485,10 @@ function resolveCsvField(sourceKey, ctx) {
         case 'location.zip': return location.zip || '';
         case 'location.contact_name': return location.contact_name || '';
         case 'location.phone': return location.phone || '';
+        case 'location.billing_entity_name': return location.billing_entity_name || '';
+        case 'location.netsuite_entity_id': return location.netsuite_entity_id || '';
+        case 'location.billing_entity_name_or_customer': return location.billing_entity_name || customer.company_name || '';
+        case 'location.netsuite_entity_id_or_customer': return location.netsuite_entity_id || customer.netsuite_entity_id || '';
         case 'location.license_number': return location.license_number || '';
         case 'location.dea_number': return location.dea_number || '';
         case 'location.npi_number': return location.npi_number || '';
@@ -10203,6 +10215,13 @@ function renderCustomerLocationsInModal() {
                 '<div><label style="' + lbl + '">Email</label><input type="email" style="' + input + '" value="' + esc(l.email || '') + '" onchange="updateCustomerLocationField(' + i + ',\'email\',this.value)"></div>' +
             '</div>' +
             '<div style="margin-top:6px;padding-top:8px;border-top:1px dashed var(--gray-300)">' +
+                '<div style="font-size:10px;font-weight:700;color:var(--ni-navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-family:var(--sans)">Billing Entity (for NetSuite invoicing)</div>' +
+                '<div style="display:grid;grid-template-columns:3fr 2fr;gap:8px;margin-bottom:8px">' +
+                    '<div><label style="' + lbl + '">Legal Entity Name</label><input type="text" style="' + input + '" placeholder="e.g., Pharmacy Innovations LLC" value="' + esc(l.billingEntityName || '') + '" onchange="updateCustomerLocationField(' + i + ',\'billingEntityName\',this.value)"></div>' +
+                    '<div><label style="' + lbl + '">NetSuite Entity ID</label><input type="text" style="' + input + '" placeholder="e.g., 1234" value="' + esc(l.netsuiteEntityId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteEntityId\',this.value)"></div>' +
+                '</div>' +
+            '</div>' +
+            '<div style="margin-top:6px;padding-top:8px;border-top:1px dashed var(--gray-300)">' +
                 '<div style="font-size:10px;font-weight:700;color:var(--ni-deep-blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-family:var(--sans)">Licensing (this location)</div>' +
                 '<div style="display:grid;grid-template-columns:2fr 1fr 1.5fr 1.5fr;gap:8px">' +
                     '<div><label style="' + lbl + '">State License #</label><input type="text" style="' + input + '" value="' + esc(l.licenseNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseNumber\',this.value)"></div>' +
@@ -10228,6 +10247,7 @@ function addCustomerLocationRow() {
         locationName: '',
         address: '', city: '', state: '', zip: '',
         contactName: '', phone: '', email: '',
+        billingEntityName: '', netsuiteEntityId: '',
         licenseNumber: '', licenseState: '', deaNumber: '', npiNumber: '',
         status: 'active',
         createdAt: new Date().toISOString()
