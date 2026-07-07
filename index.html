@@ -8631,11 +8631,15 @@ function viewOrder(i) {
             actions += '<button class="btn btn-outline" onclick="updateOrderStatus(' + i + ',\'processing\')">Mark Processing</button> ';
         }
         actions += '<button class="btn btn-success" onclick="closeModal(\'orderDetailModal\');markShipped(' + i + ')">Mark Shipped</button> ';
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Download NetSuite CSV</button> ';
+        actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button> ';
         actions += '<button class="btn btn-danger" onclick="closeModal(\'orderDetailModal\');cancelOrder(' + i + ')">Cancel</button>';
     } else if (o.status === 'shipped') {
         actions += '<button class="btn btn-success" onclick="markDelivered(' + i + ')">Mark Delivered</button> ';
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Download NetSuite CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button>';
     } else if (o.status === 'delivered') {
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Download NetSuite CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button>';
     }
 
@@ -9233,6 +9237,115 @@ function confirmCancelOrder() {
 }
 
 // ─── Packing Slip ───
+// ── NetSuite invoice CSV (client-side, mirrors notify-order Edge Function) ──
+function _csvEscape(v) {
+    if (v === null || v === undefined) return '';
+    var s = String(v);
+    if (/[,"\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+}
+function _fmtDateUS(iso) {
+    var d = iso ? new Date(iso) : new Date();
+    return String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + '/' + d.getFullYear();
+}
+function _addDays(iso, days) {
+    var d = iso ? new Date(iso) : new Date();
+    d.setDate(d.getDate() + days);
+    return String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + '/' + d.getFullYear();
+}
+function _termsToDays(t) { var m = /^net\s*-?\s*(\d+)$/i.exec(t || ''); return m ? Number(m[1]) : 30; }
+function _fmtMoney(n) { var num = Number(n); return isFinite(num) ? num.toFixed(2) : '0.00'; }
+function _padOrderNum(n) { return String(n == null ? '' : n).padStart(5, '0'); }
+
+async function downloadNetsuiteCsv(idx) {
+    var o = DATA.orders[idx];
+    if (!o) return;
+    // Prefer live Supabase order for freshest data, but fall back to local snapshot.
+    var dbId = o.supabaseOrderId || o.id;
+    var order = null, items = [], customer = null, location = null;
+    if (dbId && /^[0-9a-f-]{36}$/i.test(dbId)) {
+        try {
+            var r1 = await supa.from('orders').select('*').eq('id', dbId).single();
+            if (r1.data) order = r1.data;
+            var r2 = await supa.from('order_items').select('*').eq('order_id', dbId);
+            if (r2.data) items = r2.data;
+            if (order && order.customer_id) {
+                var r3 = await supa.from('customers').select('*').eq('id', order.customer_id).single();
+                if (r3.data) customer = r3.data;
+            }
+            if (order && order.customer_location_id) {
+                var r4 = await supa.from('customer_locations').select('*').eq('id', order.customer_location_id).single();
+                if (r4.data) location = r4.data;
+            }
+        } catch (e) { console.warn('csv fetch fell back to local:', e); }
+    }
+    // Fallback to local DATA shape if Supabase fetch didn't fully populate.
+    if (!order) {
+        order = {
+            order_number: o.orderNumber, placed_at: o.date, shipped_at: o.shippedAt,
+            subtotal: o.subtotal, tax: o.tax, shipping: o.shipping, total: o.total,
+            discount_amount: o.discountAmount, tracking_number: o.trackingNumber, carrier: o.carrier
+        };
+    }
+    if (!items || !items.length) {
+        items = (o.items || []).map(function(it) {
+            return { sku: it.sku, product_name: it.productName || it.name, qty: it.qty, unit_price: it.unitPrice, line_total: (Number(it.qty) || 0) * (Number(it.unitPrice) || 0) };
+        });
+    }
+    if (!customer) {
+        var c = findCustomerById(o.customerId);
+        customer = c ? {
+            company_name: c.companyName || o.customerName, contact_name: c.contactName, email: c.email, phone: c.phone,
+            billing_address: c.billingAddress, billing_city: c.billingCity, billing_state: c.billingState, billing_zip: c.billingZip,
+            payment_terms: c.paymentTerms
+        } : { company_name: o.customerName || '' };
+    }
+    if (!location) {
+        var l = (DATA.customerLocations || []).find(function(x) { return x.id === o.customerLocationId; });
+        if (l) location = { location_name: l.locationName, address: l.address, city: l.city, state: l.state, zip: l.zip, contact_name: l.contactName };
+    }
+
+    var externalId = 'NI-' + _padOrderNum(order.order_number);
+    var invoiceDate = _fmtDateUS(order.shipped_at || order.placed_at);
+    var terms = customer.payment_terms || 'Net 30';
+    var dueDate = _addDays(order.shipped_at || order.placed_at, _termsToDays(terms));
+    var memoBits = ['NI Wholesale order #' + _padOrderNum(order.order_number)];
+    if (order.tracking_number) memoBits.push((order.carrier || 'Tracking') + ': ' + order.tracking_number);
+    var memo = memoBits.join(' | ');
+    var billingAttn = customer.contact_name || customer.company_name || '';
+    var shippingAttn = (location && location.contact_name) || customer.contact_name || customer.company_name || '';
+
+    var COLUMNS = ['External ID','Customer','Date','Due Date','Terms','PO Number','Memo','Billing Attention','Billing Address 1','Billing City','Billing State','Billing Zip','Shipping Attention','Shipping Address 1','Shipping City','Shipping State','Shipping Zip','Item','Item Description','Quantity','Rate','Amount','Line Memo'];
+    function rowFor(item, lineMemo, rate, amount, qty) {
+        return [
+            externalId, customer.company_name || '', invoiceDate, dueDate, terms, '', memo,
+            billingAttn, customer.billing_address || '', customer.billing_city || '', customer.billing_state || '', customer.billing_zip || '',
+            shippingAttn, (location && location.address) || customer.billing_address || '', (location && location.city) || customer.billing_city || '', (location && location.state) || customer.billing_state || '', (location && location.zip) || customer.billing_zip || '',
+            item ? (item.sku || '') : (lineMemo === 'Shipping & handling' ? 'SHIPPING' : lineMemo === 'Discount' ? 'DISCOUNT' : lineMemo === 'Sales tax' ? 'TAX' : ''),
+            item ? (item.product_name || item.sku || '') : lineMemo,
+            String(qty), _fmtMoney(rate), _fmtMoney(amount), ''
+        ];
+    }
+    var rows = [];
+    items.forEach(function(it) { rows.push(rowFor(it, '', Number(it.unit_price || 0), Number(it.line_total || 0), Number(it.qty || 0))); });
+    if (order.shipping && Number(order.shipping) > 0) rows.push(rowFor(null, 'Shipping & handling', Number(order.shipping), Number(order.shipping), 1));
+    if (order.tax && Number(order.tax) > 0) rows.push(rowFor(null, 'Sales tax', Number(order.tax), Number(order.tax), 1));
+    if (order.discount_amount && Number(order.discount_amount) > 0) rows.push(rowFor(null, 'Discount', -Number(order.discount_amount), -Number(order.discount_amount), 1));
+
+    var csv = COLUMNS.map(_csvEscape).join(',') + '\r\n';
+    rows.forEach(function(r) { csv += r.map(_csvEscape).join(',') + '\r\n'; });
+
+    // Trigger browser download.
+    var filename = 'ni-invoice-' + _padOrderNum(order.order_number) + '.csv';
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+    showToast('Downloaded ' + filename);
+}
+
 function printPackingSlip(idx) {
     var o = DATA.orders[idx];
     if (!o) return;
