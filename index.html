@@ -5921,11 +5921,31 @@ async function lockAdmin() {
 // initialRoute() awaits this before routing to an admin URL so refreshing an
 // admin page never boots the user to home just because the async check
 // hadn't run yet.
+//
+// Handles the Supabase v2 hydration race: getSession() can return null on
+// first tick after page load even when localStorage has a valid session,
+// because the SDK reads storage async. If that happens, we wait for the
+// first auth state event (bounded to 3s).
 var ADMIN_AUTH_READY = (async function checkAdminSessionOnBoot() {
     try {
-        var { data: sess } = await supa.auth.getSession();
-        if (!sess || !sess.session) return false;
-        var { data: prof } = await supa.from('profiles').select('role').eq('id', sess.session.user.id).single();
+        var { data } = await supa.auth.getSession();
+        var session = data && data.session;
+        if (!session && _hasSupaSessionToken()) {
+            session = await new Promise(function(resolve) {
+                var settled = false;
+                var timer = setTimeout(function() { if (!settled) { settled = true; resolve(null); } }, 3000);
+                var subRef = supa.auth.onAuthStateChange(function(_event, s) {
+                    if (!settled && s) {
+                        settled = true;
+                        clearTimeout(timer);
+                        try { subRef.data.subscription.unsubscribe(); } catch (_e) { /* silent */ }
+                        resolve(s);
+                    }
+                });
+            });
+        }
+        if (!session) return false;
+        var { data: prof } = await supa.from('profiles').select('role').eq('id', session.user.id).single();
         if (prof && prof.role === 'admin') {
             IS_SUPA_ADMIN = true;
             return true;
