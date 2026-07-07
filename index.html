@@ -915,7 +915,7 @@
             <div class="about-details">
                 <dl>
                     <dt>Headquarters</dt>
-                    <dd>7779 Starkey Rd., Seminole, FL 33777</dd>
+                    <dd>640 Congaree Rd., Greenville, SC 29607</dd>
                     <dt>Phone</dt>
                     <dd>814-838-2102</dd>
                     <dt>Web</dt>
@@ -946,7 +946,7 @@
             </div>
             <div class="footer-col">
                 <h3>Contact</h3>
-                <p>7779 Starkey Rd.<br>Seminole, FL 33777<br>814-838-2102<br>www.nutritionalinnovations.net</p>
+                <p>640 Congaree Rd.<br>Greenville, SC 29607<br>814-838-2102<br>www.nutritionalinnovations.net</p>
             </div>
             <div class="footer-col">
                 <h3>Quick Links</h3>
@@ -3389,10 +3389,10 @@ function getDefaultGeneralSettings() {
         tagline: 'Premium Supplements for Pharmacy Professionals',
         storeEmail: 'orders@nutritionalinnovations.net',
         storePhone: '814-838-2102',
-        storeAddress: '7779 Starkey Rd.',
-        storeCity: 'Seminole',
-        storeState: 'FL',
-        storeZip: '33777',
+        storeAddress: '640 Congaree Rd.',
+        storeCity: 'Greenville',
+        storeState: 'SC',
+        storeZip: '29607',
         storeWebsite: 'www.nutritionalinnovations.net',
         currency: 'USD',
         defaultTaxPct: 0,
@@ -7113,7 +7113,7 @@ function renderCheckoutPaymentDetails() {
             '<div class="form-row">' +
                 '<div class="form-group"><label>Expiry (MM/YY)</label><input type="text" class="form-control" id="coCardExp" placeholder="12/29" maxlength="5" oninput="formatCheckoutCardExp(this)"></div>' +
                 '<div class="form-group"><label>CVC</label><input type="text" class="form-control" id="coCardCvc" placeholder="123" maxlength="4" autocomplete="off"></div>' +
-                '<div class="form-group"><label>ZIP</label><input type="text" class="form-control" id="coCardZip" placeholder="33777" maxlength="10"></div>' +
+                '<div class="form-group"><label>ZIP</label><input type="text" class="form-control" id="coCardZip" placeholder="29607" maxlength="10"></div>' +
             '</div>';
     } else if (CHECKOUT_STATE.paymentMethod === 'invoice') {
         box.innerHTML = '<div style="padding:10px 12px;background:var(--ni-cream);border-radius:var(--radius)">Invoice will be sent for <strong>' + esc(terms) + '</strong> payment.</div>';
@@ -12214,8 +12214,8 @@ function getContactInfo() {
     return {
         phone: g.storePhone || '814-838-2102',
         email: g.storeEmail || 'orders@nutritionalinnovations.net',
-        city: g.storeCity || 'Seminole',
-        state: g.storeState || 'FL'
+        city: g.storeCity || 'Greenville',
+        state: g.storeState || 'SC'
     };
 }
 
@@ -12234,7 +12234,7 @@ function renderFaqPage() {
         { q: 'What products do you carry?', a: 'We carry pharmaceutical-grade nutritional supplements - including vitamins, minerals, probiotics, hormone support formulations, omega-3s, and other specialty products - from trusted manufacturers such as NuMedica and Microbiome Labs. Our full catalog is available once you are logged in to your wholesale portal.' },
         { q: 'Do you provide Certificates of Analysis (COAs)?', a: 'Yes. Certificates of Analysis are available upon request for every product we distribute. Email ' + contact.email + ' with the SKU or lot number and we will send the current COA.' },
         { q: 'Can I private label any of your products?', a: 'Yes. We offer private label options on selected SKUs from our Microbiome Labs line. Minimum order quantities and lead times apply. Contact us to discuss private label opportunities for your pharmacy.' },
-        { q: 'How quickly do orders ship?', a: 'In-stock orders typically ship within 1-2 business days from our Seminole, FL facility. Orders placed by 2:00 PM ET on a business day will normally ship the same day if all items are in stock.' },
+        { q: 'How quickly do orders ship?', a: 'In-stock orders typically ship within 1-2 business days from our Greenville, SC facility. Orders placed by 2:00 PM ET on a business day will normally ship the same day if all items are in stock.' },
         { q: 'What if my order arrives damaged?', a: 'Report any damage within 48 hours of delivery and include photos of the carton and affected product. We will arrange a replacement or full refund at no cost to you. Full details are on the Returns page.' },
         { q: 'How do I track my shipment?', a: 'When your order ships you will receive an email with the carrier tracking number. You can use that number on the carrier website to follow your shipment.' },
         { q: 'Who do I contact for support?', a: 'Call ' + contact.phone + ' during business hours or email ' + contact.email + ' anytime. Our team typically responds within one business day.' }
@@ -12318,7 +12318,7 @@ function renderShippingInfoPage() {
         { title: 'Where We Ship', body: 'We ship to licensed pharmacies and clinics throughout the continental United States. Shipments to Alaska, Hawaii, and US territories are available on request but may require additional transit time and freight charges. Contact us for a quote before placing an order to one of these destinations.' },
         { title: 'Shipping Methods & Rates', html: ratesHtml },
         { title: 'Free Shipping', body: freeText },
-        { title: 'Order Processing Time', body: 'In-stock orders are processed and shipped within 1-2 business days from our Seminole, FL facility. Backordered items will be noted on your order confirmation, and we will ship in-stock items first whenever possible.' },
+        { title: 'Order Processing Time', body: 'In-stock orders are processed and shipped within 1-2 business days from our Greenville, SC facility. Backordered items will be noted on your order confirmation, and we will ship in-stock items first whenever possible.' },
         { title: 'Tracking', body: 'Every order ships with carrier tracking. You will receive a shipment confirmation email containing the tracking number when your order leaves our facility.' },
         { title: 'Order Cutoffs', body: 'Orders placed by 2:00 PM Eastern Time on a business day will normally ship the same day. Orders placed after that cutoff, on weekends, or on observed holidays will be processed and shipped the next business day.' },
         { title: 'Cold-Chain & Temperature-Sensitive Products', body: 'During warm-weather months we ship temperature-sensitive products in insulated packaging with gel packs at no extra charge to maintain product integrity in transit. If you have specific cold-chain requirements for your facility, contact us before placing your order.' },
