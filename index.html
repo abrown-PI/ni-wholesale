@@ -770,6 +770,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             Site Info
         </a>
+        <a href="#" data-page="admin-csv-mapping" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h4"/></svg>
+            NetSuite CSV Mapping
+        </a>
     </div>
 
     <div class="admin-sidebar-footer">
@@ -1296,6 +1300,8 @@
 
 <!-- ═══════════ PAGE: ADMIN — SITE INFO ═══════════ -->
 <div class="page" id="page-admin-site-info"><div id="adminSiteInfoBody"></div></div>
+
+<div class="page" id="page-admin-csv-mapping"><div id="adminCsvMappingBody"></div></div>
 
 <!-- ═══════════ PAGE: ADMIN — SHIPPING SETTINGS ═══════════ -->
 <div class="page" id="page-admin-settings-shipping">
@@ -5794,6 +5800,7 @@ var ADMIN_PAGE_TITLES = {
     'admin-settings-general': 'Store Settings',
     'admin-settings-shipping': 'Shipping Settings',
     'admin-site-info': 'Site Info & Integrations',
+    'admin-csv-mapping': 'NetSuite CSV Mapping',
     'admin-users': 'Admin Users'
 };
 
@@ -5935,6 +5942,7 @@ function navigate(pageId, opts) {
     if (pageId === 'admin-customers') renderCustomers();
     if (pageId === 'admin-accounts') renderAccounts();
     if (pageId === 'admin-users') renderAdminUsers();
+    if (pageId === 'admin-csv-mapping') renderCsvMappingPage();
     if (pageId === 'admin-email-settings') renderEmailSettingsPage();
     if (pageId === 'admin-email-queue') renderEmailQueuePage();
     if (pageId === 'admin-settings-general') renderGeneralSettings();
@@ -9248,6 +9256,387 @@ function confirmCancelOrder() {
 }
 
 // ─── Packing Slip ───
+// ═══════════════════════════════════════════════════════════
+// NETSUITE CSV MAPPING (settings-driven, editable from admin)
+// ═══════════════════════════════════════════════════════════
+var CSV_MAPPING_CACHE = null; // loaded from Supabase settings on demand
+
+// Available source fields the user can pick from a dropdown in the mapping editor.
+// Grouped for the UI; each entry is [key, label]. Also used to route resolution.
+var CSV_SOURCE_OPTIONS = [
+    { group: 'Order',
+      items: [
+        ['order.order_number', 'Order Number (raw)'],
+        ['order.placed_at', 'Placed Date'],
+        ['order.shipped_at', 'Shipped Date'],
+        ['order.tracking_number', 'Tracking Number'],
+        ['order.carrier', 'Carrier'],
+        ['order.subtotal', 'Subtotal'],
+        ['order.tax', 'Tax'],
+        ['order.shipping', 'Shipping'],
+        ['order.total', 'Total'],
+        ['order.discount_amount', 'Discount Amount'],
+        ['order.notes', 'Customer Notes'],
+        ['order.payment_method', 'Payment Method']
+      ]},
+    { group: 'Customer',
+      items: [
+        ['customer.company_name', 'Company Name'],
+        ['customer.contact_name', 'Contact Name'],
+        ['customer.email', 'Email'],
+        ['customer.phone', 'Phone'],
+        ['customer.billing_address', 'Billing Address'],
+        ['customer.billing_city', 'Billing City'],
+        ['customer.billing_state', 'Billing State'],
+        ['customer.billing_zip', 'Billing Zip'],
+        ['customer.payment_terms', 'Payment Terms'],
+        ['customer.tax_id', 'Tax ID / EIN'],
+        ['customer.netsuite_entity_id', 'NetSuite Entity ID'],
+        ['customer.resale_cert_number', 'Resale Cert #']
+      ]},
+    { group: 'Location',
+      items: [
+        ['location.location_name', 'Location Name'],
+        ['location.address', 'Location Address'],
+        ['location.city', 'Location City'],
+        ['location.state', 'Location State'],
+        ['location.zip', 'Location Zip'],
+        ['location.contact_name', 'Location Contact'],
+        ['location.phone', 'Location Phone'],
+        ['location.license_number', 'State License #'],
+        ['location.dea_number', 'DEA #'],
+        ['location.npi_number', 'NPI #'],
+        ['location.address_or_billing', 'Location Address (or Billing)'],
+        ['location.city_or_billing', 'Location City (or Billing)'],
+        ['location.state_or_billing', 'Location State (or Billing)'],
+        ['location.zip_or_billing', 'Location Zip (or Billing)']
+      ]},
+    { group: 'Item / Line',
+      items: [
+        ['item.sku', 'Item SKU'],
+        ['item.sku_or_label', 'Item SKU (or SHIPPING/TAX/DISCOUNT label)'],
+        ['item.product_name', 'Item Description'],
+        ['item.name_or_label', 'Item Description (or Line Label)'],
+        ['item.qty', 'Quantity'],
+        ['item.unit_price', 'Unit Price'],
+        ['item.line_total', 'Line Total'],
+        ['item.rate', 'Rate (unit price OR line rate for shipping/tax/discount)'],
+        ['item.amount', 'Amount (line total OR shipping/tax/-discount amount)']
+      ]},
+    { group: 'Computed',
+      items: [
+        ['computed.external_id', 'External ID (prefix + padded order number)'],
+        ['computed.invoice_date', 'Invoice Date (shipped_at or placed_at)'],
+        ['computed.due_date', 'Due Date (invoice_date + payment terms days)'],
+        ['computed.memo', 'Memo (order # + tracking)'],
+        ['computed.billing_attention', 'Billing Attention (contact or company)'],
+        ['computed.shipping_attention', 'Shipping Attention (location contact or customer)']
+      ]},
+    { group: 'Static',
+      items: [
+        ['static', 'Static (fixed value you type)']
+      ]}
+];
+
+async function loadCsvMapping() {
+    if (CSV_MAPPING_CACHE) return CSV_MAPPING_CACHE;
+    try {
+        var r = await supa.from('settings').select('value').eq('key', 'netsuite_csv_mapping').single();
+        if (r.data && r.data.value) { CSV_MAPPING_CACHE = r.data.value; return CSV_MAPPING_CACHE; }
+    } catch (e) { console.warn('csv mapping load fell back to default:', e); }
+    // Hardcoded fallback if Supabase read fails.
+    CSV_MAPPING_CACHE = {
+        external_id_prefix: 'NI-', external_id_pad_digits: 5,
+        line_labels: { shipping: 'Shipping & handling', tax: 'Sales tax', discount: 'Discount' },
+        columns: [
+            { name: 'External ID', source: 'computed.external_id' },
+            { name: 'Customer', source: 'customer.company_name' },
+            { name: 'Date', source: 'computed.invoice_date' },
+            { name: 'Due Date', source: 'computed.due_date' },
+            { name: 'Terms', source: 'customer.payment_terms' },
+            { name: 'PO Number', source: 'static', value: '' },
+            { name: 'Memo', source: 'computed.memo' },
+            { name: 'Billing Attention', source: 'computed.billing_attention' },
+            { name: 'Billing Address 1', source: 'customer.billing_address' },
+            { name: 'Billing City', source: 'customer.billing_city' },
+            { name: 'Billing State', source: 'customer.billing_state' },
+            { name: 'Billing Zip', source: 'customer.billing_zip' },
+            { name: 'Shipping Attention', source: 'computed.shipping_attention' },
+            { name: 'Shipping Address 1', source: 'location.address_or_billing' },
+            { name: 'Shipping City', source: 'location.city_or_billing' },
+            { name: 'Shipping State', source: 'location.state_or_billing' },
+            { name: 'Shipping Zip', source: 'location.zip_or_billing' },
+            { name: 'Item', source: 'item.sku_or_label' },
+            { name: 'Item Description', source: 'item.name_or_label' },
+            { name: 'Quantity', source: 'item.qty' },
+            { name: 'Rate', source: 'item.rate' },
+            { name: 'Amount', source: 'item.amount' },
+            { name: 'Line Memo', source: 'static', value: '' }
+        ]
+    };
+    return CSV_MAPPING_CACHE;
+}
+
+async function saveCsvMapping(mapping) {
+    var r = await supa.from('settings').update({ value: mapping }).eq('key', 'netsuite_csv_mapping');
+    if (r.error) throw r.error;
+    CSV_MAPPING_CACHE = mapping;
+}
+
+// Given a source-key like "customer.company_name" and a resolution context
+// { order, customer, location, item, lineType, mapping, externalId, invoiceDate, dueDate, memo },
+// return the string value that belongs in that CSV cell.
+function resolveCsvField(sourceKey, ctx) {
+    if (!sourceKey) return '';
+    if (sourceKey === 'static') return '';
+    var order = ctx.order || {}, customer = ctx.customer || {}, location = ctx.location || {}, item = ctx.item;
+    var lineType = ctx.lineType; // 'item' | 'shipping' | 'tax' | 'discount'
+    switch (sourceKey) {
+        // order fields
+        case 'order.order_number': return String(order.order_number || '');
+        case 'order.placed_at': return order.placed_at || '';
+        case 'order.shipped_at': return order.shipped_at || '';
+        case 'order.tracking_number': return order.tracking_number || '';
+        case 'order.carrier': return order.carrier || '';
+        case 'order.subtotal': return _fmtMoney(order.subtotal);
+        case 'order.tax': return _fmtMoney(order.tax);
+        case 'order.shipping': return _fmtMoney(order.shipping);
+        case 'order.total': return _fmtMoney(order.total);
+        case 'order.discount_amount': return _fmtMoney(order.discount_amount);
+        case 'order.notes': return order.notes || '';
+        case 'order.payment_method': return order.payment_method || '';
+        // customer fields
+        case 'customer.company_name': return customer.company_name || '';
+        case 'customer.contact_name': return customer.contact_name || '';
+        case 'customer.email': return customer.email || '';
+        case 'customer.phone': return customer.phone || '';
+        case 'customer.billing_address': return customer.billing_address || '';
+        case 'customer.billing_city': return customer.billing_city || '';
+        case 'customer.billing_state': return customer.billing_state || '';
+        case 'customer.billing_zip': return customer.billing_zip || '';
+        case 'customer.payment_terms': return customer.payment_terms || '';
+        case 'customer.tax_id': return customer.tax_id || '';
+        case 'customer.netsuite_entity_id': return customer.netsuite_entity_id || '';
+        case 'customer.resale_cert_number': return customer.resale_cert_number || '';
+        // location fields
+        case 'location.location_name': return location.location_name || '';
+        case 'location.address': return location.address || '';
+        case 'location.city': return location.city || '';
+        case 'location.state': return location.state || '';
+        case 'location.zip': return location.zip || '';
+        case 'location.contact_name': return location.contact_name || '';
+        case 'location.phone': return location.phone || '';
+        case 'location.license_number': return location.license_number || '';
+        case 'location.dea_number': return location.dea_number || '';
+        case 'location.npi_number': return location.npi_number || '';
+        case 'location.address_or_billing': return location.address || customer.billing_address || '';
+        case 'location.city_or_billing': return location.city || customer.billing_city || '';
+        case 'location.state_or_billing': return location.state || customer.billing_state || '';
+        case 'location.zip_or_billing': return location.zip || customer.billing_zip || '';
+        // computed
+        case 'computed.external_id': return ctx.externalId || '';
+        case 'computed.invoice_date': return ctx.invoiceDate || '';
+        case 'computed.due_date': return ctx.dueDate || '';
+        case 'computed.memo': return ctx.memo || '';
+        case 'computed.billing_attention': return customer.contact_name || customer.company_name || '';
+        case 'computed.shipping_attention': return location.contact_name || customer.contact_name || customer.company_name || '';
+        // item / line — depends on lineType
+        case 'item.sku': return item ? (item.sku || '') : '';
+        case 'item.sku_or_label':
+            if (lineType === 'item') return (item && item.sku) || '';
+            if (lineType === 'shipping') return 'SHIPPING';
+            if (lineType === 'tax') return 'TAX';
+            if (lineType === 'discount') return 'DISCOUNT';
+            return '';
+        case 'item.product_name': return item ? (item.product_name || item.sku || '') : '';
+        case 'item.name_or_label':
+            if (lineType === 'item') return (item && (item.product_name || item.sku)) || '';
+            if (lineType === 'shipping') return (ctx.mapping.line_labels && ctx.mapping.line_labels.shipping) || 'Shipping & handling';
+            if (lineType === 'tax') return (ctx.mapping.line_labels && ctx.mapping.line_labels.tax) || 'Sales tax';
+            if (lineType === 'discount') return (ctx.mapping.line_labels && ctx.mapping.line_labels.discount) || 'Discount';
+            return '';
+        case 'item.qty':
+            if (lineType === 'item') return String(item ? (item.qty || 0) : 0);
+            return '1';
+        case 'item.unit_price':
+            if (lineType === 'item') return _fmtMoney(item ? item.unit_price : 0);
+            return '0.00';
+        case 'item.line_total':
+            if (lineType === 'item') return _fmtMoney(item ? item.line_total : 0);
+            return '0.00';
+        case 'item.rate':
+            if (lineType === 'item') return _fmtMoney(item ? item.unit_price : 0);
+            if (lineType === 'shipping') return _fmtMoney(order.shipping);
+            if (lineType === 'tax') return _fmtMoney(order.tax);
+            if (lineType === 'discount') return _fmtMoney(-Number(order.discount_amount || 0));
+            return '';
+        case 'item.amount':
+            if (lineType === 'item') return _fmtMoney(item ? item.line_total : 0);
+            if (lineType === 'shipping') return _fmtMoney(order.shipping);
+            if (lineType === 'tax') return _fmtMoney(order.tax);
+            if (lineType === 'discount') return _fmtMoney(-Number(order.discount_amount || 0));
+            return '';
+        default: return '';
+    }
+}
+
+async function generateCsvFromMapping(order, customer, location, items) {
+    var mapping = await loadCsvMapping();
+    var pad = Number(mapping.external_id_pad_digits) || 5;
+    var prefix = mapping.external_id_prefix || 'NI-';
+    var externalId = prefix + String(order.order_number || '').padStart(pad, '0');
+    var invoiceDate = _fmtDateUS(order.shipped_at || order.placed_at);
+    var terms = customer.payment_terms || 'Net 30';
+    var dueDate = _addDays(order.shipped_at || order.placed_at, _termsToDays(terms));
+    var memoBits = ['NI Wholesale order #' + String(order.order_number || '').padStart(pad, '0')];
+    if (order.tracking_number) memoBits.push((order.carrier || 'Tracking') + ': ' + order.tracking_number);
+    var memo = memoBits.join(' | ');
+    var ctxBase = { order: order, customer: customer, location: location, mapping: mapping, externalId: externalId, invoiceDate: invoiceDate, dueDate: dueDate, memo: memo };
+    var cols = Array.isArray(mapping.columns) ? mapping.columns : [];
+
+    function renderRow(item, lineType) {
+        var ctx = Object.assign({}, ctxBase, { item: item, lineType: lineType });
+        return cols.map(function(col) {
+            if (col.source === 'static') return col.value || '';
+            return resolveCsvField(col.source, ctx);
+        });
+    }
+
+    var rows = [];
+    (items || []).forEach(function(it) { rows.push(renderRow(it, 'item')); });
+    if (order.shipping && Number(order.shipping) > 0) rows.push(renderRow(null, 'shipping'));
+    if (order.tax && Number(order.tax) > 0) rows.push(renderRow(null, 'tax'));
+    if (order.discount_amount && Number(order.discount_amount) > 0) rows.push(renderRow(null, 'discount'));
+
+    var csv = cols.map(function(c) { return _csvEscape(c.name); }).join(',') + '\r\n';
+    rows.forEach(function(r) { csv += r.map(_csvEscape).join(',') + '\r\n'; });
+    return { csv: csv, filename: 'ni-invoice-' + String(order.order_number || '').padStart(pad, '0') + '.csv' };
+}
+
+// ── Admin: CSV Mapping page ──
+async function renderCsvMappingPage() {
+    var body = document.getElementById('adminCsvMappingBody');
+    if (!body) return;
+    body.innerHTML = '<div style="padding:24px;font-family:var(--sans);color:var(--gray-600)">Loading CSV mapping…</div>';
+    var mapping;
+    try { mapping = JSON.parse(JSON.stringify(await loadCsvMapping())); }
+    catch (e) { body.innerHTML = '<div style="padding:24px;color:var(--danger)">Failed to load mapping: ' + esc(e.message) + '</div>'; return; }
+    window._csvMappingDraft = mapping;
+    body.innerHTML =
+        '<div style="max-width:1100px">' +
+        '<div style="background:var(--ni-cream);border-left:3px solid var(--ni-deep-blue);padding:12px 16px;font-size:13px;font-family:var(--sans);color:var(--gray-700);margin-bottom:20px;line-height:1.5">' +
+            '<strong>How this works:</strong> Rename columns to match your NetSuite CSV import template, reorder them, add/remove columns, or set static values. Each column pulls from a data source below (order, customer, location, or line item). Click <strong>Save Mapping</strong> when done — both the <em>Download NetSuite CSV</em> button and the automatic email after shipping use this exact mapping.' +
+        '</div>' +
+        '<div class="card"><div class="card-header"><h2>Global Settings</h2></div>' +
+            '<div class="form-row">' +
+                '<div class="form-group"><label>External ID prefix</label><input type="text" class="form-control" id="csvExtPrefix" value="' + esc(mapping.external_id_prefix || 'NI-') + '"></div>' +
+                '<div class="form-group"><label>External ID pad digits</label><input type="number" class="form-control" id="csvExtPad" min="1" max="10" value="' + Number(mapping.external_id_pad_digits || 5) + '"></div>' +
+            '</div>' +
+            '<div class="form-row">' +
+                '<div class="form-group"><label>Shipping line label</label><input type="text" class="form-control" id="csvLblShip" value="' + esc((mapping.line_labels && mapping.line_labels.shipping) || 'Shipping & handling') + '"></div>' +
+                '<div class="form-group"><label>Tax line label</label><input type="text" class="form-control" id="csvLblTax" value="' + esc((mapping.line_labels && mapping.line_labels.tax) || 'Sales tax') + '"></div>' +
+                '<div class="form-group"><label>Discount line label</label><input type="text" class="form-control" id="csvLblDisc" value="' + esc((mapping.line_labels && mapping.line_labels.discount) || 'Discount') + '"></div>' +
+            '</div>' +
+        '</div>' +
+        '<div class="card"><div class="card-header"><h2>Columns</h2><button class="btn btn-sm btn-primary" onclick="csvMappingAddColumn()">+ Add Column</button></div>' +
+            '<div id="csvColumnsList"></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:10px;margin-top:20px">' +
+            '<button class="btn btn-primary" onclick="csvMappingSave()">Save Mapping</button>' +
+            '<button class="btn btn-outline" onclick="csvMappingResetDefault()">Reset to Default</button>' +
+        '</div>' +
+        '</div>';
+    csvMappingRenderColumns();
+}
+
+function csvMappingRenderColumns() {
+    var container = document.getElementById('csvColumnsList');
+    var mapping = window._csvMappingDraft;
+    if (!container || !mapping) return;
+    var sourceOptionsHtml = CSV_SOURCE_OPTIONS.map(function(g) {
+        return '<optgroup label="' + esc(g.group) + '">' +
+            g.items.map(function(it) { return '<option value="' + esc(it[0]) + '">' + esc(it[1]) + '</option>'; }).join('') +
+        '</optgroup>';
+    }).join('');
+    container.innerHTML = (mapping.columns || []).map(function(col, i) {
+        var selectId = 'csvColSrc_' + i;
+        var isStatic = col.source === 'static';
+        return '<div style="display:grid;grid-template-columns:32px 2fr 2.5fr 2fr 90px;gap:8px;padding:8px;border-bottom:1px solid var(--gray-200);align-items:center">' +
+            '<div style="font-size:12px;color:var(--gray-500);text-align:center;font-family:var(--sans)">#' + (i+1) + '</div>' +
+            '<input type="text" class="form-control" placeholder="CSV column name" value="' + esc(col.name || '') + '" onchange="csvMappingUpdate(' + i + ',\'name\',this.value)">' +
+            '<select class="form-control" id="' + selectId + '" onchange="csvMappingUpdate(' + i + ',\'source\',this.value);csvMappingRenderColumns()">' + sourceOptionsHtml + '</select>' +
+            (isStatic
+              ? '<input type="text" class="form-control" placeholder="Static value" value="' + esc(col.value || '') + '" onchange="csvMappingUpdate(' + i + ',\'value\',this.value)">'
+              : '<div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);padding:0 8px">' + esc(col.source || '') + '</div>') +
+            '<div style="display:flex;gap:4px">' +
+                (i > 0 ? '<button class="btn btn-sm btn-outline" title="Move up" onclick="csvMappingMove(' + i + ',-1)">&uarr;</button>' : '') +
+                (i < mapping.columns.length - 1 ? '<button class="btn btn-sm btn-outline" title="Move down" onclick="csvMappingMove(' + i + ',1)">&darr;</button>' : '') +
+                '<button class="btn btn-sm btn-danger" title="Delete" onclick="csvMappingRemove(' + i + ')">&times;</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+    // Set select values (dropdowns need explicit set after render)
+    (mapping.columns || []).forEach(function(col, i) {
+        var sel = document.getElementById('csvColSrc_' + i);
+        if (sel) sel.value = col.source || '';
+    });
+}
+
+function csvMappingUpdate(idx, field, value) {
+    var mapping = window._csvMappingDraft;
+    if (!mapping || !mapping.columns[idx]) return;
+    if (field === 'source' && value === 'static' && mapping.columns[idx].value == null) mapping.columns[idx].value = '';
+    mapping.columns[idx][field] = value;
+}
+function csvMappingAddColumn() {
+    var mapping = window._csvMappingDraft;
+    if (!mapping) return;
+    mapping.columns.push({ name: 'New Column', source: 'static', value: '' });
+    csvMappingRenderColumns();
+}
+function csvMappingRemove(idx) {
+    var mapping = window._csvMappingDraft;
+    if (!mapping) return;
+    mapping.columns.splice(idx, 1);
+    csvMappingRenderColumns();
+}
+function csvMappingMove(idx, delta) {
+    var mapping = window._csvMappingDraft;
+    if (!mapping) return;
+    var newIdx = idx + delta;
+    if (newIdx < 0 || newIdx >= mapping.columns.length) return;
+    var t = mapping.columns[idx]; mapping.columns[idx] = mapping.columns[newIdx]; mapping.columns[newIdx] = t;
+    csvMappingRenderColumns();
+}
+async function csvMappingSave() {
+    var mapping = window._csvMappingDraft;
+    if (!mapping) return;
+    mapping.external_id_prefix = (document.getElementById('csvExtPrefix') || {}).value || 'NI-';
+    mapping.external_id_pad_digits = Number((document.getElementById('csvExtPad') || {}).value) || 5;
+    mapping.line_labels = mapping.line_labels || {};
+    mapping.line_labels.shipping = (document.getElementById('csvLblShip') || {}).value || 'Shipping & handling';
+    mapping.line_labels.tax      = (document.getElementById('csvLblTax')  || {}).value || 'Sales tax';
+    mapping.line_labels.discount = (document.getElementById('csvLblDisc') || {}).value || 'Discount';
+    try { await saveCsvMapping(mapping); showToast('CSV mapping saved'); }
+    catch (e) {
+        var msg = e.message || 'Save error';
+        if (/coerce|permission|policy/i.test(msg)) msg = 'Not signed in as admin. Sign in first.';
+        showToast('Save failed: ' + msg, 'error');
+    }
+}
+async function csvMappingResetDefault() {
+    if (!confirm('Reset to the default 23-column mapping?')) return;
+    CSV_MAPPING_CACHE = null;
+    window._csvMappingDraft = null;
+    // Reload default from Supabase (or hardcoded fallback)
+    var mapping = await loadCsvMapping();
+    window._csvMappingDraft = JSON.parse(JSON.stringify(mapping));
+    csvMappingRenderColumns();
+    document.getElementById('csvExtPrefix').value = mapping.external_id_prefix || 'NI-';
+    document.getElementById('csvExtPad').value = mapping.external_id_pad_digits || 5;
+    showToast('Reset to loaded default');
+}
+
 // ── NetSuite invoice CSV (client-side, mirrors notify-order Edge Function) ──
 function _csvEscape(v) {
     if (v === null || v === undefined) return '';
@@ -9316,38 +9705,12 @@ async function downloadNetsuiteCsv(idx) {
         if (l) location = { location_name: l.locationName, address: l.address, city: l.city, state: l.state, zip: l.zip, contact_name: l.contactName };
     }
 
-    var externalId = 'NI-' + _padOrderNum(order.order_number);
-    var invoiceDate = _fmtDateUS(order.shipped_at || order.placed_at);
-    var terms = customer.payment_terms || 'Net 30';
-    var dueDate = _addDays(order.shipped_at || order.placed_at, _termsToDays(terms));
-    var memoBits = ['NI Wholesale order #' + _padOrderNum(order.order_number)];
-    if (order.tracking_number) memoBits.push((order.carrier || 'Tracking') + ': ' + order.tracking_number);
-    var memo = memoBits.join(' | ');
-    var billingAttn = customer.contact_name || customer.company_name || '';
-    var shippingAttn = (location && location.contact_name) || customer.contact_name || customer.company_name || '';
-
-    var COLUMNS = ['External ID','Customer','Date','Due Date','Terms','PO Number','Memo','Billing Attention','Billing Address 1','Billing City','Billing State','Billing Zip','Shipping Attention','Shipping Address 1','Shipping City','Shipping State','Shipping Zip','Item','Item Description','Quantity','Rate','Amount','Line Memo'];
-    function rowFor(item, lineMemo, rate, amount, qty) {
-        return [
-            externalId, customer.company_name || '', invoiceDate, dueDate, terms, '', memo,
-            billingAttn, customer.billing_address || '', customer.billing_city || '', customer.billing_state || '', customer.billing_zip || '',
-            shippingAttn, (location && location.address) || customer.billing_address || '', (location && location.city) || customer.billing_city || '', (location && location.state) || customer.billing_state || '', (location && location.zip) || customer.billing_zip || '',
-            item ? (item.sku || '') : (lineMemo === 'Shipping & handling' ? 'SHIPPING' : lineMemo === 'Discount' ? 'DISCOUNT' : lineMemo === 'Sales tax' ? 'TAX' : ''),
-            item ? (item.product_name || item.sku || '') : lineMemo,
-            String(qty), _fmtMoney(rate), _fmtMoney(amount), ''
-        ];
-    }
-    var rows = [];
-    items.forEach(function(it) { rows.push(rowFor(it, '', Number(it.unit_price || 0), Number(it.line_total || 0), Number(it.qty || 0))); });
-    if (order.shipping && Number(order.shipping) > 0) rows.push(rowFor(null, 'Shipping & handling', Number(order.shipping), Number(order.shipping), 1));
-    if (order.tax && Number(order.tax) > 0) rows.push(rowFor(null, 'Sales tax', Number(order.tax), Number(order.tax), 1));
-    if (order.discount_amount && Number(order.discount_amount) > 0) rows.push(rowFor(null, 'Discount', -Number(order.discount_amount), -Number(order.discount_amount), 1));
-
-    var csv = COLUMNS.map(_csvEscape).join(',') + '\r\n';
-    rows.forEach(function(r) { csv += r.map(_csvEscape).join(',') + '\r\n'; });
-
-    // Trigger browser download.
-    var filename = 'ni-invoice-' + _padOrderNum(order.order_number) + '.csv';
+    // Use the settings-driven mapping.
+    var built;
+    try { built = await generateCsvFromMapping(order, customer, location, items); }
+    catch (e) { showToast('CSV generation failed: ' + (e.message || 'error'), 'error'); return; }
+    var csv = built.csv;
+    var filename = built.filename;
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
