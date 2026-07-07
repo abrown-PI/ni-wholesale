@@ -1129,7 +1129,7 @@
 <!-- ═══════════ PAGE: ADMIN — CUSTOMERS ═══════════ -->
 <div class="page" id="page-admin-customers">
     <div class="card">
-        <div class="card-header"><h2>Customer List</h2><button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button></div>
+        <div class="card-header"><h2>Customer List</h2><button class="btn btn-primary" onclick="openCustomerDetailPage(-1)">+ Add Customer</button></div>
         <div style="padding:0 20px 12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-family:var(--sans);font-size:13px">
             <input type="text" class="form-control" id="customerSearch" placeholder="Search by company, account code, contact, email..." style="flex:1;min-width:240px" oninput="renderCustomers()">
             <select class="form-control" id="customerStatusFilter" style="width:auto" onchange="renderCustomers()">
@@ -1142,6 +1142,141 @@
         </div>
         <div class="table-wrap">
             <table><thead><tr><th>Company</th><th>Account Code</th><th>Contact</th><th>Email</th><th>Phone</th><th>Locations</th><th>Status</th><th>Actions</th></tr></thead><tbody id="customerTableBody"></tbody></table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — CUSTOMER DETAIL / EDIT (full-page, replaces old modal) ═══════════ -->
+<div class="page" id="page-admin-customer-detail">
+    <input type="hidden" id="customerEditIndex" value="-1">
+    <input type="hidden" id="customerEditId" value="">
+
+    <!-- Sticky header: back link, company name, status, action buttons -->
+    <div style="position:sticky;top:0;z-index:5;background:white;padding:14px 20px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+        <div style="min-width:0">
+            <a href="#" onclick="navigate('admin-customers');return false;" style="font-size:12px;color:var(--gray-500);text-decoration:none;font-family:var(--sans);display:inline-flex;align-items:center;gap:4px">&larr; Back to Customers</a>
+            <h2 id="customerDetailPageTitle" style="margin:2px 0 0;font-family:var(--serif);color:var(--ni-navy);font-size:22px">New Customer</h2>
+            <div id="customerDetailPageSub" style="margin-top:4px;font-size:13px;color:var(--gray-500);font-family:var(--sans);display:flex;align-items:center;gap:10px;flex-wrap:wrap"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-outline" onclick="navigate('admin-customers')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveCustomer()">Save Customer</button>
+        </div>
+    </div>
+
+    <div style="padding:0 20px 40px;max-width:1100px;display:grid;grid-template-columns:1fr;gap:16px">
+        <!-- Company Info -->
+        <div class="card">
+            <div class="card-header"><h3>Company Info</h3></div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group"><label>Company Name *</label><input type="text" class="form-control" id="custCompanyName" required></div>
+                    <div class="form-group"><label>Account Code</label><input type="text" class="form-control" id="custAccountCode" placeholder="e.g., PI_612_FL"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Pharmacy Type</label>
+                        <select class="form-control" id="custPharmacyType">
+                            <option value="">Select...</option>
+                            <option value="Independent">Independent</option>
+                            <option value="Compounding">Compounding</option>
+                            <option value="Hospital">Hospital</option>
+                            <option value="Clinic">Clinic</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Status</label>
+                        <select class="form-control" id="custStatus">
+                            <option value="active">Active</option>
+                            <option value="pending">Pending</option>
+                            <option value="suspended">Suspended</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Payment Terms</label>
+                        <select class="form-control" id="custPaymentTerms">
+                            <option value="Net-30">Net-30</option>
+                            <option value="Net-60">Net-60</option>
+                            <option value="Prepay">Prepay</option>
+                            <option value="Credit Card">Credit Card</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact -->
+        <div class="card">
+            <div class="card-header"><h3>Contact</h3></div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group"><label>Contact Name</label><input type="text" class="form-control" id="custContactName"></div>
+                    <div class="form-group"><label>Email</label><input type="email" class="form-control" id="custEmail"></div>
+                    <div class="form-group"><label>Phone</label><input type="tel" class="form-control" id="custPhone"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Billing Address -->
+        <div class="card">
+            <div class="card-header"><h3>Billing Address</h3></div>
+            <div class="card-body">
+                <div class="form-group"><label>Address</label><input type="text" class="form-control" id="custBillingAddress"></div>
+                <div class="form-row">
+                    <div class="form-group"><label>City</label><input type="text" class="form-control" id="custBillingCity"></div>
+                    <div class="form-group"><label>State</label><input type="text" class="form-control" id="custBillingState" maxlength="2" placeholder="e.g., NY"></div>
+                    <div class="form-group"><label>ZIP</label><input type="text" class="form-control" id="custBillingZip"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Credentials -->
+        <div class="card">
+            <div class="card-header"><h3>Credentials (Corporate Umbrella)</h3></div>
+            <div class="card-body">
+                <div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);margin-bottom:10px">Optional company-level licensing. Per-store licensing goes on each Location below (that's what state boards actually track).</div>
+                <div class="form-row">
+                    <div class="form-group"><label>License Number</label><input type="text" class="form-control" id="custLicenseNumber"></div>
+                    <div class="form-group"><label>DEA Number</label><input type="text" class="form-control" id="custDeaNumber"></div>
+                    <div class="form-group"><label>NPI Number</label><input type="text" class="form-control" id="custNpiNumber"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Billing / Accounting -->
+        <div class="card">
+            <div class="card-header"><h3>Billing / Accounting</h3></div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group"><label>Tax ID / EIN</label><input type="text" class="form-control" id="custTaxId" placeholder="e.g., 12-3456789"></div>
+                    <div class="form-group"><label>Resale Certificate #</label><input type="text" class="form-control" id="custResaleCertNumber"></div>
+                    <div class="form-group"><label>NetSuite Entity ID</label><input type="text" class="form-control" id="custNetsuiteEntityId" placeholder="e.g., 1234"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="card">
+            <div class="card-header"><h3>Notes</h3></div>
+            <div class="card-body">
+                <div class="form-group"><textarea class="form-control" id="custNotes" rows="3" placeholder="Internal notes about this customer..."></textarea></div>
+            </div>
+        </div>
+
+        <!-- Locations -->
+        <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                <h3>Locations</h3>
+                <button type="button" class="btn btn-sm btn-outline" onclick="addCustomerLocationRow()">+ Add Location</button>
+            </div>
+            <div class="card-body">
+                <div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);margin-bottom:12px">A customer can have one or more shipping locations (e.g., multiple stores under the same company). Per-location licensing is authoritative for state pharmacy board records.</div>
+                <div id="customerLocationsSection"></div>
+            </div>
+        </div>
+
+        <!-- Bottom save bar for long forms -->
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:8px">
+            <button class="btn btn-outline" onclick="navigate('admin-customers')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveCustomer()">Save Customer</button>
         </div>
     </div>
 </div>
@@ -2419,97 +2554,7 @@
     </div>
 </div>
 
-<!-- Customer Modal -->
-<div class="modal-overlay" id="customerModal">
-    <div class="modal modal-lg">
-        <div class="modal-header"><h2 id="customerModalTitle">Add Customer</h2><button class="modal-close" onclick="closeModal('customerModal')">&times;</button></div>
-        <div class="modal-body">
-            <input type="hidden" id="customerEditIndex" value="-1">
-            <input type="hidden" id="customerEditId" value="">
-
-            <div style="margin-top:0;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Company Info</label></div>
-            <div class="form-row">
-                <div class="form-group"><label>Company Name *</label><input type="text" class="form-control" id="custCompanyName" required></div>
-                <div class="form-group"><label>Account Code</label><input type="text" class="form-control" id="custAccountCode" placeholder="e.g., PI_612_FL"></div>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label>Pharmacy Type</label>
-                    <select class="form-control" id="custPharmacyType">
-                        <option value="">Select...</option>
-                        <option value="Independent">Independent</option>
-                        <option value="Compounding">Compounding</option>
-                        <option value="Hospital">Hospital</option>
-                        <option value="Clinic">Clinic</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div class="form-group"><label>Status</label>
-                    <select class="form-control" id="custStatus">
-                        <option value="active">Active</option>
-                        <option value="pending">Pending</option>
-                        <option value="suspended">Suspended</option>
-                    </select>
-                </div>
-                <div class="form-group"><label>Payment Terms</label>
-                    <select class="form-control" id="custPaymentTerms">
-                        <option value="Net-30">Net-30</option>
-                        <option value="Net-60">Net-60</option>
-                        <option value="Prepay">Prepay</option>
-                        <option value="Credit Card">Credit Card</option>
-                    </select>
-                </div>
-            </div>
-
-            <div style="margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Contact</label></div>
-            <div class="form-row">
-                <div class="form-group"><label>Contact Name</label><input type="text" class="form-control" id="custContactName"></div>
-                <div class="form-group"><label>Email</label><input type="email" class="form-control" id="custEmail"></div>
-                <div class="form-group"><label>Phone</label><input type="tel" class="form-control" id="custPhone"></div>
-            </div>
-
-            <div style="margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Billing Address</label></div>
-            <div class="form-group"><label>Address</label><input type="text" class="form-control" id="custBillingAddress"></div>
-            <div class="form-row">
-                <div class="form-group"><label>City</label><input type="text" class="form-control" id="custBillingCity"></div>
-                <div class="form-group"><label>State</label><input type="text" class="form-control" id="custBillingState" maxlength="2" placeholder="e.g., NY"></div>
-                <div class="form-group"><label>ZIP</label><input type="text" class="form-control" id="custBillingZip"></div>
-            </div>
-
-            <div style="margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Credentials</label></div>
-            <div class="form-row">
-                <div class="form-group"><label>License Number</label><input type="text" class="form-control" id="custLicenseNumber"></div>
-                <div class="form-group"><label>DEA Number</label><input type="text" class="form-control" id="custDeaNumber"></div>
-                <div class="form-group"><label>NPI Number</label><input type="text" class="form-control" id="custNpiNumber"></div>
-            </div>
-
-            <div style="margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Billing / Accounting</label></div>
-            <div class="form-row">
-                <div class="form-group"><label>Tax ID / EIN</label><input type="text" class="form-control" id="custTaxId" placeholder="e.g., 12-3456789"></div>
-                <div class="form-group"><label>Resale Certificate #</label><input type="text" class="form-control" id="custResaleCertNumber"></div>
-                <div class="form-group"><label>NetSuite Entity ID</label><input type="text" class="form-control" id="custNetsuiteEntityId" placeholder="e.g., 1234"></div>
-            </div>
-
-            <div style="margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Notes</label></div>
-            <div class="form-group"><textarea class="form-control" id="custNotes" rows="2" placeholder="Internal notes about this customer..."></textarea></div>
-
-            <div style="margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
-                <label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">Locations</label>
-                <button type="button" class="btn btn-sm btn-outline" onclick="addCustomerLocationRow()">+ Add Location</button>
-            </div>
-            <div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);margin-bottom:10px">A customer can have one or more shipping locations (e.g., multiple stores under the same company).</div>
-            <div id="customerLocationsSection"></div>
-        </div>
-        <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('customerModal')">Cancel</button><button class="btn btn-primary" onclick="saveCustomer()">Save</button></div>
-    </div>
-</div>
-
-<!-- Customer Detail Modal -->
-<div class="modal-overlay" id="customerDetailModal">
-    <div class="modal modal-lg">
-        <div class="modal-header"><h2 id="customerDetailTitle">Customer Details</h2><button class="modal-close" onclick="closeModal('customerDetailModal')">&times;</button></div>
-        <div class="modal-body" id="customerDetailBody"></div>
-    </div>
-</div>
+<!-- Customer edit modal was replaced by full-page /admin/customers/detail — see page-admin-customer-detail above -->
 
 <!-- Order Submission Modal -->
 <div class="modal-overlay" id="orderModal">
@@ -5789,6 +5834,7 @@ var ADMIN_PAGE_TITLES = {
     'admin-catalog': 'Print Catalog',
     'admin-orders': 'Orders',
     'admin-customers': 'Customers',
+    'admin-customer-detail': 'Customer Detail',
     'admin-coupons': 'Coupons',
     'admin-payments': 'Payments',
     'admin-vendors': 'Vendors',
@@ -5940,6 +5986,7 @@ function navigate(pageId, opts) {
     if (pageId === 'admin-catalog') renderCatalog();
     if (pageId === 'admin-vendors') renderVendors();
     if (pageId === 'admin-customers') renderCustomers();
+    if (pageId === 'admin-customer-detail') renderCustomerDetailPage();
     if (pageId === 'admin-accounts') renderAccounts();
     if (pageId === 'admin-users') renderAdminUsers();
     if (pageId === 'admin-csv-mapping') renderCsvMappingPage();
@@ -10029,8 +10076,7 @@ function renderCustomers() {
             '<td>' + locCell + '</td>' +
             '<td>' + customerStatusBadge(c.status) + '</td>' +
             '<td>' +
-                '<button class="btn btn-sm btn-outline" onclick="showCustomerDetail(' + i + ')">View</button> ' +
-                '<button class="btn btn-sm btn-outline" onclick="editCustomer(' + i + ')">Edit</button> ' +
+                '<button class="btn btn-sm btn-outline" onclick="openCustomerDetailPage(' + i + ')">View / Edit</button> ' +
                 '<button class="btn btn-sm btn-outline" title="Send a new temp password + welcome email" onclick="resendWelcomeForCustomer(\'' + esc(c.id) + '\',\'' + esc((c.companyName || '').replace(/[\'"\\\\]/g,'')) + '\')">&#128231; Resend</button> ' +
                 '<button class="btn btn-sm btn-danger" onclick="deleteCustomer(' + i + ')">Del</button>' +
             '</td>' +
@@ -10038,10 +10084,32 @@ function renderCustomers() {
     }).join('');
 }
 
-function openCustomerModal(i) {
+// Holds the customer index to load on next render of the full-page detail view.
+// Set by openCustomerDetailPage() so renderCustomerDetailPage() (fired by navigate)
+// can pick it up. -1 = new customer.
+var PENDING_CUSTOMER_EDIT_INDEX = null;
+
+function openCustomerDetailPage(i) {
     if (i === undefined) i = -1;
+    PENDING_CUSTOMER_EDIT_INDEX = i;
+    navigate('admin-customer-detail');
+}
+
+// Back-compat aliases — anything old still calling these ends up on the page.
+function openCustomerModal(i) { openCustomerDetailPage(i); }
+function editCustomer(i) { openCustomerDetailPage(i); }
+function showCustomerDetail(i) { openCustomerDetailPage(i); }
+
+function renderCustomerDetailPage() {
+    var i = PENDING_CUSTOMER_EDIT_INDEX;
+    // If landed here without a pending index (page refresh / direct URL), treat as new.
+    if (i === null || i === undefined) i = -1;
+    PENDING_CUSTOMER_EDIT_INDEX = null;
+
     document.getElementById('customerEditIndex').value = i;
-    document.getElementById('customerModalTitle').textContent = i >= 0 ? 'Edit Customer' : 'Add Customer';
+    var titleEl = document.getElementById('customerDetailPageTitle');
+    var subEl = document.getElementById('customerDetailPageSub');
+
     var fields = {
         custCompanyName:'', custAccountCode:'', custPharmacyType:'',
         custStatus:'active', custPaymentTerms:'Net-30',
@@ -10051,7 +10119,7 @@ function openCustomerModal(i) {
         custTaxId:'', custResaleCertNumber:'', custNetsuiteEntityId:'',
         custNotes:''
     };
-    if (i >= 0) {
+    if (i >= 0 && DATA.customers[i]) {
         var c = DATA.customers[i];
         document.getElementById('customerEditId').value = c.id || '';
         fields.custCompanyName      = c.companyName        || '';
@@ -10073,21 +10141,32 @@ function openCustomerModal(i) {
         fields.custResaleCertNumber = c.resaleCertNumber   || '';
         fields.custNetsuiteEntityId = c.netsuiteEntityId   || '';
         fields.custNotes            = c.notes              || '';
-        // Clone locations into working copy
         currentEditLocations = getCustomerLocations(c.id).map(function(l) { return Object.assign({}, l); });
+
+        if (titleEl) titleEl.textContent = c.companyName || 'Customer';
+        if (subEl) {
+            var subBits = [];
+            subBits.push(customerStatusBadge(c.status));
+            if (c.accountCode) subBits.push('<code style="background:var(--gray-100);padding:2px 6px;border-radius:3px">' + esc(c.accountCode) + '</code>');
+            subBits.push('<span>' + esc(c.paymentTerms || 'Net-30') + '</span>');
+            subBits.push('<span>' + currentEditLocations.length + ' location' + (currentEditLocations.length === 1 ? '' : 's') + '</span>');
+            if (c.netsuiteEntityId) subBits.push('<span>NetSuite: <code>' + esc(c.netsuiteEntityId) + '</code></span>');
+            subEl.innerHTML = subBits.join(' &nbsp;·&nbsp; ');
+        }
     } else {
         document.getElementById('customerEditId').value = '';
         currentEditLocations = [];
+        if (titleEl) titleEl.textContent = 'New Customer';
+        if (subEl) subEl.innerHTML = '<span style="color:var(--gray-400)">Fill in the form below and click Save Customer.</span>';
     }
     Object.keys(fields).forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.value = fields[id];
     });
     renderCustomerLocationsInModal();
-    openModal('customerModal');
+    // Scroll to top of the page content so users land on the header, not mid-form.
+    window.scrollTo(0, 0);
 }
-
-function editCustomer(i) { openCustomerModal(i); }
 
 function renderCustomerLocationsInModal() {
     var container = document.getElementById('customerLocationsSection');
@@ -10245,7 +10324,7 @@ async function saveCustomer() {
 
     currentEditLocations = [];
     saveData();
-    closeModal('customerModal');
+    navigate('admin-customers');
     renderCustomers();
 }
 
@@ -10266,66 +10345,8 @@ async function deleteCustomer(i) {
     showToast('Deleted');
 }
 
-function showCustomerDetail(i) {
-    var c = DATA.customers[i];
-    if (!c) return;
-    var locs = getCustomerLocations(c.id);
-    var billLines = [c.billingAddress, [c.billingCity, c.billingState, c.billingZip].filter(Boolean).join(', ')].filter(Boolean);
-    var billHtml = billLines.length ? billLines.map(esc).join('<br>') : '<span style="color:var(--gray-400)">No billing address on file</span>';
-    var locsHtml;
-    if (!locs.length) {
-        locsHtml = '<div style="color:var(--gray-400);font-style:italic">No locations yet.</div>';
-    } else {
-        locsHtml = '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
-            '<thead><tr style="background:var(--gray-100)"><th style="padding:6px;text-align:left">Name</th><th style="padding:6px;text-align:left">Address</th><th style="padding:6px;text-align:left">Phone</th><th style="padding:6px;text-align:left">Email</th><th style="padding:6px;text-align:left">Status</th></tr></thead>' +
-            '<tbody>' + locs.map(function(l) {
-                var addr = [l.address, [l.city, l.state, l.zip].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
-                return '<tr>' +
-                    '<td style="padding:6px"><strong>' + esc(l.locationName || '') + '</strong></td>' +
-                    '<td style="padding:6px">' + (addr ? esc(addr) : '--') + '</td>' +
-                    '<td style="padding:6px">' + esc(l.phone || '--') + '</td>' +
-                    '<td style="padding:6px">' + esc(l.email || '--') + '</td>' +
-                    '<td style="padding:6px">' + customerStatusBadge(l.status) + '</td>' +
-                '</tr>';
-            }).join('') +
-        '</tbody></table>';
-    }
-    document.getElementById('customerDetailTitle').textContent = c.companyName || 'Customer';
-    document.getElementById('customerDetailBody').innerHTML =
-        '<div style="font-family:var(--sans);font-size:14px;line-height:1.5">' +
-            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px;flex-wrap:wrap">' +
-                '<div>' +
-                    '<div style="font-family:var(--serif);font-size:22px;color:var(--ni-navy);margin-bottom:4px">' + esc(c.companyName || '') + '</div>' +
-                    '<div style="color:var(--gray-500);font-size:13px">' + (c.accountCode ? '<code>' + esc(c.accountCode) + '</code>' : '<span style="color:var(--gray-400)">No account code</span>') + '</div>' +
-                '</div>' +
-                '<div style="text-align:right">' + customerStatusBadge(c.status) +
-                    '<div style="margin-top:6px;font-size:12px;color:var(--gray-500)">' + esc(c.paymentTerms || 'Net-30') + '</div>' +
-                '</div>' +
-            '</div>' +
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">' +
-                '<div><div style="font-family:var(--serif);font-size:13px;color:var(--ni-navy);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Contact</div>' +
-                    '<div><strong>' + esc(c.contactName || '--') + '</strong></div>' +
-                    '<div>' + esc(c.email || '--') + '</div>' +
-                    '<div>' + esc(c.phone || '--') + '</div>' +
-                '</div>' +
-                '<div><div style="font-family:var(--serif);font-size:13px;color:var(--ni-navy);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Billing Address</div>' +
-                    '<div>' + billHtml + '</div>' +
-                '</div>' +
-            '</div>' +
-            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:18px">' +
-                '<div><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase">Pharmacy Type</div><div>' + esc(c.pharmacyType || '--') + '</div></div>' +
-                '<div><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase">License</div><div>' + esc(c.licenseNumber || '--') + '</div></div>' +
-                '<div><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase">DEA</div><div>' + esc(c.deaNumber || '--') + '</div></div>' +
-                '<div><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase">NPI</div><div>' + esc(c.npiNumber || '--') + '</div></div>' +
-            '</div>' +
-            '<div style="margin-bottom:18px"><div style="font-family:var(--serif);font-size:13px;color:var(--ni-navy);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Locations (' + locs.length + ')</div>' + locsHtml + '</div>' +
-            (c.notes ? '<div><div style="font-family:var(--serif);font-size:13px;color:var(--ni-navy);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Notes</div><div style="white-space:pre-wrap">' + esc(c.notes) + '</div></div>' : '') +
-            '<div style="margin-top:20px;text-align:right">' +
-                '<button class="btn btn-outline" onclick="closeModal(\'customerDetailModal\');editCustomer(' + i + ')">Edit Customer</button>' +
-            '</div>' +
-        '</div>';
-    openModal('customerDetailModal');
-}
+// showCustomerDetail was replaced by openCustomerDetailPage (full-page /admin/customers/detail).
+// Alias for back-compat is defined near openCustomerDetailPage above.
 
 // ════════════════════════════════════════════════════
 // ADMIN: PURCHASE ORDERS
