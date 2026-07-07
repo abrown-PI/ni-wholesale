@@ -5827,7 +5827,18 @@ const ADMIN_SESSION_KEY = 'ni_admin_authed'; // legacy key, still cleared on log
 let pendingAdminPage = null;   // page to route to after successful sign-in
 let IS_SUPA_ADMIN = false;
 
-function isAdminAuthed() { return IS_SUPA_ADMIN; }
+// Fast synchronous check: does Supabase have a session token in localStorage?
+// Used by navigate() to avoid flashing the sign-in modal during the ~50ms window
+// between page load and the async profile-role verification finishing.
+function _hasSupaSessionToken() {
+    try {
+        var raw = localStorage.getItem('ni_supa_auth');
+        if (!raw) return false;
+        var s = JSON.parse(raw);
+        return !!(s && s.access_token && s.expires_at && (s.expires_at * 1000) > Date.now());
+    } catch (e) { return false; }
+}
+function isAdminAuthed() { return IS_SUPA_ADMIN || _hasSupaSessionToken(); }
 
 function openAdminGate(intendedPage) {
     // "Gate" now = Supabase Auth sign-in with email + password (email visible).
