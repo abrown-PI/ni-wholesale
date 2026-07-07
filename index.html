@@ -8752,15 +8752,18 @@ function viewOrder(i) {
             actions += '<button class="btn btn-outline" onclick="updateOrderStatus(' + i + ',\'processing\')">Mark Processing</button> ';
         }
         actions += '<button class="btn btn-success" onclick="closeModal(\'orderDetailModal\');markShipped(' + i + ')">Mark Shipped</button> ';
-        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Download NetSuite CSV</button> ';
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button> ';
         actions += '<button class="btn btn-danger" onclick="closeModal(\'orderDetailModal\');cancelOrder(' + i + ')">Cancel</button>';
     } else if (o.status === 'shipped') {
         actions += '<button class="btn btn-success" onclick="markDelivered(' + i + ')">Mark Delivered</button> ';
-        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Download NetSuite CSV</button> ';
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button>';
     } else if (o.status === 'delivered') {
-        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Download NetSuite CSV</button> ';
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
+        actions += '<button class="btn btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button>';
     }
 
@@ -9374,6 +9377,7 @@ var CSV_SOURCE_OPTIONS = [
     { group: 'Order',
       items: [
         ['order.order_number', 'Order Number (raw)'],
+        ['order.invoice_number', 'NetSuite Invoice #'],
         ['order.placed_at', 'Placed Date'],
         ['order.shipped_at', 'Shipped Date'],
         ['order.tracking_number', 'Tracking Number'],
@@ -9420,7 +9424,16 @@ var CSV_SOURCE_OPTIONS = [
         ['location.address_or_billing', 'Location Address (or Billing)'],
         ['location.city_or_billing', 'Location City (or Billing)'],
         ['location.state_or_billing', 'Location State (or Billing)'],
-        ['location.zip_or_billing', 'Location Zip (or Billing)']
+        ['location.zip_or_billing', 'Location Zip (or Billing)'],
+        ['location.netsuite_location_id', 'NetSuite Location ID (per store)'],
+        ['location.netsuite_subsidiary_id', 'NetSuite Subsidiary ID (per legal entity)']
+      ]},
+    { group: 'Settings (Site-wide)',
+      items: [
+        ['settings.ni_vendor_id_in_pi', "NI's Vendor ID inside PI's NetSuite"],
+        ['settings.default_expense_account_id', 'Default Expense Account ID'],
+        ['settings.company_name', 'NI Company Name'],
+        ['settings.accounting_email', 'Accounting Notify Email']
       ]},
     { group: 'Item / Line',
       items: [
@@ -9449,14 +9462,52 @@ var CSV_SOURCE_OPTIONS = [
       ]}
 ];
 
+// ── Mapping kinds ────────────────────────────────────────────────
+// The admin CSV Mapping page has 3 tabs; each edits a separate settings row.
+var CSV_MAPPING_KINDS = {
+    invoice:  { settingsKey: 'netsuite_csv_mapping',           title: 'Invoice CSV',  description: 'Sent to Accounting when an order ships. Imported as a NetSuite Customer Invoice.' },
+    bill:     { settingsKey: 'netsuite_bill_csv_mapping',      title: 'Bill CSV',     description: "Only attached for intercompany customers (like PI). Imported into PI's NetSuite as a Vendor Bill from NI." },
+    customer: { settingsKey: 'netsuite_customer_csv_mapping',  title: 'Customer CSV', description: 'Sent to Accounting when a new customer is created. Imported as a NetSuite Customer record.' }
+};
+var CSV_MAPPING_CACHES = {}; // { invoice: {...}, bill: {...}, customer: {...} }
+var CURRENT_MAPPING_KIND = 'invoice'; // which tab is active
+
+// Load a mapping by kind. Returns cached copy after first call.
+async function loadCsvMappingKind(kind) {
+    if (CSV_MAPPING_CACHES[kind]) return CSV_MAPPING_CACHES[kind];
+    var cfg = CSV_MAPPING_KINDS[kind];
+    if (!cfg) throw new Error('Unknown mapping kind: ' + kind);
+    try {
+        var r = await supa.from('settings').select('value').eq('key', cfg.settingsKey).single();
+        if (r.data && r.data.value) { CSV_MAPPING_CACHES[kind] = r.data.value; return r.data.value; }
+    } catch (e) { console.warn('mapping load (' + kind + ') fell back to default:', e); }
+    // Fall back to invoice default only for invoice; other kinds must have been seeded.
+    if (kind === 'invoice') {
+        CSV_MAPPING_CACHES[kind] = loadCsvMappingInvoiceDefault();
+        return CSV_MAPPING_CACHES[kind];
+    }
+    return { columns: [] };
+}
+async function saveCsvMappingKind(kind, mapping) {
+    var cfg = CSV_MAPPING_KINDS[kind];
+    if (!cfg) throw new Error('Unknown mapping kind: ' + kind);
+    // Upsert so a missing row doesn't break the first save.
+    var r = await supa.from('settings').upsert({ key: cfg.settingsKey, value: mapping });
+    if (r.error) throw r.error;
+    CSV_MAPPING_CACHES[kind] = mapping;
+    if (kind === 'invoice') CSV_MAPPING_CACHE = mapping; // keep old alias in sync
+}
+
+// Legacy alias — the invoice generator + Edge Function still call these.
 async function loadCsvMapping() {
     if (CSV_MAPPING_CACHE) return CSV_MAPPING_CACHE;
-    try {
-        var r = await supa.from('settings').select('value').eq('key', 'netsuite_csv_mapping').single();
-        if (r.data && r.data.value) { CSV_MAPPING_CACHE = r.data.value; return CSV_MAPPING_CACHE; }
-    } catch (e) { console.warn('csv mapping load fell back to default:', e); }
+    var m = await loadCsvMappingKind('invoice');
+    CSV_MAPPING_CACHE = m;
+    return m;
+}
+function loadCsvMappingInvoiceDefault() {
     // Hardcoded fallback if Supabase read fails.
-    CSV_MAPPING_CACHE = {
+    return {
         external_id_prefix: 'NI-', external_id_pad_digits: 5,
         line_labels: { shipping: 'Shipping & handling', tax: 'Sales tax', discount: 'Discount' },
         columns: [
@@ -9485,14 +9536,10 @@ async function loadCsvMapping() {
             { name: 'Line Memo', source: 'static', value: '' }
         ]
     };
-    return CSV_MAPPING_CACHE;
 }
 
-async function saveCsvMapping(mapping) {
-    var r = await supa.from('settings').update({ value: mapping }).eq('key', 'netsuite_csv_mapping');
-    if (r.error) throw r.error;
-    CSV_MAPPING_CACHE = mapping;
-}
+// Legacy alias for the invoice generator; delegates to the kind-aware saver.
+async function saveCsvMapping(mapping) { await saveCsvMappingKind('invoice', mapping); }
 
 // Given a source-key like "customer.company_name" and a resolution context
 // { order, customer, location, item, lineType, mapping, externalId, invoiceDate, dueDate, memo },
@@ -9505,6 +9552,7 @@ function resolveCsvField(sourceKey, ctx) {
     switch (sourceKey) {
         // order fields
         case 'order.order_number': return String(order.order_number || '');
+        case 'order.invoice_number': return order.invoice_number || ('NI-' + String(order.order_number || '').padStart(5, '0'));
         case 'order.placed_at': return order.placed_at || '';
         case 'order.shipped_at': return order.shipped_at || '';
         case 'order.tracking_number': return order.tracking_number || '';
@@ -9548,6 +9596,13 @@ function resolveCsvField(sourceKey, ctx) {
         case 'location.city_or_billing': return location.city || customer.billing_city || '';
         case 'location.state_or_billing': return location.state || customer.billing_state || '';
         case 'location.zip_or_billing': return location.zip || customer.billing_zip || '';
+        case 'location.netsuite_location_id': return location.netsuite_location_id || '';
+        case 'location.netsuite_subsidiary_id': return location.netsuite_subsidiary_id || '';
+        // settings (looked up from ctx.settings — populated by generateCsvFromMapping)
+        case 'settings.ni_vendor_id_in_pi': return (ctx.settings && ctx.settings.ni_vendor_id_in_pi) || '';
+        case 'settings.default_expense_account_id': return (ctx.settings && ctx.settings.default_expense_account_id) || '';
+        case 'settings.company_name': return (ctx.settings && ctx.settings.company_name) || 'Nutritional Innovations';
+        case 'settings.accounting_email': return (ctx.settings && ctx.settings.accounting_notify_email) || '';
         // computed
         case 'computed.external_id': return ctx.externalId || '';
         case 'computed.invoice_date': return ctx.invoiceDate || '';
@@ -9595,8 +9650,25 @@ function resolveCsvField(sourceKey, ctx) {
     }
 }
 
+// Cached site-wide settings (accounting email + NetSuite fixed IDs). One lookup per session.
+var SITE_SETTINGS_CACHE = null;
+async function loadSiteSettings() {
+    if (SITE_SETTINGS_CACHE) return SITE_SETTINGS_CACHE;
+    var out = {};
+    try {
+        var keys = ['accounting_notify_email','ni_vendor_id_in_pi','default_expense_account_id','company_name'];
+        var r = await supa.from('settings').select('key,value').in('key', keys);
+        (r.data || []).forEach(function(row) {
+            out[row.key] = typeof row.value === 'string' ? row.value : (row.value == null ? '' : row.value);
+        });
+    } catch (e) { console.warn('site settings load failed:', e); }
+    SITE_SETTINGS_CACHE = out;
+    return out;
+}
+
 async function generateCsvFromMapping(order, customer, location, items) {
     var mapping = await loadCsvMapping();
+    var settings = await loadSiteSettings();
     var pad = Number(mapping.external_id_pad_digits) || 5;
     var prefix = mapping.external_id_prefix || 'NI-';
     var externalId = prefix + String(order.order_number || '').padStart(pad, '0');
@@ -9606,7 +9678,7 @@ async function generateCsvFromMapping(order, customer, location, items) {
     var memoBits = ['NI Wholesale order #' + String(order.order_number || '').padStart(pad, '0')];
     if (order.tracking_number) memoBits.push((order.carrier || 'Tracking') + ': ' + order.tracking_number);
     var memo = memoBits.join(' | ');
-    var ctxBase = { order: order, customer: customer, location: location, mapping: mapping, externalId: externalId, invoiceDate: invoiceDate, dueDate: dueDate, memo: memo };
+    var ctxBase = { order: order, customer: customer, location: location, mapping: mapping, settings: settings, externalId: externalId, invoiceDate: invoiceDate, dueDate: dueDate, memo: memo };
     var cols = Array.isArray(mapping.columns) ? mapping.columns : [];
 
     function renderRow(item, lineType) {
@@ -9628,21 +9700,72 @@ async function generateCsvFromMapping(order, customer, location, items) {
     return { csv: csv, filename: 'ni-invoice-' + String(order.order_number || '').padStart(pad, '0') + '.csv' };
 }
 
+// Bill CSV (intercompany second leg). Only generated when customer.is_intercompany = true.
+// Uses the same resolver so the mapping page controls it.
+async function generateBillCsvFromMapping(order, customer, location, items) {
+    var mapping = await loadCsvMappingKind('bill');
+    var settings = await loadSiteSettings();
+    var invoiceDate = _fmtDateUS(order.shipped_at || order.placed_at);
+    var externalId = order.invoice_number || ('NI-' + String(order.order_number || '').padStart(5, '0'));
+    var memo = 'Intercompany bill from NI Invoice ' + externalId;
+    var ctxBase = { order: order, customer: customer, location: location, mapping: mapping, settings: settings, externalId: externalId, invoiceDate: invoiceDate, dueDate: invoiceDate, memo: memo };
+    var cols = Array.isArray(mapping.columns) ? mapping.columns : [];
+    if (!cols.length) throw new Error('Bill CSV mapping has no columns. Set it up under Admin → NetSuite CSV Mapping → Bill CSV tab.');
+
+    function renderRow(item, lineType) {
+        var ctx = Object.assign({}, ctxBase, { item: item, lineType: lineType });
+        return cols.map(function(col) {
+            if (col.source === 'static') return col.value || '';
+            return resolveCsvField(col.source, ctx);
+        });
+    }
+
+    var rows = [];
+    (items || []).forEach(function(it) { rows.push(renderRow(it, 'item')); });
+    if (order.shipping && Number(order.shipping) > 0) rows.push(renderRow(null, 'shipping'));
+    if (order.tax && Number(order.tax) > 0) rows.push(renderRow(null, 'tax'));
+
+    var csv = cols.map(function(c) { return _csvEscape(c.name); }).join(',') + '\r\n';
+    rows.forEach(function(r) { csv += r.map(_csvEscape).join(',') + '\r\n'; });
+    return { csv: csv, filename: 'ni-bill-' + String(order.order_number || '').padStart(5, '0') + '.csv' };
+}
+
 // ── Admin: CSV Mapping page ──
-async function renderCsvMappingPage() {
+async function renderCsvMappingPage(kind) {
+    if (kind) CURRENT_MAPPING_KIND = kind;
+    var activeKind = CURRENT_MAPPING_KIND || 'invoice';
     var body = document.getElementById('adminCsvMappingBody');
     if (!body) return;
-    body.innerHTML = '<div style="padding:24px;font-family:var(--sans);color:var(--gray-600)">Loading CSV mapping…</div>';
+    body.innerHTML = '<div style="padding:24px;font-family:var(--sans);color:var(--gray-600)">Loading ' + activeKind + ' CSV mapping…</div>';
     var mapping;
-    try { mapping = JSON.parse(JSON.stringify(await loadCsvMapping())); }
+    try { mapping = JSON.parse(JSON.stringify(await loadCsvMappingKind(activeKind))); }
     catch (e) { body.innerHTML = '<div style="padding:24px;color:var(--danger)">Failed to load mapping: ' + esc(e.message) + '</div>'; return; }
+    if (!mapping.columns) mapping.columns = [];
     window._csvMappingDraft = mapping;
+
+    // Build the tabs bar.
+    var tabsHtml = '<div style="display:flex;gap:2px;margin-bottom:16px;border-bottom:2px solid var(--gray-200)">' +
+        Object.keys(CSV_MAPPING_KINDS).map(function(k) {
+            var isActive = k === activeKind;
+            var kCfg = CSV_MAPPING_KINDS[k];
+            return '<button onclick="renderCsvMappingPage(\'' + k + '\')" style="' +
+                'padding:10px 20px;font-size:13px;font-family:var(--sans);font-weight:' + (isActive ? '700' : '500') + ';' +
+                'background:' + (isActive ? 'white' : 'transparent') + ';color:' + (isActive ? 'var(--ni-navy)' : 'var(--gray-500)') + ';' +
+                'border:none;border-bottom:3px solid ' + (isActive ? 'var(--ni-deep-blue)' : 'transparent') + ';cursor:pointer;margin-bottom:-2px">' +
+                esc(kCfg.title) +
+            '</button>';
+        }).join('') +
+    '</div>';
+
+    var activeCfg = CSV_MAPPING_KINDS[activeKind];
+    var isInvoice = activeKind === 'invoice'; // only invoice has global settings + line labels
     body.innerHTML =
-        '<div style="max-width:1100px">' +
+        '<div style="max-width:1200px">' +
+        tabsHtml +
         '<div style="background:var(--ni-cream);border-left:3px solid var(--ni-deep-blue);padding:12px 16px;font-size:13px;font-family:var(--sans);color:var(--gray-700);margin-bottom:20px;line-height:1.5">' +
-            '<strong>How this works:</strong> Rename columns to match your NetSuite CSV import template, reorder them, add/remove columns, or set static values. Each column pulls from a data source below (order, customer, location, or line item). Click <strong>Save Mapping</strong> when done — both the <em>Download NetSuite CSV</em> button and the automatic email after shipping use this exact mapping.' +
+            '<strong>' + esc(activeCfg.title) + ':</strong> ' + esc(activeCfg.description) + ' Rename columns to match NetSuite\'s import template, reorder, add/remove, or set static values.' +
         '</div>' +
-        '<div class="card"><div class="card-header"><h2>Global Settings</h2></div>' +
+        (isInvoice ? '<div class="card"><div class="card-header"><h2>Global Settings (Invoice only)</h2></div>' +
             '<div class="form-row">' +
                 '<div class="form-group"><label>External ID prefix</label><input type="text" class="form-control" id="csvExtPrefix" value="' + esc(mapping.external_id_prefix || 'NI-') + '"></div>' +
                 '<div class="form-group"><label>External ID pad digits</label><input type="number" class="form-control" id="csvExtPad" min="1" max="10" value="' + Number(mapping.external_id_pad_digits || 5) + '"></div>' +
@@ -9652,13 +9775,13 @@ async function renderCsvMappingPage() {
                 '<div class="form-group"><label>Tax line label</label><input type="text" class="form-control" id="csvLblTax" value="' + esc((mapping.line_labels && mapping.line_labels.tax) || 'Sales tax') + '"></div>' +
                 '<div class="form-group"><label>Discount line label</label><input type="text" class="form-control" id="csvLblDisc" value="' + esc((mapping.line_labels && mapping.line_labels.discount) || 'Discount') + '"></div>' +
             '</div>' +
-        '</div>' +
-        '<div class="card"><div class="card-header"><h2>Columns</h2><button class="btn btn-sm btn-primary" onclick="csvMappingAddColumn()">+ Add Column</button></div>' +
+        '</div>' : '') +
+        '<div class="card"><div class="card-header"><h2>Columns (' + (mapping.columns.length) + ')</h2><button class="btn btn-sm btn-primary" onclick="csvMappingAddColumn()">+ Add Column</button></div>' +
             '<div id="csvColumnsList"></div>' +
         '</div>' +
         '<div style="display:flex;gap:10px;margin-top:20px">' +
-            '<button class="btn btn-primary" onclick="csvMappingSave()">Save Mapping</button>' +
-            '<button class="btn btn-outline" onclick="csvMappingResetDefault()">Reset to Default</button>' +
+            '<button class="btn btn-primary" onclick="csvMappingSave()">Save ' + esc(activeCfg.title) + '</button>' +
+            (isInvoice ? '<button class="btn btn-outline" onclick="csvMappingResetDefault()">Reset to Default</button>' : '') +
         '</div>' +
         '</div>';
     csvMappingRenderColumns();
@@ -9726,13 +9849,16 @@ function csvMappingMove(idx, delta) {
 async function csvMappingSave() {
     var mapping = window._csvMappingDraft;
     if (!mapping) return;
-    mapping.external_id_prefix = (document.getElementById('csvExtPrefix') || {}).value || 'NI-';
-    mapping.external_id_pad_digits = Number((document.getElementById('csvExtPad') || {}).value) || 5;
-    mapping.line_labels = mapping.line_labels || {};
-    mapping.line_labels.shipping = (document.getElementById('csvLblShip') || {}).value || 'Shipping & handling';
-    mapping.line_labels.tax      = (document.getElementById('csvLblTax')  || {}).value || 'Sales tax';
-    mapping.line_labels.discount = (document.getElementById('csvLblDisc') || {}).value || 'Discount';
-    try { await saveCsvMapping(mapping); showToast('CSV mapping saved'); }
+    var kind = CURRENT_MAPPING_KIND || 'invoice';
+    if (kind === 'invoice') {
+        mapping.external_id_prefix = (document.getElementById('csvExtPrefix') || {}).value || 'NI-';
+        mapping.external_id_pad_digits = Number((document.getElementById('csvExtPad') || {}).value) || 5;
+        mapping.line_labels = mapping.line_labels || {};
+        mapping.line_labels.shipping = (document.getElementById('csvLblShip') || {}).value || 'Shipping & handling';
+        mapping.line_labels.tax      = (document.getElementById('csvLblTax')  || {}).value || 'Sales tax';
+        mapping.line_labels.discount = (document.getElementById('csvLblDisc') || {}).value || 'Discount';
+    }
+    try { await saveCsvMappingKind(kind, mapping); showToast(CSV_MAPPING_KINDS[kind].title + ' saved'); }
     catch (e) {
         var msg = e.message || 'Save error';
         if (/coerce|permission|policy/i.test(msg)) msg = 'Not signed in as admin. Sign in first.';
@@ -9740,16 +9866,17 @@ async function csvMappingSave() {
     }
 }
 async function csvMappingResetDefault() {
-    if (!confirm('Reset to the default 23-column mapping?')) return;
+    if (CURRENT_MAPPING_KIND !== 'invoice') { showToast('Reset only supported for the Invoice CSV default', 'error'); return; }
+    if (!confirm('Reset the Invoice CSV mapping to the built-in 23-column default?')) return;
+    CSV_MAPPING_CACHES.invoice = null;
     CSV_MAPPING_CACHE = null;
     window._csvMappingDraft = null;
-    // Reload default from Supabase (or hardcoded fallback)
-    var mapping = await loadCsvMapping();
+    var mapping = loadCsvMappingInvoiceDefault();
+    CSV_MAPPING_CACHES.invoice = mapping;
+    CSV_MAPPING_CACHE = mapping;
     window._csvMappingDraft = JSON.parse(JSON.stringify(mapping));
-    csvMappingRenderColumns();
-    document.getElementById('csvExtPrefix').value = mapping.external_id_prefix || 'NI-';
-    document.getElementById('csvExtPad').value = mapping.external_id_pad_digits || 5;
-    showToast('Reset to loaded default');
+    renderCsvMappingPage('invoice');
+    showToast('Reset to default — click Save to persist');
 }
 
 // ── NetSuite invoice CSV (client-side, mirrors notify-order Edge Function) ──
@@ -9833,6 +9960,54 @@ async function downloadNetsuiteCsv(idx) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
     showToast('Downloaded ' + filename);
+}
+
+// Download the intercompany Bill CSV for an order. Only useful when the customer is flagged is_intercompany.
+async function downloadNetsuiteBillCsv(idx) {
+    var o = DATA.orders[idx];
+    if (!o) return;
+    // Reuse the same fetch path as invoice CSV, then swap generator.
+    var dbId = o.supabaseOrderId || o.id;
+    var order = null, items = [], customer = null, location = null;
+    if (dbId && /^[0-9a-f-]{36}$/i.test(dbId)) {
+        try {
+            var r1 = await supa.from('orders').select('*').eq('id', dbId).single();
+            if (r1.data) order = r1.data;
+            var r2 = await supa.from('order_items').select('*').eq('order_id', dbId);
+            if (r2.data) items = r2.data;
+            if (order && order.customer_id) {
+                var r3 = await supa.from('customers').select('*').eq('id', order.customer_id).single();
+                if (r3.data) customer = r3.data;
+            }
+            if (order && order.customer_location_id) {
+                var r4 = await supa.from('customer_locations').select('*').eq('id', order.customer_location_id).single();
+                if (r4.data) location = r4.data;
+            }
+        } catch (e) { console.warn('bill csv fetch fell back to local:', e); }
+    }
+    if (!customer) { showToast('Cannot generate Bill CSV — customer not found', 'error'); return; }
+    if (!customer.is_intercompany) {
+        if (!confirm('This customer is not flagged as intercompany. Download Bill CSV anyway?')) return;
+    }
+    if (!order) {
+        order = { order_number: o.orderNumber, placed_at: o.date, shipped_at: o.shippedAt,
+            invoice_number: o.invoiceNumber || '', subtotal: o.subtotal, tax: o.tax, shipping: o.shipping, total: o.total };
+    }
+    if (!items.length) {
+        items = (o.items || []).map(function(it) {
+            return { sku: it.sku, product_name: it.productName || it.name, qty: it.qty, unit_price: it.unitPrice, line_total: (Number(it.qty) || 0) * (Number(it.unitPrice) || 0) };
+        });
+    }
+    var built;
+    try { built = await generateBillCsvFromMapping(order, customer, location || {}, items); }
+    catch (e) { showToast('Bill CSV generation failed: ' + (e.message || 'error'), 'error'); return; }
+    var blob = new Blob([built.csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = built.filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+    showToast('Downloaded ' + built.filename);
 }
 
 function printPackingSlip(idx) {
