@@ -1264,8 +1264,8 @@
         <!-- Locations -->
         <div class="card">
             <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-                <h3>Locations</h3>
-                <button type="button" class="btn btn-sm btn-outline" onclick="addCustomerLocationRow()">+ Add Location</button>
+                <h3 id="locationsCardTitle">Locations</h3>
+                <button type="button" class="btn btn-primary" onclick="addCustomerLocationRow()">+ Add Location</button>
             </div>
             <div class="card-body">
                 <div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);margin-bottom:12px">A customer can have one or more shipping locations (e.g., multiple stores under the same company). Per-location licensing is authoritative for state pharmacy board records.</div>
@@ -10207,6 +10207,10 @@ function renderCustomerDetailPage() {
 function renderCustomerLocationsInModal() {
     var container = document.getElementById('customerLocationsSection');
     if (!container) return;
+    var titleEl = document.getElementById('locationsCardTitle');
+    if (titleEl) titleEl.textContent = currentEditLocations.length
+        ? ('Locations (' + currentEditLocations.length + ')')
+        : 'Locations';
     if (!currentEditLocations.length) {
         container.innerHTML = '<div style="font-size:12px;color:var(--gray-400);font-family:var(--sans);padding:8px 0">No locations yet. Click "+ Add Location" above to add one.</div>';
         return;
@@ -10217,38 +10221,33 @@ function renderCustomerLocationsInModal() {
         var statusOptions = ['active','suspended'].map(function(s) {
             return '<option value="' + s + '"' + (l.status === s ? ' selected' : '') + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
         }).join('');
-        return '<div style="border:1px solid var(--gray-200);border-radius:var(--radius);padding:12px;margin-bottom:12px;background:var(--ni-cream)">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
-                '<strong style="font-family:var(--sans);font-size:13px;color:var(--ni-deep-blue)">Location ' + (i+1) + '</strong>' +
-                '<button type="button" class="btn btn-sm btn-danger" onclick="removeCustomerLocationRow(' + i + ')">Remove</button>' +
+        // Reviv-style: cream card, single primary row (Name | Address | City | State | ZIP | Contact | Phone),
+        // then Billing Entity + Licensing rows below.
+        return '<div style="border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;background:var(--ni-cream)">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+                '<span style="font-family:var(--sans);font-size:11px;color:var(--ni-deep-blue);font-weight:700;text-transform:uppercase;letter-spacing:.75px">Location ' + (i+1) + '</span>' +
+                '<a href="#" onclick="removeCustomerLocationRow(' + i + ');return false" style="font-family:var(--sans);font-size:12px;color:#d43a3a;text-decoration:none;font-weight:600">Remove</a>' +
             '</div>' +
-            '<div style="display:grid;grid-template-columns:2fr 3fr 1fr;gap:8px;margin-bottom:8px">' +
-                '<div><label style="' + lbl + '">Name *</label><input type="text" style="' + input + '" value="' + esc(l.locationName || '') + '" placeholder="Main / FL / HST" onchange="updateCustomerLocationField(' + i + ',\'locationName\',this.value)"></div>' +
+            '<div style="display:grid;grid-template-columns:1.2fr 2fr 1.2fr 0.5fr 0.8fr 1.2fr 1.2fr;gap:10px">' +
+                '<div><label style="' + lbl + '">Location Name</label><input type="text" style="' + input + '" value="' + esc(l.locationName || '') + '" placeholder="Main / FL / HST" onchange="updateCustomerLocationField(' + i + ',\'locationName\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Address</label><input type="text" style="' + input + '" value="' + esc(l.address || '') + '" onchange="updateCustomerLocationField(' + i + ',\'address\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">City</label><input type="text" style="' + input + '" value="' + esc(l.city || '') + '" onchange="updateCustomerLocationField(' + i + ',\'city\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.state || '') + '" onchange="updateCustomerLocationField(' + i + ',\'state\',this.value.toUpperCase())"></div>' +
+                '<div><label style="' + lbl + '">ZIP</label><input type="text" style="' + input + '" value="' + esc(l.zip || '') + '" onchange="updateCustomerLocationField(' + i + ',\'zip\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">Contact</label><input type="text" style="' + input + '" value="' + esc(l.contactName || '') + '" onchange="updateCustomerLocationField(' + i + ',\'contactName\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">Phone</label><input type="text" style="' + input + '" value="' + esc(l.phone || '') + '" onchange="updateCustomerLocationField(' + i + ',\'phone\',this.value)"></div>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 0.8fr;gap:10px;margin-top:10px">' +
+                '<div><label style="' + lbl + '">Email</label><input type="email" style="' + input + '" value="' + esc(l.email || '') + '" onchange="updateCustomerLocationField(' + i + ',\'email\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">Legal Entity Name</label><input type="text" style="' + input + '" placeholder="e.g., Pharmacy Innovations LLC" value="' + esc(l.billingEntityName || '') + '" onchange="updateCustomerLocationField(' + i + ',\'billingEntityName\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">NetSuite Entity ID</label><input type="text" style="' + input + '" placeholder="e.g., 1234" value="' + esc(l.netsuiteEntityId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteEntityId\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Status</label><select style="' + input + '" onchange="updateCustomerLocationField(' + i + ',\'status\',this.value)">' + statusOptions + '</select></div>' +
             '</div>' +
-            '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr 2fr;gap:8px;margin-bottom:8px">' +
-                '<div><label style="' + lbl + '">City</label><input type="text" style="' + input + '" value="' + esc(l.city || '') + '" onchange="updateCustomerLocationField(' + i + ',\'city\',this.value)"></div>' +
-                '<div><label style="' + lbl + '">State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.state || '') + '" onchange="updateCustomerLocationField(' + i + ',\'state\',this.value)"></div>' +
-                '<div><label style="' + lbl + '">ZIP</label><input type="text" style="' + input + '" value="' + esc(l.zip || '') + '" onchange="updateCustomerLocationField(' + i + ',\'zip\',this.value)"></div>' +
-                '<div><label style="' + lbl + '">Phone</label><input type="text" style="' + input + '" value="' + esc(l.phone || '') + '" onchange="updateCustomerLocationField(' + i + ',\'phone\',this.value)"></div>' +
-                '<div><label style="' + lbl + '">Email</label><input type="email" style="' + input + '" value="' + esc(l.email || '') + '" onchange="updateCustomerLocationField(' + i + ',\'email\',this.value)"></div>' +
-            '</div>' +
-            '<div style="margin-top:6px;padding-top:8px;border-top:1px dashed var(--gray-300)">' +
-                '<div style="font-size:10px;font-weight:700;color:var(--ni-navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-family:var(--sans)">Billing Entity (for NetSuite invoicing)</div>' +
-                '<div style="display:grid;grid-template-columns:3fr 2fr;gap:8px;margin-bottom:8px">' +
-                    '<div><label style="' + lbl + '">Legal Entity Name</label><input type="text" style="' + input + '" placeholder="e.g., Pharmacy Innovations LLC" value="' + esc(l.billingEntityName || '') + '" onchange="updateCustomerLocationField(' + i + ',\'billingEntityName\',this.value)"></div>' +
-                    '<div><label style="' + lbl + '">NetSuite Entity ID</label><input type="text" style="' + input + '" placeholder="e.g., 1234" value="' + esc(l.netsuiteEntityId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteEntityId\',this.value)"></div>' +
-                '</div>' +
-            '</div>' +
-            '<div style="margin-top:6px;padding-top:8px;border-top:1px dashed var(--gray-300)">' +
-                '<div style="font-size:10px;font-weight:700;color:var(--ni-deep-blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-family:var(--sans)">Licensing (this location)</div>' +
-                '<div style="display:grid;grid-template-columns:2fr 1fr 1.5fr 1.5fr;gap:8px">' +
-                    '<div><label style="' + lbl + '">State License #</label><input type="text" style="' + input + '" value="' + esc(l.licenseNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseNumber\',this.value)"></div>' +
-                    '<div><label style="' + lbl + '">Lic State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.licenseState || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseState\',this.value.toUpperCase())"></div>' +
-                    '<div><label style="' + lbl + '">DEA #</label><input type="text" style="' + input + '" value="' + esc(l.deaNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'deaNumber\',this.value)"></div>' +
-                    '<div><label style="' + lbl + '">NPI #</label><input type="text" style="' + input + '" value="' + esc(l.npiNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'npiNumber\',this.value)"></div>' +
-                '</div>' +
+            '<div style="display:grid;grid-template-columns:1.5fr 0.8fr 1.5fr 1.5fr;gap:10px;margin-top:10px">' +
+                '<div><label style="' + lbl + '">State License #</label><input type="text" style="' + input + '" value="' + esc(l.licenseNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseNumber\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">Lic State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.licenseState || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseState\',this.value.toUpperCase())"></div>' +
+                '<div><label style="' + lbl + '">DEA #</label><input type="text" style="' + input + '" value="' + esc(l.deaNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'deaNumber\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">NPI #</label><input type="text" style="' + input + '" value="' + esc(l.npiNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'npiNumber\',this.value)"></div>' +
             '</div>' +
         '</div>';
     }).join('');
