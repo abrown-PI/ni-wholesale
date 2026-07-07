@@ -1251,6 +1251,13 @@
                     <div class="form-group"><label>Resale Certificate #</label><input type="text" class="form-control" id="custResaleCertNumber"></div>
                     <div class="form-group"><label>NetSuite Entity ID</label><input type="text" class="form-control" id="custNetsuiteEntityId" placeholder="e.g., 1234"></div>
                 </div>
+                <div style="margin-top:12px;padding:12px;background:#fef9e7;border:1px solid #f4d03f;border-radius:6px;display:flex;align-items:flex-start;gap:10px">
+                    <input type="checkbox" id="custIsIntercompany" style="margin-top:3px;width:16px;height:16px;cursor:pointer">
+                    <label for="custIsIntercompany" style="margin:0;font-family:var(--sans);font-size:13px;line-height:1.4;cursor:pointer">
+                        <strong>Intercompany customer</strong> &nbsp;<span style="color:var(--gray-600);font-weight:normal">(check this if we also own this customer &mdash; e.g., Pharmacy Innovations)</span>
+                        <div style="font-size:12px;color:var(--gray-600);margin-top:4px">When checked, marking an order as shipped generates BOTH an Invoice CSV (from NI's books) AND a Bill CSV (from this customer's books) so accounting can post the intercompany transaction on both sides.</div>
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -2950,6 +2957,7 @@ async function supaFetchAdminCustomers() {
             deaNumber: c.dea_number || '', npiNumber: c.npi_number || '',
             taxId: c.tax_id || '', resaleCertNumber: c.resale_cert_number || '',
             netsuiteEntityId: c.netsuite_entity_id || '',
+            isIntercompany: !!c.is_intercompany,
             paymentTerms: c.payment_terms || 'Net-30',
             status: c.status || 'active',
             notes: c.notes || '',
@@ -3143,6 +3151,7 @@ async function supaSaveCustomer(cust, locations) {
         tax_id: cust.taxId || null,
         resale_cert_number: cust.resaleCertNumber || null,
         netsuite_entity_id: cust.netsuiteEntityId || null,
+        is_intercompany: !!cust.isIntercompany,
         payment_terms: cust.paymentTerms || 'Net-30',
         status: cust.status || 'active',
         notes: cust.notes || ''
@@ -8699,6 +8708,8 @@ function viewOrder(i) {
     if (o.shippedAt) dates += '<div><strong>Shipped:</strong> ' + esc(new Date(o.shippedAt).toLocaleString()) + '</div>';
     if (o.deliveredAt) dates += '<div><strong>Delivered:</strong> ' + esc(new Date(o.deliveredAt).toLocaleString()) + '</div>';
     if (o.cancelledAt) dates += '<div><strong>Cancelled:</strong> ' + esc(new Date(o.cancelledAt).toLocaleString()) + '</div>';
+    if (o.invoiceNumber) dates += '<div style="margin-top:4px"><strong>Invoice #:</strong> <code style="background:var(--gray-100);padding:2px 6px;border-radius:3px">' + esc(o.invoiceNumber) + '</code> <a href="#" onclick="editOrderInvoiceNumber(' + i + ');return false" style="font-size:11px;color:var(--ni-blue);text-decoration:none;margin-left:6px">edit</a></div>';
+    else if (o.status === 'shipped' || o.status === 'delivered') dates += '<div style="margin-top:4px;color:var(--gray-500)">No invoice # &mdash; <a href="#" onclick="editOrderInvoiceNumber(' + i + ');return false" style="color:var(--ni-blue);text-decoration:none">assign one</a></div>';
 
     var customerBlock = '<div><strong>Customer:</strong><br>' + esc(o.customerName || '--') + '<br>' +
         (o.email ? esc(o.email) + '<br>' : '') +
@@ -9247,6 +9258,10 @@ async function confirmMarkShipped() {
     o.trackingNumber = document.getElementById('msTracking').value.trim();
     o.shippedAt = shippedAt;
     o.status = 'shipped';
+    // Auto-generate NetSuite invoice number if none exists yet.
+    if (!o.invoiceNumber) {
+        o.invoiceNumber = 'NI-' + String(o.orderNumber || 0).padStart(5, '0');
+    }
     if (notes) o.internalNotes = ('[' + shippedAt.slice(0,10) + ' shipped] ' + notes + (o.internalNotes ? '\n' + o.internalNotes : ''));
     saveData();
 
@@ -9259,6 +9274,7 @@ async function confirmMarkShipped() {
                 shipped_at: shippedAt,
                 tracking_number: o.trackingNumber || null,
                 carrier: o.carrier || null,
+                invoice_number: o.invoiceNumber || null,
                 internal_notes: o.internalNotes || ''
             }).eq('id', dbOrderId);
             if (upd.error) console.warn('[supabase] order status update failed:', upd.error.message);
@@ -10171,6 +10187,7 @@ function renderCustomerDetailPage() {
         custTaxId:'', custResaleCertNumber:'', custNetsuiteEntityId:'',
         custNotes:''
     };
+    var isIntercompany = false;
     if (i >= 0 && DATA.customers[i]) {
         var c = DATA.customers[i];
         document.getElementById('customerEditId').value = c.id || '';
@@ -10193,6 +10210,7 @@ function renderCustomerDetailPage() {
         fields.custResaleCertNumber = c.resaleCertNumber   || '';
         fields.custNetsuiteEntityId = c.netsuiteEntityId   || '';
         fields.custNotes            = c.notes              || '';
+        isIntercompany = !!c.isIntercompany;
         currentEditLocations = getCustomerLocations(c.id).map(function(l) { return Object.assign({}, l); });
 
         if (titleEl) titleEl.textContent = c.companyName || 'Customer';
@@ -10215,6 +10233,8 @@ function renderCustomerDetailPage() {
         var el = document.getElementById(id);
         if (el) el.value = fields[id];
     });
+    var interEl = document.getElementById('custIsIntercompany');
+    if (interEl) interEl.checked = isIntercompany;
     renderCustomerLocationsInModal();
     // Scroll to top of the page content so users land on the header, not mid-form.
     window.scrollTo(0, 0);
@@ -10458,6 +10478,7 @@ async function saveCustomer() {
     customer.resaleCertNumber  = document.getElementById('custResaleCertNumber').value.trim();
     customer.netsuiteEntityId  = document.getElementById('custNetsuiteEntityId').value.trim();
     customer.notes             = document.getElementById('custNotes').value.trim();
+    customer.isIntercompany    = !!document.getElementById('custIsIntercompany').checked;
     if (!customer.createdAt) customer.createdAt = nowIso;
     customer.updatedAt = nowIso;
 
@@ -12153,8 +12174,34 @@ function supaOrderToLocal(o) {
         cancelReason: o.cancel_reason || '', paymentMethod: o.payment_method || 'card',
         paymentStatus: o.payment_status || 'Unpaid', payment_status: o.payment_status || 'Unpaid',
         status: o.status || 'pending', notes: o.notes || '', internalNotes: o.internal_notes || '',
+        invoiceNumber: o.invoice_number || '',
         items: items
     };
+}
+
+// Prompt admin to set or override the invoice number on an order.
+async function editOrderInvoiceNumber(idx) {
+    var o = DATA.orders[idx];
+    if (!o) return;
+    var defaultVal = o.invoiceNumber || ('NI-' + String(o.orderNumber || 0).padStart(5, '0'));
+    var next = prompt('NetSuite Invoice # for order ' + orderNumberDisplay(o) + ':', defaultVal);
+    if (next === null) return;
+    next = String(next).trim();
+    if (!next) return;
+    o.invoiceNumber = next;
+    saveData();
+    var dbOrderId = o.supabaseOrderId || o.id;
+    if (dbOrderId && /^[0-9a-f-]{36}$/i.test(dbOrderId)) {
+        try {
+            var upd = await supa.from('orders').update({ invoice_number: next }).eq('id', dbOrderId);
+            if (upd.error) throw upd.error;
+        } catch (e) {
+            showToast('Save failed: ' + (e.message || 'Supabase error'), 'error');
+            return;
+        }
+    }
+    showToast('Invoice # saved');
+    viewOrder(idx);
 }
 </script>
 </body>
