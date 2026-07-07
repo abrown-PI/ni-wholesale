@@ -5881,14 +5881,17 @@ let pendingAdminPage = null;   // page to route to after successful sign-in
 let IS_SUPA_ADMIN = false;
 
 // Fast synchronous check: does Supabase have a session token in localStorage?
-// Used by navigate() to avoid flashing the sign-in modal during the ~50ms window
-// between page load and the async profile-role verification finishing.
+// Handles both shapes Supabase v2 uses: top-level fields OR wrapped in currentSession.
 function _hasSupaSessionToken() {
     try {
         var raw = localStorage.getItem('ni_supa_auth');
         if (!raw) return false;
         var s = JSON.parse(raw);
-        return !!(s && s.access_token && s.expires_at && (s.expires_at * 1000) > Date.now());
+        var sess = s.currentSession || s;
+        var expiresAt = sess.expires_at != null ? sess.expires_at : s.expiresAt;
+        if (!sess.access_token || expiresAt == null) return false;
+        var expiresMs = typeof expiresAt === 'number' ? expiresAt * 1000 : new Date(expiresAt).getTime();
+        return isFinite(expiresMs) && expiresMs > Date.now();
     } catch (e) { return false; }
 }
 function isAdminAuthed() { return IS_SUPA_ADMIN || _hasSupaSessionToken(); }
@@ -5910,20 +5913,21 @@ async function lockAdmin() {
     navigate('home');
 }
 
-// Check Supabase session on boot; if signed in as admin, unlock.
-(async function checkAdminSessionOnBoot() {
+// Awaitable promise: resolves once we've decided admin auth state.
+// initialRoute() awaits this before routing to an admin URL so refreshing an
+// admin page never boots the user to home just because the async check
+// hadn't run yet.
+var ADMIN_AUTH_READY = (async function checkAdminSessionOnBoot() {
     try {
         var { data: sess } = await supa.auth.getSession();
-        if (!sess || !sess.session) return;
+        if (!sess || !sess.session) return false;
         var { data: prof } = await supa.from('profiles').select('role').eq('id', sess.session.user.id).single();
         if (prof && prof.role === 'admin') {
             IS_SUPA_ADMIN = true;
-            // If we landed on an admin page, re-navigate now that we're authed.
-            var active = document.querySelector('.page.active');
-            var curPageId = active ? active.id.replace(/^page-/, '') : '';
-            if (isAdminPage(curPageId)) navigate(curPageId, { skipHistory: true });
+            return true;
         }
-    } catch (e) { /* silent */ }
+        return false;
+    } catch (e) { return false; }
 })();
 
 function navigate(pageId, opts) {
@@ -11854,9 +11858,14 @@ window.addEventListener('popstate', function(e) {
     navigate(pageId, { skipHistory: true });
 });
 
-// Initial route: drop the user on the page that matches their URL
-(function initialRoute() {
+// Initial route: drop the user on the page that matches their URL.
+// If it's an admin page, wait for the auth-boot check so we don't misfire the
+// sign-in gate before Supabase reports back.
+(async function initialRoute() {
     var pageId = pathToPage(location.pathname);
+    if (isAdminPage(pageId)) {
+        try { await ADMIN_AUTH_READY; } catch (e) { /* silent — navigate will gate */ }
+    }
     navigate(pageId, { skipHistory: true });
     history.replaceState({ pageId: pageId }, '', pageToPath(pageId));
 })();
