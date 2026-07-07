@@ -2969,6 +2969,14 @@ async function supaFetchAdminCustomers() {
                 billingEntityName: l.billing_entity_name || '',
                 netsuiteEntityId: l.netsuite_entity_id || '',
                 licenseNumber: l.license_number || '', licenseState: l.license_state || '',
+                licenseExpiration: l.license_expiration || '',
+                licenseDocumentUrl: l.license_document_url || '',
+                licenseDocumentUploadedAt: l.license_document_uploaded_at || '',
+                resaleCertExpiration: l.resale_cert_expiration || '',
+                resaleCertDocumentUrl: l.resale_cert_document_url || '',
+                resaleCertDocumentUploadedAt: l.resale_cert_document_uploaded_at || '',
+                w9DocumentUrl: l.w9_document_url || '',
+                w9DocumentUploadedAt: l.w9_document_uploaded_at || '',
                 deaNumber: l.dea_number || '', npiNumber: l.npi_number || '',
                 status: l.status || 'active', createdAt: l.created_at || ''
             };
@@ -3165,6 +3173,14 @@ async function supaSaveCustomer(cust, locations) {
                 netsuite_entity_id: l.netsuiteEntityId || null,
                 license_number: l.licenseNumber || null,
                 license_state: l.licenseState || null,
+                license_expiration: l.licenseExpiration || null,
+                license_document_url: l.licenseDocumentUrl || null,
+                license_document_uploaded_at: l.licenseDocumentUploadedAt || null,
+                resale_cert_expiration: l.resaleCertExpiration || null,
+                resale_cert_document_url: l.resaleCertDocumentUrl || null,
+                resale_cert_document_uploaded_at: l.resaleCertDocumentUploadedAt || null,
+                w9_document_url: l.w9DocumentUrl || null,
+                w9_document_uploaded_at: l.w9DocumentUploadedAt || null,
                 dea_number: l.deaNumber || null,
                 npi_number: l.npiNumber || null,
                 status: l.status || 'active'
@@ -10204,6 +10220,80 @@ function renderCustomerDetailPage() {
     window.scrollTo(0, 0);
 }
 
+// Upload a customer document (license, resale cert, W-9) to Supabase Storage.
+// Returns { url, uploadedAt } on success, throws on failure.
+// docType is one of: 'license', 'resale-cert', 'w9'.
+async function supaUploadCustomerDoc(customerId, locationId, docType, file) {
+    if (!file) throw new Error('No file selected');
+    if (file.size > 10 * 1024 * 1024) throw new Error('File must be under 10 MB');
+    var ext = (file.name.split('.').pop() || 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '');
+    var custPrefix = customerId || 'applications/pending';
+    var locPrefix = locationId || 'new';
+    var path = custPrefix + '/' + locPrefix + '/' + docType + '-' + Date.now() + '.' + ext;
+    var up = await supa.storage.from('customer-documents').upload(path, file, {
+        cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream'
+    });
+    if (up.error) throw up.error;
+    return { path: up.data.path, uploadedAt: new Date().toISOString() };
+}
+
+// Generate a short-lived signed URL for admin to view/download a customer doc.
+async function supaSignedCustomerDocUrl(path) {
+    if (!path) return null;
+    var res = await supa.storage.from('customer-documents').createSignedUrl(path, 3600);
+    if (res.error) throw res.error;
+    return res.data.signedUrl;
+}
+
+// Return { label, css } for an expiration date. Empty date -> neutral.
+function expirationStatus(dateStr) {
+    if (!dateStr) return null;
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    var days = Math.floor((d - new Date()) / 86400000);
+    if (days < 0) return { label: 'EXPIRED', bg: '#fee2e2', color: '#991b1b' };
+    if (days <= 60) return { label: days + 'd left', bg: '#fef3c7', color: '#92400e' };
+    return { label: 'valid', bg: '#dcfce7', color: '#166534' };
+}
+
+// Open a doc in a new tab via signed URL (admin-only).
+async function viewCustomerDoc(path) {
+    if (!path) { showToast('No document uploaded', 'error'); return; }
+    try {
+        var url = await supaSignedCustomerDocUrl(path);
+        if (url) window.open(url, '_blank');
+    } catch (e) { showToast('Could not open document: ' + (e.message || e), 'error'); }
+}
+
+// File-input change handler for location doc upload buttons.
+// docType: 'license' | 'resale-cert' | 'w9'
+async function onLocationDocUpload(inputEl, locIdx, docType) {
+    var file = inputEl.files && inputEl.files[0];
+    if (!file) return;
+    var loc = currentEditLocations[locIdx];
+    if (!loc) return;
+    var customerId = document.getElementById('customerEditId').value || '';
+    var toast = showToast('Uploading ' + docType.replace('-', ' ') + '…');
+    try {
+        var res = await supaUploadCustomerDoc(customerId, loc.id, docType, file);
+        if (docType === 'license') {
+            loc.licenseDocumentUrl = res.path;
+            loc.licenseDocumentUploadedAt = res.uploadedAt;
+        } else if (docType === 'resale-cert') {
+            loc.resaleCertDocumentUrl = res.path;
+            loc.resaleCertDocumentUploadedAt = res.uploadedAt;
+        } else if (docType === 'w9') {
+            loc.w9DocumentUrl = res.path;
+            loc.w9DocumentUploadedAt = res.uploadedAt;
+        }
+        renderCustomerLocationsInModal();
+        showToast('Uploaded — remember to click Save Customer');
+    } catch (e) {
+        showToast('Upload failed: ' + (e.message || 'Storage error'), 'error');
+    }
+    inputEl.value = '';
+}
+
 function renderCustomerLocationsInModal() {
     var container = document.getElementById('customerLocationsSection');
     if (!container) return;
@@ -10221,9 +10311,36 @@ function renderCustomerLocationsInModal() {
         var statusOptions = ['active','suspended'].map(function(s) {
             return '<option value="' + s + '"' + (l.status === s ? ' selected' : '') + '>' + s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
         }).join('');
-        // Reviv-style: cream card, single primary row (Name | Address | City | State | ZIP | Contact | Phone),
-        // then Billing Entity + Licensing rows below.
-        return '<div style="border:1px solid var(--gray-200);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;background:var(--ni-cream)">' +
+        // Reviv-style: light-blue card, single primary row (Name | Address | City | State | ZIP | Contact | Phone),
+        // then Billing Entity + Licensing + Docs rows below.
+        var docBtn = function(uploadedPath, uploadedAt, docType, label) {
+            var acceptAttr = 'accept="application/pdf,image/*"';
+            var inputId = 'loc-doc-' + i + '-' + docType;
+            var meta;
+            if (uploadedPath) {
+                var when = uploadedAt ? new Date(uploadedAt).toLocaleDateString() : '';
+                meta = '<a href="#" onclick="viewCustomerDoc(\'' + esc(uploadedPath) + '\');return false" style="font-size:12px;color:var(--ni-blue);text-decoration:none;font-weight:600">View</a>' +
+                    ' <span style="font-size:11px;color:var(--gray-500)">' + esc(when) + '</span>' +
+                    ' <label for="' + inputId + '" style="font-size:11px;color:var(--ni-blue);text-decoration:underline;cursor:pointer;margin-left:6px">Replace</label>';
+            } else {
+                meta = '<label for="' + inputId + '" style="display:inline-block;padding:4px 10px;font-size:12px;background:white;border:1px solid var(--gray-300);border-radius:4px;cursor:pointer;font-family:var(--sans);color:var(--ni-navy)">&#128206; Upload</label>' +
+                    ' <span style="font-size:11px;color:var(--gray-400)">No file</span>';
+            }
+            return '<div>' +
+                '<label style="' + lbl + '">' + label + '</label>' +
+                '<div style="display:flex;align-items:center;gap:6px;min-height:30px">' + meta + '</div>' +
+                '<input type="file" id="' + inputId + '" ' + acceptAttr + ' style="display:none" onchange="onLocationDocUpload(this,' + i + ',\'' + docType + '\')">' +
+                '</div>';
+        };
+        var licExp = expirationStatus(l.licenseExpiration);
+        var licExpBadge = licExp
+            ? '<span style="margin-left:6px;padding:1px 6px;font-size:10px;font-weight:700;border-radius:3px;background:' + licExp.bg + ';color:' + licExp.color + '">' + licExp.label + '</span>'
+            : '';
+        var resExp = expirationStatus(l.resaleCertExpiration);
+        var resExpBadge = resExp
+            ? '<span style="margin-left:6px;padding:1px 6px;font-size:10px;font-weight:700;border-radius:3px;background:' + resExp.bg + ';color:' + resExp.color + '">' + resExp.label + '</span>'
+            : '';
+        return '<div style="border:1px solid #cbd5e1;border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;background:#eaf3fb">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
                 '<span style="font-family:var(--sans);font-size:11px;color:var(--ni-deep-blue);font-weight:700;text-transform:uppercase;letter-spacing:.75px">Location ' + (i+1) + '</span>' +
                 '<a href="#" onclick="removeCustomerLocationRow(' + i + ');return false" style="font-family:var(--sans);font-size:12px;color:#d43a3a;text-decoration:none;font-weight:600">Remove</a>' +
@@ -10243,10 +10360,20 @@ function renderCustomerLocationsInModal() {
                 '<div><label style="' + lbl + '">NetSuite Entity ID</label><input type="text" style="' + input + '" placeholder="e.g., 1234" value="' + esc(l.netsuiteEntityId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteEntityId\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Status</label><select style="' + input + '" onchange="updateCustomerLocationField(' + i + ',\'status\',this.value)">' + statusOptions + '</select></div>' +
             '</div>' +
-            '<div style="display:grid;grid-template-columns:1.5fr 0.8fr 1.5fr;gap:10px;margin-top:10px">' +
+            '<div style="display:grid;grid-template-columns:1.5fr 0.8fr 1.2fr 1.5fr;gap:10px;margin-top:10px">' +
                 '<div><label style="' + lbl + '">State License #</label><input type="text" style="' + input + '" value="' + esc(l.licenseNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseNumber\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Lic State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.licenseState || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseState\',this.value.toUpperCase())"></div>' +
+                '<div><label style="' + lbl + '">License Expiration' + licExpBadge + '</label><input type="date" style="' + input + '" value="' + esc(l.licenseExpiration || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseExpiration\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">NPI #</label><input type="text" style="' + input + '" value="' + esc(l.npiNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'npiNumber\',this.value)"></div>' +
+            '</div>' +
+            '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #b6c8db">' +
+                '<div style="font-size:10px;font-weight:700;color:var(--ni-navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-family:var(--sans)">Compliance Documents</div>' +
+                '<div style="display:grid;grid-template-columns:1.4fr 1fr 1.4fr 1fr;gap:10px;align-items:end">' +
+                    docBtn(l.licenseDocumentUrl, l.licenseDocumentUploadedAt, 'license', 'State License Doc') +
+                    '<div><label style="' + lbl + '">Resale Cert Exp' + resExpBadge + '</label><input type="date" style="' + input + '" value="' + esc(l.resaleCertExpiration || '') + '" onchange="updateCustomerLocationField(' + i + ',\'resaleCertExpiration\',this.value)"></div>' +
+                    docBtn(l.resaleCertDocumentUrl, l.resaleCertDocumentUploadedAt, 'resale-cert', 'Resale Cert Doc') +
+                    docBtn(l.w9DocumentUrl, l.w9DocumentUploadedAt, 'w9', 'W-9 Doc') +
+                '</div>' +
             '</div>' +
         '</div>';
     }).join('');
@@ -10267,6 +10394,9 @@ function addCustomerLocationRow() {
         contactName: '', phone: '', email: '',
         billingEntityName: '', netsuiteEntityId: '',
         licenseNumber: '', licenseState: '', deaNumber: '', npiNumber: '',
+        licenseExpiration: '', licenseDocumentUrl: '', licenseDocumentUploadedAt: '',
+        resaleCertExpiration: '', resaleCertDocumentUrl: '', resaleCertDocumentUploadedAt: '',
+        w9DocumentUrl: '', w9DocumentUploadedAt: '',
         status: 'active',
         createdAt: new Date().toISOString()
     });
@@ -10286,7 +10416,10 @@ async function saveCustomer() {
     var trimmedLocations = currentEditLocations
         .map(function(l) { return Object.assign({}, l, { locationName: (l.locationName || '').trim() }); })
         .filter(function(l) {
-            return l.locationName || l.address || l.city || l.state || l.zip || l.phone || l.email;
+            return l.locationName || l.address || l.city || l.state || l.zip || l.phone || l.email
+                || l.licenseNumber || l.npiNumber || l.licenseExpiration
+                || l.licenseDocumentUrl || l.resaleCertDocumentUrl || l.w9DocumentUrl
+                || l.billingEntityName || l.netsuiteEntityId;
         });
     for (var li = 0; li < trimmedLocations.length; li++) {
         if (!trimmedLocations[li].locationName) {
