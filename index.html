@@ -993,6 +993,12 @@
         </select>
     </div>
     <div class="product-grid" id="storefrontGrid"></div>
+    <div style="margin-top:32px;padding:14px 18px;background:#f8f5ee;border-radius:6px;font-size:12px;font-family:var(--sans);color:var(--gray-600);line-height:1.5;text-align:center">
+        <strong>These statements have not been evaluated by the Food and Drug Administration. These products are not intended to diagnose, treat, cure, or prevent any disease.</strong>
+        <br>
+        <a href="#" onclick="navigate('fda-disclaimer');return false" style="color:var(--ni-blue);text-decoration:none">FDA Disclaimer</a> &nbsp;·&nbsp;
+        <a href="#" onclick="navigate('product-quality');return false" style="color:var(--ni-blue);text-decoration:none">Product Quality &amp; CoA</a>
+    </div>
 </div>
 
 <!-- ═══════════ PAGE: ADMIN — DASHBOARD ═══════════ -->
@@ -6592,6 +6598,10 @@ function openProductDetail(idx) {
                 '</div>' +
                 variantsHtml +
                 addRowHtml +
+                '<div style="margin-top:18px;padding:12px 14px;background:#fef9e7;border-left:3px solid #f4d03f;border-radius:4px;font-size:12px;font-family:var(--sans);color:#7a5a00;line-height:1.5">' +
+                    '<strong>FDA Disclaimer.</strong> These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease. ' +
+                    '<a href="#" onclick="closeModal(\'productDetailModal\');navigate(\'fda-disclaimer\');return false" style="color:#7a5a00;text-decoration:underline">Read full disclaimer</a>.' +
+                '</div>' +
             '</div>' +
         '</div>' +
         (DATA.adminMode ? renderProductInventoryHistory(p) : '');
