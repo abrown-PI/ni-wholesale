@@ -1235,9 +1235,10 @@
                 <div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);margin-bottom:10px">Optional company-level licensing. Per-store licensing goes on each Location below (that's what state boards actually track).</div>
                 <div class="form-row">
                     <div class="form-group"><label>License Number</label><input type="text" class="form-control" id="custLicenseNumber"></div>
-                    <div class="form-group"><label>DEA Number</label><input type="text" class="form-control" id="custDeaNumber"></div>
                     <div class="form-group"><label>NPI Number</label><input type="text" class="form-control" id="custNpiNumber"></div>
                 </div>
+                <!-- DEA hidden but preserved so existing values aren't dropped on save -->
+                <input type="hidden" id="custDeaNumber">
             </div>
         </div>
 
@@ -3915,7 +3916,6 @@ function applyLocationRowHtml(loc, idx) {
                 '<div class="form-group"><label>License State</label><input type="text" class="form-control apply-loc-license-state" data-idx="' + idx + '" maxlength="2" placeholder="PA" value="' + esc(loc.licenseState || '') + '"></div>' +
             '</div>' +
             '<div class="form-row">' +
-                '<div class="form-group"><label>DEA #</label><input type="text" class="form-control apply-loc-dea" data-idx="' + idx + '" value="' + esc(loc.dea || '') + '"></div>' +
                 '<div class="form-group"><label>NPI #</label><input type="text" class="form-control apply-loc-npi" data-idx="' + idx + '" value="' + esc(loc.npi || '') + '"></div>' +
             '</div>' +
         '</div>' +
@@ -10243,10 +10243,9 @@ function renderCustomerLocationsInModal() {
                 '<div><label style="' + lbl + '">NetSuite Entity ID</label><input type="text" style="' + input + '" placeholder="e.g., 1234" value="' + esc(l.netsuiteEntityId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteEntityId\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Status</label><select style="' + input + '" onchange="updateCustomerLocationField(' + i + ',\'status\',this.value)">' + statusOptions + '</select></div>' +
             '</div>' +
-            '<div style="display:grid;grid-template-columns:1.5fr 0.8fr 1.5fr 1.5fr;gap:10px;margin-top:10px">' +
+            '<div style="display:grid;grid-template-columns:1.5fr 0.8fr 1.5fr;gap:10px;margin-top:10px">' +
                 '<div><label style="' + lbl + '">State License #</label><input type="text" style="' + input + '" value="' + esc(l.licenseNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseNumber\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Lic State</label><input type="text" maxlength="2" style="' + input + '" value="' + esc(l.licenseState || '') + '" onchange="updateCustomerLocationField(' + i + ',\'licenseState\',this.value.toUpperCase())"></div>' +
-                '<div><label style="' + lbl + '">DEA #</label><input type="text" style="' + input + '" value="' + esc(l.deaNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'deaNumber\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">NPI #</label><input type="text" style="' + input + '" value="' + esc(l.npiNumber || '') + '" onchange="updateCustomerLocationField(' + i + ',\'npiNumber\',this.value)"></div>' +
             '</div>' +
         '</div>';
