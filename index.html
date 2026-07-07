@@ -1312,7 +1312,12 @@
 <!-- ═══════════ PAGE: ADMIN — ADMIN USERS ═══════════ -->
 <div class="page" id="page-admin-users">
     <div class="card">
-        <div class="card-header"><h2>Admin User Management</h2><button class="btn btn-primary" onclick="openAdminUserModal()">+ Add Admin User</button></div>
+        <div class="card-header"><h2>Admin User Management</h2>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-outline" onclick="inviteInitialPiAdmins()">Invite PI Trio (Kathy · Susanne · Lyndsey)</button>
+                <button class="btn btn-primary" onclick="openAdminUserModal()">+ Add Admin User</button>
+            </div>
+        </div>
         <div class="table-wrap">
             <table>
                 <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
@@ -4604,7 +4609,7 @@ function openAdminUserModal(i) {
 
 function editAdminUser(i) { openAdminUserModal(i); }
 
-function saveAdminUser() {
+async function saveAdminUser() {
     const name = document.getElementById('auName').value.trim();
     const email = document.getElementById('auEmail').value.trim();
     const role = document.getElementById('auRole').value;
@@ -4612,15 +4617,95 @@ function saveAdminUser() {
     const users = loadAdminUsers();
     const i = parseInt(document.getElementById('adminUserEditIndex').value);
     if (i >= 0) {
+        // Edit path: local metadata only (name/role label).
         users[i] = { name, email, role };
+        saveAdminUsers(users);
         showToast('Admin user updated');
-    } else {
-        users.push({ name, email, role });
-        showToast('Admin user added');
+        closeModal('adminUserModal');
+        renderAdminUsers();
+        return;
     }
+    // New admin: create Supabase auth user + send invite email.
+    var res;
+    try { res = await supaInviteAdmin(email, name); }
+    catch (e) { showToast('Invite failed: ' + (e.message || 'error'), 'error'); return; }
+    if (!res || !res.success) {
+        showToast('Invite failed: ' + ((res && res.error) || 'unknown'), 'error');
+        return;
+    }
+    users.push({ name, email, role });
     saveAdminUsers(users);
+    var msg = res.userPreexisted
+        ? 'Existing user promoted to admin: ' + email
+        : (res.emailSent ? 'Invite emailed to ' + email : 'Admin created (email failed — share temp password manually)');
+    showToast(msg);
+    if (res.tempPassword) {
+        // Fallback when email delivery fails — surface the temp password once.
+        alert('Email did not send. Share this temp password with ' + name + ':\n\n' + res.tempPassword);
+    }
     closeModal('adminUserModal');
     renderAdminUsers();
+}
+
+// Calls the invite-admin Edge Function using the caller's session token.
+async function supaInviteAdmin(email, name) {
+    var sess = await supa.auth.getSession();
+    var token = sess.data && sess.data.session && sess.data.session.access_token;
+    if (!token) throw new Error('Not signed in as admin');
+    var r = await fetch(SUPABASE_URL + '/functions/v1/invite-admin', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ email: email, name: name })
+    });
+    var body = await r.json().catch(function() { return {}; });
+    if (!r.ok) throw new Error(body.error || ('HTTP ' + r.status));
+    return body;
+}
+
+// One-shot: invite the initial PI admin trio (Kathy, Susanne, Lyndsey).
+// Fires 3 invites in sequence and reports the outcome per person.
+async function inviteInitialPiAdmins() {
+    if (!confirm('Send admin invites to Kathy Mills, Susanne Williams, and Lyndsey Heary?')) return;
+    var TRIO = [
+        { name: 'Kathy Mills',      email: 'kmills@pharmacyinnovations.net' },
+        { name: 'Susanne Williams', email: 'swilliams@pharmacyinnovations.net' },
+        { name: 'Lyndsey Heary',    email: 'lheary@pharmacyinnovations.net' }
+    ];
+    var users = loadAdminUsers();
+    var report = [];
+    for (var idx = 0; idx < TRIO.length; idx++) {
+        var p = TRIO[idx];
+        try {
+            var res = await supaInviteAdmin(p.email, p.name);
+            if (!res || !res.success) throw new Error((res && res.error) || 'unknown');
+            // Track locally.
+            if (!users.find(function(u) { return (u.email || '').toLowerCase() === p.email.toLowerCase(); })) {
+                users.push({ name: p.name, email: p.email, role: 'Admin' });
+            }
+            report.push({
+                name: p.name, email: p.email, ok: true,
+                preexisted: !!res.userPreexisted,
+                emailSent: !!res.emailSent,
+                tempPassword: res.tempPassword || null,
+                emailError: res.emailError || null
+            });
+        } catch (e) {
+            report.push({ name: p.name, email: p.email, ok: false, error: e.message || String(e) });
+        }
+    }
+    saveAdminUsers(users);
+    renderAdminUsers();
+    var lines = report.map(function(r) {
+        if (!r.ok) return '✗ ' + r.name + ' — FAILED: ' + r.error;
+        if (r.preexisted) return '✓ ' + r.name + ' — existing user promoted to admin';
+        if (r.emailSent) return '✓ ' + r.name + ' — invite email sent';
+        return '⚠ ' + r.name + ' — created, EMAIL FAILED (' + (r.emailError || 'unknown') + ') — temp password: ' + (r.tempPassword || 'n/a');
+    });
+    alert('Admin invite results:\n\n' + lines.join('\n'));
 }
 
 function deleteAdminUser(i) {
