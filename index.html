@@ -1169,6 +1169,7 @@
             <div id="customerDetailPageSub" style="margin-top:4px;font-size:13px;color:var(--gray-500);font-family:var(--sans);display:flex;align-items:center;gap:10px;flex-wrap:wrap"></div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-outline" id="resetCustomerPasswordBtn" style="display:none" title="Generate a new temporary password and email it to the customer" onclick="resetPasswordForCurrentCustomer()">&#128273; Reset Password</button>
             <button class="btn btn-outline" onclick="navigate('admin-customers')">Cancel</button>
             <button class="btn btn-primary" onclick="saveCustomer()">Save Customer</button>
         </div>
@@ -2064,10 +2065,30 @@
         <div class="modal-header"><h2>Pharmacy Login</h2><button class="modal-close" onclick="closeModal('loginModal')">&times;</button></div>
         <div class="modal-body">
             <div class="form-group"><label>Email *</label><input type="email" class="form-control" id="loginEmail"></div>
-            <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="loginPassword"></div>
+            <div class="form-group"><label>Password *</label><input type="password" class="form-control" id="loginPassword" onkeydown="if(event.key==='Enter')doLogin()"></div>
             <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Sign In</button>
+            <div style="text-align:center;margin-top:12px;font-family:var(--sans);font-size:13px">
+                <a href="#" style="color:var(--ni-blue)" onclick="closeModal('loginModal');openForgotPasswordModal();return false">Forgot password?</a>
+            </div>
             <div style="text-align:center;margin-top:16px;font-family:var(--sans);font-size:13px;color:var(--gray-500)">
                 Don't have an account? <a href="#" style="color:var(--ni-blue)" onclick="closeModal('loginModal');openApplyModal();return false">Register your pharmacy</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Forgot Password Modal (customer-initiated password reset) -->
+<div class="modal-overlay" id="forgotPasswordModal">
+    <div class="modal" style="max-width:420px">
+        <div class="modal-header"><h2>Reset your password</h2><button class="modal-close" onclick="closeModal('forgotPasswordModal')">&times;</button></div>
+        <div class="modal-body">
+            <p style="font-family:var(--sans);font-size:13px;color:var(--gray-600);margin:0 0 16px">
+                Enter the email address on your wholesale account. We'll email you a link to set a new password.
+            </p>
+            <div class="form-group"><label>Email *</label><input type="email" class="form-control" id="fpwEmail" onkeydown="if(event.key==='Enter')submitForgotPassword()"></div>
+            <button class="btn btn-primary" id="fpwSubmitBtn" style="width:100%;justify-content:center" onclick="submitForgotPassword()">Send Reset Link</button>
+            <div style="text-align:center;margin-top:14px;font-family:var(--sans);font-size:13px;color:var(--gray-500)">
+                Remembered it? <a href="#" style="color:var(--ni-blue)" onclick="closeModal('forgotPasswordModal');openModal('loginModal');return false">Back to sign in</a>
             </div>
         </div>
     </div>
@@ -3416,6 +3437,44 @@ async function supaChangePassword(newPassword) {
     });
     if (res.error) throw res.error;
     return res.data;
+}
+
+function openForgotPasswordModal(prefillEmail) {
+    var input = document.getElementById('fpwEmail');
+    input.value = prefillEmail || document.getElementById('loginEmail').value || '';
+    var btn = document.getElementById('fpwSubmitBtn');
+    btn.disabled = false;
+    btn.textContent = 'Send Reset Link';
+    openModal('forgotPasswordModal');
+    setTimeout(function() { input.focus(); }, 50);
+}
+async function submitForgotPassword() {
+    var email = (document.getElementById('fpwEmail').value || '').trim().toLowerCase();
+    if (!email || email.indexOf('@') < 0) { showToast('Please enter a valid email', 'error'); return; }
+    var btn = document.getElementById('fpwSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    var redirectTo = window.location.origin + '/#recovery';
+    try {
+        var res = await supa.auth.resetPasswordForEmail(email, { redirectTo: redirectTo });
+        if (res.error) throw res.error;
+    } catch (e) {
+        // Don't reveal whether the email exists — Supabase returns success either way,
+        // but network/config errors should still surface.
+        console.warn('resetPasswordForEmail:', e);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Send Reset Link';
+    closeModal('forgotPasswordModal');
+    showToast('If an account exists for ' + email + ', a reset link is on its way.');
+}
+
+async function resetPasswordForCurrentCustomer() {
+    var i = parseInt(document.getElementById('customerEditIndex').value, 10);
+    if (isNaN(i) || i < 0 || !DATA.customers[i]) { showToast('Save the customer first', 'error'); return; }
+    var c = DATA.customers[i];
+    if (!c.id) { showToast('Save the customer first', 'error'); return; }
+    await resendWelcomeForCustomer(c.id, c.companyName);
 }
 
 function openChangePasswordModal(opts) {
@@ -6181,6 +6240,16 @@ async function lockAdmin() {
 // first tick after page load even when localStorage has a valid session,
 // because the SDK reads storage async. If that happens, we wait for the
 // first auth state event (bounded to 3s).
+// When a user clicks the "reset your password" link in their email, Supabase
+// signs them in with a special recovery session and fires PASSWORD_RECOVERY.
+// Drop them straight into the change-password modal (forced mode — can't close).
+supa.auth.onAuthStateChange(function(event, _session) {
+    if (event === 'PASSWORD_RECOVERY') {
+        try { closeModal('loginModal'); closeModal('forgotPasswordModal'); } catch (_e) { /* silent */ }
+        openChangePasswordModal({ forced: true });
+    }
+});
+
 var ADMIN_AUTH_READY = (async function checkAdminSessionOnBoot() {
     try {
         var { data } = await supa.auth.getSession();
@@ -10666,6 +10735,8 @@ function renderCustomerDetailPage() {
         if (titleEl) titleEl.textContent = 'New Customer';
         if (subEl) subEl.innerHTML = '<span style="color:var(--gray-400)">Fill in the form below and click Save Customer.</span>';
     }
+    var resetBtn = document.getElementById('resetCustomerPasswordBtn');
+    if (resetBtn) resetBtn.style.display = (i >= 0 && DATA.customers[i] && DATA.customers[i].id) ? '' : 'none';
     Object.keys(fields).forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.value = fields[id];
