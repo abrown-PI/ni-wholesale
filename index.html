@@ -8928,7 +8928,10 @@ function renderProductTable() {
     var selAll = document.getElementById('productSelectAll');
     if (selAll) selAll.checked = allVisibleChecked;
     document.getElementById('productTableBody').innerHTML = filtered.map(function(p) {
-        var margin = (p.costPerUnit && p.wholesalePrice) ? (((p.wholesalePrice - p.costPerUnit) / p.wholesalePrice) * 100).toFixed(1) + '%' : '--';
+        // Sell price + margin come from the tier-based engine now, not the
+        // legacy wholesale_price field which is null for newer products.
+        var stdPrice = getEffectivePrice(p, 'standard');
+        var margin = (p.costPerUnit && stdPrice) ? (((stdPrice - p.costPerUnit) / stdPrice) * 100).toFixed(1) + '%' : '--';
         var imgObj = getPrimaryImage(p);
         var imgSrc = imgObj ? (imgObj.data || imgObj.url) : '';
         var img = imgSrc ? '<img src="' + esc(imgSrc) + '" style="width:40px;height:40px;object-fit:contain;border-radius:4px">' : '<div style="width:40px;height:40px;background:var(--gray-100);border-radius:4px"></div>';
@@ -8956,7 +8959,7 @@ function renderProductTable() {
             '<td>' + esc(p.packageSize || '--') + '</td>' +
             '<td><span class="badge ' + stockClass + '"' + stockTitle + '>' + displayedStock + (hasVariants ? '*' : '') + '</span></td>' +
             '<td>' + (p.costPerUnit != null ? '$' + Number(p.costPerUnit).toFixed(2) : '--') + '</td>' +
-            '<td>' + (p.wholesalePrice != null ? '$' + Number(p.wholesalePrice).toFixed(2) : '--') + '</td>' +
+            '<td>' + (stdPrice != null ? '$' + Number(stdPrice).toFixed(2) : '--') + '</td>' +
             '<td>' + (p.retailPrice != null && p.retailPrice !== '' ? '$' + Number(p.retailPrice).toFixed(2) : '--') + '</td>' +
             '<td>' + margin + '</td>' +
             '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
