@@ -10946,6 +10946,7 @@ function viewOrder(i) {
     }
 
     var actions = '';
+    var resendActions = '';
     // ADMIN-ONLY action bar. Customers viewing their own order confirmation
     // should never see Edit / Mark Shipped / Invoice CSV / Bill CSV / Cancel.
     var isAdminView = !!IS_SUPA_ADMIN;
@@ -10958,30 +10959,31 @@ function viewOrder(i) {
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'customer\')">&#128231; Resend Customer</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'ordersTeam\')">&#128231; Resend New Order</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'accounting\')">&#128231; Resend Accounting</button> ';
         actions += '<button class="btn btn-sm btn-danger" onclick="closeModal(\'orderDetailModal\');cancelOrder(' + i + ')">Cancel Order</button>';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'customer\')">&#128231; Customer</button> ';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'ordersTeam\')">&#128231; New Order</button> ';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'accounting\')">&#128231; Accounting</button>';
     } else if (isAdminView && o.status === 'shipped') {
         actions += '<button class="btn btn-sm btn-success" onclick="markDelivered(' + i + ')">Mark Delivered</button> ';
         actions += '<button class="btn btn-sm btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'customer\')">&#128231; Resend Customer</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'accounting\')">&#128231; Resend Accounting</button>';
+        actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button>';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'customer\')">&#128231; Customer</button> ';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'accounting\')">&#128231; Accounting</button>';
     } else if (isAdminView && o.status === 'delivered') {
         actions += '<button class="btn btn-sm btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'customer\')">&#128231; Resend Customer</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'accounting\')">&#128231; Resend Accounting</button>';
+        actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button>';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'customer\')">&#128231; Customer</button> ';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'accounting\')">&#128231; Accounting</button>';
     } else if (!isAdminView) {
         // Customer-facing: give them a print-friendly view but nothing that
         // could mutate the order or expose internal accounting data.
         actions += '<button class="btn btn-outline" onclick="window.print()">&#128424; Print</button>';
     }
+    var resendBar = resendActions ? '<div style="display:flex;align-items:center;gap:8px;margin:0 0 16px;padding:8px 12px;background:var(--gray-100);border-radius:var(--radius);flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--gray-600);text-transform:uppercase;letter-spacing:0.5px">Resend:</span>' + resendActions + '</div>' : '';
 
     document.getElementById('orderDetailBody').innerHTML =
         '<div style="font-family:var(--sans);font-size:13px">' +
@@ -10989,6 +10991,7 @@ function viewOrder(i) {
                 '<div>' + orderStatusBadge(o.status) + ' <span style="margin-left:8px;color:var(--gray-500)">' + esc(o.paymentMethod || 'card') + '</span></div>' +
                 '<div style="text-align:right;color:var(--gray-600);font-size:12px">' + dates + '</div>' +
             '</div>' +
+            resendBar +
             '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">' + customerBlock + shipBlock + billBlock + '</div>' +
             '<table style="width:100%"><thead><tr><th>Product</th><th>SKU</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Line Total</th></tr></thead><tbody>' + itemsHtml + '</tbody>' +
             '<tfoot>' +
