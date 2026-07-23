@@ -3503,6 +3503,91 @@ function setSelectedProductCategories(names) {
     });
 }
 
+// ── Inventory transactions (Supabase-backed ledger) ──
+function supaInventoryRowToLocal(r) {
+    return {
+        id: r.id, date: r.date || '',
+        type: r.type || 'IN',
+        reference: r.reference || '',
+        productName: r.product_name || '',
+        sku: r.sku || '',
+        vendor: r.vendor || '',
+        qty: Number(r.qty) || 0,
+        unitCost: r.unit_cost != null ? Number(r.unit_cost) : null,
+        lineTotal: r.line_total != null ? Number(r.line_total) : null,
+        receivedBy: r.received_by || '',
+        soldBy: r.sold_by || '',
+        customerId: r.customer_id || '',
+        customerLocationId: r.customer_location_id || '',
+        customerName: r.customer_name || '',
+        notes: r.notes || '',
+        createdAt: r.created_at || ''
+    };
+}
+function localInventoryRowToSupa(row) {
+    var productId = null;
+    if (row.sku && Array.isArray(DATA.products)) {
+        var match = DATA.products.find(function(p) { return p.sku === row.sku; });
+        if (match && match.id && /^[0-9a-f-]{36}$/i.test(match.id)) productId = match.id;
+    }
+    var qty = Number(row.qty) || 0;
+    var cost = row.unitCost != null ? Number(row.unitCost) : null;
+    return {
+        date: row.date || new Date().toISOString().slice(0, 10),
+        type: row.type || 'IN',
+        reference: row.reference || null,
+        product_name: row.productName || null,
+        product_id: productId,
+        sku: row.sku || null,
+        vendor: row.vendor || null,
+        qty: qty,
+        unit_cost: cost,
+        line_total: (cost != null) ? cost * qty : (row.lineTotal != null ? Number(row.lineTotal) : null),
+        received_by: row.receivedBy || null,
+        sold_by: row.soldBy || null,
+        customer_id: (row.customerId && /^[0-9a-f-]{36}$/i.test(row.customerId)) ? row.customerId : null,
+        customer_location_id: (row.customerLocationId && /^[0-9a-f-]{36}$/i.test(row.customerLocationId)) ? row.customerLocationId : null,
+        customer_name: row.customerName || null,
+        notes: row.notes || null
+    };
+}
+async function supaFetchInventory(limit) {
+    var q = supa.from('inventory_transactions').select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
+    if (limit) q = q.limit(limit);
+    var r = await q;
+    if (r.error) throw r.error;
+    return (r.data || []).map(supaInventoryRowToLocal);
+}
+// Fire-and-forget Supabase write. Fails silently but logs to console so
+// audit trail doesn't block the UI.
+async function supaLogInventory(row) {
+    try {
+        var payload = localInventoryRowToSupa(row);
+        var res = await supa.from('inventory_transactions').insert(payload).select().single();
+        if (res.error) throw res.error;
+        // Backfill the id on the local row so future edits/deletes can target it.
+        if (res.data && res.data.id) row.id = res.data.id;
+    } catch (e) { console.warn('[inventory supa log]', e.message || e, row); }
+}
+// Single entry-point for ALL inventory ledger writes. Pushes to the local
+// DATA.inventory cache AND (if admin) persists to Supabase so every
+// browser sees the same audit trail.
+function logInventory(row) {
+    if (!Array.isArray(DATA.inventory)) DATA.inventory = [];
+    // Default an id so local rendering has something stable.
+    if (!row.id) row.id = 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    DATA.inventory.push(row);
+    if (IS_SUPA_ADMIN) supaLogInventory(row);
+}
+async function refreshInventoryFromSupabase() {
+    if (!IS_SUPA_ADMIN) return;
+    try {
+        var fresh = await supaFetchInventory(500); // last 500 tx is plenty for admin view
+        DATA.inventory = fresh;
+        saveData();
+    } catch (e) { console.warn('[inventory refresh]', e); }
+}
+
 // ── Item Types (admin lookup) ──
 var ITEM_TYPES = [];
 async function loadItemTypes() {
@@ -4626,6 +4711,7 @@ async function submitAdminSignIn() {
         // Vendors: push any legacy localStorage-only vendors up first, then pull the merged list.
         await migrateLocalVendorsIfNeeded();
         try { DATA.vendors = await supaFetchVendors(); } catch (e) { console.warn('[vendor fetch]', e); }
+        try { await refreshInventoryFromSupabase(); } catch (e) { console.warn('[inventory fetch]', e); }
         saveData();
         var active = document.querySelector('.page.active');
         var pageId = active ? active.id.replace(/^page-/, '') : '';
@@ -8116,7 +8202,7 @@ function confirmOrder() {
         var p = DATA.products[item.productIndex];
         if (p) {
             if (p.stock > 0) p.stock = Math.max(0, p.stock - item.qty);
-            DATA.inventory.push({
+            logInventory({
                 date: now.slice(0, 10), type: 'OUT', reference: 'Order ' + orderNumber,
                 productName: p.name, sku: p.sku || '', vendor: p.vendor || '',
                 qty: item.qty, soldBy: '', customerId: '', customerLocationId: '',
@@ -8810,7 +8896,7 @@ async function placeCheckoutOrder() {
             var p = DATA.products[item.productIndex];
             if (p) {
                 if (p.stock > 0) p.stock = Math.max(0, p.stock - item.qty);
-                DATA.inventory.push({
+                logInventory({
                     date: now.slice(0, 10), type: 'OUT', reference: 'Order ' + orderNumber,
                     productName: p.name, sku: p.sku || '', vendor: p.vendor || '',
                     qty: item.qty, soldBy: '', customerId: customerId, customerLocationId: locId,
@@ -8945,9 +9031,14 @@ function renderCheckoutConfirmation(order) {
         esc(order.shipToAddress || '') + '<br>' +
         esc((order.shipToCity || '') + (order.shipToCity ? ', ' : '') + (order.shipToState || '') + ' ' + (order.shipToZip || '')) +
         (order.shipToPhone ? '<br>' + esc(order.shipToPhone) : '') + '</div>';
-    var billToBlock = (order.billToName || order.billToAddress) ?
-        '<div><strong>Bill To</strong><br>' + esc(order.billToName || '') + '<br>' + esc(order.billToAddress || '') + '<br>' + esc((order.billToCity || '') + (order.billToCity ? ', ' : '') + (order.billToState || '') + ' ' + (order.billToZip || '')) + '</div>'
-        : '<div><strong>Bill To</strong><br><em>Same as ship to</em></div>';
+    // Bill To always shows a full address (falls back to ship-to).
+    var _bnc = order.billToName    || order.shipToName    || order.customerName || '';
+    var _bac = order.billToAddress || order.shipToAddress || '';
+    var _bcc = order.billToCity    || order.shipToCity    || '';
+    var _bsc = order.billToState   || order.shipToState   || '';
+    var _bzc = order.billToZip     || order.shipToZip     || '';
+    var billToBlock = '<div><strong>Bill To</strong><br>' + esc(_bnc) + '<br>' + esc(_bac) + '<br>' +
+        esc((_bcc || '') + (_bcc ? ', ' : '') + (_bsc || '') + ' ' + (_bzc || '')) + '</div>';
 
     box.innerHTML =
         '<div style="max-width:760px;margin:0 auto">' +
@@ -10267,7 +10358,7 @@ function saveInventoryTransaction() {
     var customerLabel = cust ? cust.companyName + (custLoc ? ' (' + (custLoc.locationName || '') + ')' : '') : '';
     lines.forEach(function(ln) {
         var product = DATA.products.find(function(p) { return p.name === ln.pName && p.vendor === vendor; });
-        DATA.inventory.push({ date: date, type: type, reference: ref, productName: ln.pName, sku: product ? product.sku : '', vendor: vendor, qty: ln.qty, soldBy: soldBy, customerId: custId || '', customerLocationId: custLocId || '', customerName: customerLabel, notes: notes });
+        logInventory({ date: date, type: type, reference: ref, productName: ln.pName, sku: product ? product.sku : '', vendor: vendor, qty: ln.qty, soldBy: soldBy, customerId: custId || '', customerLocationId: custLocId || '', customerName: customerLabel, notes: notes });
         if (product) {
             if (type === 'IN') product.stock = (product.stock || 0) + ln.qty;
             else if (type === 'OUT') product.stock = Math.max(0, (product.stock || 0) - ln.qty);
@@ -10417,7 +10508,7 @@ async function submitReceiveInventory() {
         var p = DATA.products[idx];
         var qty = rcvQuantities[k];
         var lineCost = rcvUnitCosts[idx] != null ? Number(rcvUnitCosts[idx]) : Number(p.costPerUnit || 0);
-        DATA.inventory.push({
+        logInventory({
             id: 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             date: date, type: 'IN', reference: ref,
             productName: p.name, sku: p.sku || '',
@@ -10621,14 +10712,19 @@ function viewOrder(i) {
         (o.shipToCity || o.shipToState || o.shipToZip ? esc((o.shipToCity || '') + (o.shipToCity ? ', ' : '') + (o.shipToState || '') + ' ' + (o.shipToZip || '')) + '<br>' : '') +
         (o.shipToPhone ? esc(o.shipToPhone) : '') + '</div>';
 
-    var billHas = (o.billToName || o.billToAddress || o.billToCity);
-    var billBlock = billHas ?
-        '<div><strong>Bill To:</strong><br>' +
-            (o.billToName ? esc(o.billToName) + '<br>' : '') +
-            (o.billToAddress ? esc(o.billToAddress) + '<br>' : '') +
-            ((o.billToCity || o.billToState || o.billToZip) ? esc((o.billToCity || '') + (o.billToCity ? ', ' : '') + (o.billToState || '') + ' ' + (o.billToZip || '')) : '') +
-        '</div>'
-        : '<div><strong>Bill To:</strong><br><em>Same as ship to</em></div>';
+    // Bill To: use captured billing values if present, otherwise repeat
+    // the ship-to values so accounting/packing docs always see a complete
+    // address rather than "Same as ship to".
+    var _bName    = o.billToName    || o.shipToName    || o.customerName || '';
+    var _bAddr    = o.billToAddress || o.shipToAddress || o.shipTo       || '';
+    var _bCity    = o.billToCity    || o.shipToCity    || '';
+    var _bState   = o.billToState   || o.shipToState   || '';
+    var _bZip     = o.billToZip     || o.shipToZip     || '';
+    var billBlock = '<div><strong>Bill To:</strong><br>' +
+        (_bName ? esc(_bName) + '<br>' : '') +
+        (_bAddr ? esc(_bAddr) + '<br>' : '') +
+        ((_bCity || _bState || _bZip) ? esc((_bCity || '') + (_bCity ? ', ' : '') + (_bState || '') + ' ' + (_bZip || '')) : '') +
+    '</div>';
 
     var itemsHtml = items.map(function(it) {
         var lt = (Number(it.unitPrice) || 0) * (Number(it.qty) || 0);
@@ -10857,7 +10953,7 @@ async function saveOrderItemsEdit() {
         if (!product) return;
         if (delta > 0) {
             product.stock = Math.max(0, (product.stock || 0) - delta);
-            DATA.inventory.push({
+            logInventory({
                 date: now.slice(0,10), type: 'OUT', reference: 'Order #' + o.orderNumber,
                 productName: product.name, sku: product.sku || '', vendor: product.vendor || '',
                 qty: delta, soldBy: '', customerId: o.customerId || '',
@@ -10866,7 +10962,7 @@ async function saveOrderItemsEdit() {
             });
         } else {
             product.stock = (product.stock || 0) + (-delta);
-            DATA.inventory.push({
+            logInventory({
                 date: now.slice(0,10), type: 'IN', reference: 'Order #' + o.orderNumber,
                 productName: product.name, sku: product.sku || '', vendor: product.vendor || '',
                 qty: -delta, soldBy: '', customerId: o.customerId || '',
@@ -11273,7 +11369,7 @@ function saveOrder(submitForProcessing) {
         if (!product) return;
         if (delta > 0) {
             product.stock = Math.max(0, (product.stock || 0) - delta);
-            DATA.inventory.push({
+            logInventory({
                 date: now.slice(0,10), type: 'OUT', reference: 'Order #' + order.orderNumber,
                 productName: product.name, sku: product.sku || '', vendor: product.vendor || '',
                 qty: delta, soldBy: '', customerId: order.customerId || '',
@@ -11282,7 +11378,7 @@ function saveOrder(submitForProcessing) {
             });
         } else {
             product.stock = (product.stock || 0) + (-delta);
-            DATA.inventory.push({
+            logInventory({
                 date: now.slice(0,10), type: 'IN', reference: 'Order #' + order.orderNumber,
                 productName: product.name, sku: product.sku || '', vendor: product.vendor || '',
                 qty: -delta, soldBy: '', customerId: order.customerId || '',
@@ -11455,7 +11551,7 @@ function confirmCancelOrder() {
         var qty = Number(it.qty) || 0;
         if (qty <= 0) return;
         p.stock = (p.stock || 0) + qty;
-        DATA.inventory.push({
+        logInventory({
             date: now.slice(0,10), type: 'IN', reference: 'Order #' + o.orderNumber + ' cancelled',
             productName: p.name, sku: p.sku || '', vendor: p.vendor || '',
             qty: qty, soldBy: '', customerId: o.customerId || '',
@@ -12396,12 +12492,17 @@ function printPackingSlip(idx) {
         (o.shipToAddress ? esc(o.shipToAddress) + '<br>' : (o.shipTo ? esc(o.shipTo) + '<br>' : '')) +
         ((o.shipToCity || o.shipToState || o.shipToZip) ? esc((o.shipToCity || '') + (o.shipToCity ? ', ' : '') + (o.shipToState || '') + ' ' + (o.shipToZip || '')) + '<br>' : '') +
         (o.shipToPhone ? esc(o.shipToPhone) : '');
-    var billHas = (o.billToName || o.billToAddress || o.billToCity);
-    var billBlock = billHas ?
-        (o.billToName ? esc(o.billToName) + '<br>' : '') +
-        (o.billToAddress ? esc(o.billToAddress) + '<br>' : '') +
-        ((o.billToCity || o.billToState || o.billToZip) ? esc((o.billToCity || '') + (o.billToCity ? ', ' : '') + (o.billToState || '') + ' ' + (o.billToZip || '')) : '')
-        : '<em>Same as ship to</em>';
+    // Fall back to ship-to values so the packing slip Bill To section
+    // always shows a complete address instead of a "Same as ship to" note.
+    var _bName2  = o.billToName    || o.shipToName    || o.customerName || '';
+    var _bAddr2  = o.billToAddress || o.shipToAddress || o.shipTo       || '';
+    var _bCity2  = o.billToCity    || o.shipToCity    || '';
+    var _bState2 = o.billToState   || o.shipToState   || '';
+    var _bZip2   = o.billToZip     || o.shipToZip     || '';
+    var billBlock =
+        (_bName2 ? esc(_bName2) + '<br>' : '') +
+        (_bAddr2 ? esc(_bAddr2) + '<br>' : '') +
+        ((_bCity2 || _bState2 || _bZip2) ? esc((_bCity2 || '') + (_bCity2 ? ', ' : '') + (_bState2 || '') + ' ' + (_bZip2 || '')) : '');
 
     document.getElementById('packingSlipBody').innerHTML =
         '<div class="packing-slip-page" style="padding:20px;font-family:var(--sans);color:#000">' +
@@ -13813,7 +13914,7 @@ function confirmReceivePO() {
             product.stock = (product.stock || 0) + v;
         }
         // Push IN inventory transaction (extends existing shape with productId & unitCost)
-        DATA.inventory.push({
+        logInventory({
             id: newInvTxnId(),
             date: rcvDate,
             type: 'IN',
