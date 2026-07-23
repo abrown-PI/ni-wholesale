@@ -4631,7 +4631,7 @@ async function supaDeleteCustomer(customerId) {
 // existing order. Used by the Resend Email button on the order detail
 // modal. Confirms before sending so an accidental double-click doesn't
 // spam the recipient.
-async function resendOrderEmails(idx, action) {
+async function resendOrderEmails(idx, action, group) {
     var o = DATA.orders && DATA.orders[idx];
     if (!o) { showToast('Order not found', 'error'); return; }
     var dbOrderId = o.supabaseOrderId || o.id;
@@ -4639,25 +4639,38 @@ async function resendOrderEmails(idx, action) {
         showToast("This order is only local — can't resend from the cloud", 'error');
         return;
     }
-    var label = action === 'placed' ? 'the order-received emails (customer confirmation + orders team + packing slip)' : 'the shipped-order emails (customer tracking + NetSuite CSV to accounting if invoice payment)';
+    var groupLabel = {
+        customer: 'the customer confirmation email',
+        ordersTeam: 'the new-order email to the orders team (with packing slip)',
+        accounting: action === 'shipped'
+            ? 'the accounting emails (Invoice CSV + Vendor Bill CSV if intercompany)'
+            : 'the "invoice needed" heads-up email to accounting'
+    };
+    var label = group
+        ? (groupLabel[group] || 'the emails')
+        : (action === 'placed'
+            ? 'all order-received emails (customer + orders team + accounting heads-up)'
+            : 'all shipped-order emails (customer tracking + accounting CSVs)');
     if (!confirm('Resend ' + label + ' for Order #' + (o.orderNumber || '?') + '?')) return;
-    var toast = showToast('Sending…');
-    var r = await supaNotifyOrder(dbOrderId, action);
+    showToast('Sending…');
+    var r = await supaNotifyOrder(dbOrderId, action, group ? [group] : null);
     if (!r || !r.ok) { showToast('Resend failed: ' + ((r && r.error) || 'unknown'), 'error'); return; }
-    var recipients = [];
+    var sent = [];
     if (r.results) {
         Object.keys(r.results).forEach(function(k) {
             var res = r.results[k];
-            if (res && res.ok) recipients.push(k);
+            if (res && res.ok) sent.push(k);
         });
     }
-    showToast('Emails resent' + (recipients.length ? ' (' + recipients.join(', ') + ')' : ''));
+    showToast(sent.length ? ('Sent: ' + sent.join(', ')) : 'No emails sent (payment method / status may not match)');
 }
 
 // Notify email flow (calls the notify-order Edge Function).
-async function supaNotifyOrder(orderId, action) {
+async function supaNotifyOrder(orderId, action, sendOnly) {
     if (!orderId || !action) return { ok: false, error: 'orderId + action required' };
     try {
+        var payload = { orderId: orderId, action: action };
+        if (Array.isArray(sendOnly) && sendOnly.length) payload.sendOnly = sendOnly;
         const res = await fetch(SUPABASE_URL + '/functions/v1/notify-order', {
             method: 'POST',
             headers: {
@@ -4665,7 +4678,7 @@ async function supaNotifyOrder(orderId, action) {
                 'apikey': SUPABASE_PUBLISHABLE_KEY,
                 'Authorization': 'Bearer ' + SUPABASE_PUBLISHABLE_KEY
             },
-            body: JSON.stringify({ orderId: orderId, action: action })
+            body: JSON.stringify(payload)
         });
         const body = await res.json().catch(function () { return {}; });
         if (!res.ok) return { ok: false, error: body.error || ('HTTP ' + res.status) };
@@ -10945,21 +10958,25 @@ function viewOrder(i) {
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\')">&#128231; Resend Email</button> ';
-        actions += '<button class="btn btn-sm btn-danger" onclick="closeModal(\'orderDetailModal\');cancelOrder(' + i + ')">Cancel</button>';
+        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'customer\')">&#128231; Resend Customer</button> ';
+        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'ordersTeam\')">&#128231; Resend New Order</button> ';
+        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'accounting\')">&#128231; Resend Accounting</button> ';
+        actions += '<button class="btn btn-sm btn-danger" onclick="closeModal(\'orderDetailModal\');cancelOrder(' + i + ')">Cancel Order</button>';
     } else if (isAdminView && o.status === 'shipped') {
         actions += '<button class="btn btn-sm btn-success" onclick="markDelivered(' + i + ')">Mark Delivered</button> ';
         actions += '<button class="btn btn-sm btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\')">&#128231; Resend Shipped</button>';
+        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'customer\')">&#128231; Resend Customer</button> ';
+        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'accounting\')">&#128231; Resend Accounting</button>';
     } else if (isAdminView && o.status === 'delivered') {
         actions += '<button class="btn btn-sm btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button> ';
-        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\')">&#128231; Resend Shipped</button>';
+        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'customer\')">&#128231; Resend Customer</button> ';
+        actions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'accounting\')">&#128231; Resend Accounting</button>';
     } else if (!isAdminView) {
         // Customer-facing: give them a print-friendly view but nothing that
         // could mutate the order or expose internal accounting data.
