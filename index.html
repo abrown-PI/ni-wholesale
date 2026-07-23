@@ -3104,6 +3104,98 @@ async function supaDeleteProduct(id) {
     if (error) throw error;
 }
 
+// ── Vendor mappers & CRUD ──
+function supaVendorToLocal(v) {
+    return {
+        id: v.id, name: v.name || '', accountNumber: v.account_number || '',
+        contactName: v.contact_name || '', email: v.email || '', phone: v.phone || '',
+        website: v.website || '', address: v.address || '', city: v.city || '',
+        state: v.state || '', zip: v.zip || '',
+        paymentTerms: v.payment_terms || 'Net-30',
+        minOrder: Number(v.min_order) || 0,
+        notes: v.notes || '', status: v.status || 'active',
+        reorderMethod: v.reorder_method || '', orderCutoff: v.order_cutoff || '',
+        portalUrl: v.portal_url || '', portalUsername: v.portal_username || '',
+        portalPassword: v.portal_password || '',
+        repName: v.rep_name || '', repEmail: v.rep_email || '', repPhone: v.rep_phone || '',
+        orderEmail: v.order_email || '', orderPhone: v.order_phone || '', orderFax: v.order_fax || '',
+        orderingInstructions: v.ordering_instructions || '',
+        createdAt: v.created_at || '', updatedAt: v.updated_at || ''
+    };
+}
+function localVendorToSupa(v) {
+    return {
+        name: v.name,
+        account_number: v.accountNumber || null,
+        contact_name: v.contactName || null,
+        email: v.email || null,
+        phone: v.phone || null,
+        website: v.website || null,
+        address: v.address || null,
+        city: v.city || null,
+        state: v.state || null,
+        zip: v.zip || null,
+        payment_terms: v.paymentTerms || 'Net-30',
+        min_order: Number(v.minOrder) || 0,
+        notes: v.notes || '',
+        status: v.status || 'active',
+        reorder_method: v.reorderMethod || null,
+        order_cutoff: v.orderCutoff || null,
+        portal_url: v.portalUrl || null,
+        portal_username: v.portalUsername || null,
+        portal_password: v.portalPassword || null,
+        rep_name: v.repName || null,
+        rep_email: v.repEmail || null,
+        rep_phone: v.repPhone || null,
+        order_email: v.orderEmail || null,
+        order_phone: v.orderPhone || null,
+        order_fax: v.orderFax || null,
+        ordering_instructions: v.orderingInstructions || null,
+        updated_at: new Date().toISOString()
+    };
+}
+async function supaFetchVendors() {
+    const { data, error } = await supa.from('vendors').select('*').order('name');
+    if (error) throw error;
+    return (data || []).map(supaVendorToLocal);
+}
+async function supaSaveVendor(v) {
+    const row = localVendorToSupa(v);
+    if (v.id && /^[0-9a-f-]{36}$/i.test(v.id)) {
+        const res = await supa.from('vendors').update(row).eq('id', v.id).select().single();
+        if (res.error) throw res.error;
+        return supaVendorToLocal(res.data);
+    } else {
+        const res = await supa.from('vendors').insert(row).select().single();
+        if (res.error) throw res.error;
+        return supaVendorToLocal(res.data);
+    }
+}
+async function supaDeleteVendor(id) {
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return;
+    const res = await supa.from('vendors').delete().eq('id', id);
+    if (res.error) throw res.error;
+}
+// One-time push of legacy localStorage vendors to Supabase. Matched by name
+// so re-running is idempotent. Only fires once IS_SUPA_ADMIN is true.
+async function migrateLocalVendorsIfNeeded() {
+    if (!IS_SUPA_ADMIN) return;
+    if (localStorage.getItem('ni_vendors_migrated_v1') === 'yes') return;
+    var local = (DATA.vendors || []).filter(function(v) { return v && v.name; });
+    if (!local.length) { localStorage.setItem('ni_vendors_migrated_v1', 'yes'); return; }
+    try {
+        var remote = await supaFetchVendors();
+        var existingNames = new Set(remote.map(function(r) { return (r.name || '').toLowerCase(); }));
+        var toInsert = local.filter(function(v) { return !existingNames.has((v.name || '').toLowerCase()); });
+        for (var i = 0; i < toInsert.length; i++) {
+            try { await supaSaveVendor(Object.assign({}, toInsert[i], { id: null })); }
+            catch (e) { console.warn('[vendor migrate]', toInsert[i].name, e.message || e); }
+        }
+        localStorage.setItem('ni_vendors_migrated_v1', 'yes');
+        if (toInsert.length) console.log('[vendor migrate] pushed', toInsert.length, 'vendors to Supabase');
+    } catch (e) { console.warn('[vendor migrate] failed:', e); }
+}
+
 // ── Customer / application mappers ──
 // Local `accounts` array uses camelCase + legacy fields; DB `customers` uses snake_case.
 function supaCustomerToLocalAccount(c, locations) {
@@ -3621,12 +3713,16 @@ async function submitAdminSignIn() {
         DATA.customerLocations = adminCust.locations;
         var ords = await supaFetchOrders();
         DATA.orders = ords.map(supaOrderToLocal);
+        // Vendors: push any legacy localStorage-only vendors up first, then pull the merged list.
+        await migrateLocalVendorsIfNeeded();
+        try { DATA.vendors = await supaFetchVendors(); } catch (e) { console.warn('[vendor fetch]', e); }
         saveData();
         var active = document.querySelector('.page.active');
         var pageId = active ? active.id.replace(/^page-/, '') : '';
         if (pageId === 'admin-accounts') renderAccounts();
         if (pageId === 'admin-orders') renderOrders();
         if (pageId === 'admin-customers') renderCustomers();
+        if (pageId === 'admin-vendors') { renderVendors(); refreshVendorsFromSupabase(); }
         if (pageId === 'admin-dashboard') renderAdminDashboard();
     } catch (e) { console.warn('post-signin refresh:', e); }
 }
@@ -10705,6 +10801,20 @@ function vendorStatusBadge(status) {
     if (status === 'inactive') return '<span class="badge badge-danger">Inactive</span>';
     return '<span class="badge badge-success">Active</span>';
 }
+// Pull latest vendor list from Supabase into DATA.vendors and re-render.
+// Silent no-op if not signed in as a Supabase admin (RLS returns nothing).
+async function refreshVendorsFromSupabase() {
+    if (!IS_SUPA_ADMIN) return;
+    try {
+        await migrateLocalVendorsIfNeeded();
+        var fresh = await supaFetchVendors();
+        DATA.vendors = fresh;
+        saveData();
+        renderVendors();
+        if (typeof populateVendorDropdowns === 'function') populateVendorDropdowns();
+    } catch (e) { console.warn('[vendor refresh]', e); }
+}
+
 function renderVendors() {
     document.getElementById('vendorTableBody').innerHTML = DATA.vendors.map(function(v, i) {
         var productCount = DATA.products.filter(function(p) { return p.vendor === v.name || p.manufacturer === v.name; }).length;
@@ -10769,13 +10879,14 @@ function openVendorModal(i) {
     openModal('vendorModal');
 }
 function editVendor(i) { openVendorModal(i); }
-function saveVendor() {
+async function saveVendor() {
     var n = document.getElementById('vName').value.trim();
     if (!n) { showToast('Vendor name required', 'error'); return; }
     var i = parseInt(document.getElementById('vendorEditIndex').value);
     var existing = i >= 0 ? DATA.vendors[i] : {};
     var nowIso = new Date().toISOString();
     var v = {
+        id: existing.id || null,
         name: n,
         accountNumber: document.getElementById('vAccountNumber').value.trim(),
         contactName: document.getElementById('vContactName').value.trim(),
@@ -10805,16 +10916,31 @@ function saveVendor() {
         createdAt: existing.createdAt || nowIso,
         updatedAt: nowIso
     };
+    if (IS_SUPA_ADMIN) {
+        try {
+            var saved = await supaSaveVendor(v);
+            v = saved;
+        } catch (e) {
+            var msg = e && e.message ? e.message : 'Supabase error';
+            if (/duplicate key|vendors_name_key/i.test(msg)) msg = 'A vendor named "' + n + '" already exists';
+            showToast('Save failed: ' + msg, 'error');
+            return;
+        }
+    }
     if (i >= 0) { DATA.vendors[i] = v; showToast('Vendor updated'); }
     else { DATA.vendors.push(v); showToast('Vendor added'); }
     saveData(); closeModal('vendorModal'); renderVendors(); populateVendorDropdowns();
 }
-function deleteVendor(i) {
+async function deleteVendor(i) {
     var v = DATA.vendors[i];
     var productCount = DATA.products.filter(function(p) { return p.vendor === v.name || p.manufacturer === v.name; }).length;
     var msg = 'Delete "' + v.name + '"?';
     if (productCount > 0) msg += '\n\n' + productCount + ' product(s) reference this vendor and will keep the vendor name in their record.';
     if (!confirm(msg)) return;
+    if (IS_SUPA_ADMIN && v.id && /^[0-9a-f-]{36}$/i.test(v.id)) {
+        try { await supaDeleteVendor(v.id); }
+        catch (e) { showToast('Delete failed: ' + (e.message || 'Supabase error'), 'error'); return; }
+    }
     DATA.vendors.splice(i, 1); saveData(); renderVendors(); populateVendorDropdowns(); showToast('Vendor deleted');
 }
 function showVendorDetail(i) {
