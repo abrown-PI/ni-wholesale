@@ -2653,8 +2653,18 @@
                 <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>Standard Margin %</label><input type="number" class="form-control" id="pStandardMarkup" step="0.1" min="0" placeholder="e.g. 20" oninput="renderTierPricePreview()"><div style="font-size:12px;color:var(--ni-navy);font-family:var(--sans);margin-top:4px"><strong>Standard price:</strong> <span id="pStandardPriceDisplay">--</span></div></div>
-                <div class="form-group"><label>Insider Margin %</label><input type="number" class="form-control" id="pInsiderMarkup" step="0.1" min="0" placeholder="e.g. 10" oninput="renderTierPricePreview()"><div style="font-size:12px;color:var(--ni-navy);font-family:var(--sans);margin-top:4px"><strong>Insider price:</strong> <span id="pInsiderPriceDisplay">--</span></div></div>
+                <div class="form-group">
+                    <label>Standard Margin %</label>
+                    <input type="number" class="form-control" id="pStandardMarkup" step="0.1" min="0" placeholder="e.g. 20" oninput="onMarkupInput('standard')">
+                    <label style="margin-top:6px;font-size:12px;color:var(--ni-navy);font-family:var(--sans)">Standard price ($)</label>
+                    <input type="number" class="form-control" id="pStandardPriceInput" step="0.01" min="0" placeholder="Auto-computes from margin" oninput="onPriceInput('standard')">
+                </div>
+                <div class="form-group">
+                    <label>Insider Margin %</label>
+                    <input type="number" class="form-control" id="pInsiderMarkup" step="0.1" min="0" placeholder="e.g. 10" oninput="onMarkupInput('insider')">
+                    <label style="margin-top:6px;font-size:12px;color:var(--ni-navy);font-family:var(--sans)">Insider price ($)</label>
+                    <input type="number" class="form-control" id="pInsiderPriceInput" step="0.01" min="0" placeholder="Auto-computes from margin" oninput="onPriceInput('insider')">
+                </div>
                 <input type="hidden" id="pWholesalePrice">
                 <input type="hidden" id="pProfitMargin">
                 <div id="pMarginHint" style="display:none"></div>
@@ -9695,12 +9705,11 @@ function onProductClassChange() {
 
 // Live preview of what customers on each tier will pay based on current
 // cost + class + per-product margin overrides. Values are PERCENTAGES.
-// Updates both the inline price spans next to each margin field and the
-// summary banner beneath.
+// Updates the price INPUTS (not spans) and the summary banner beneath.
 function renderTierPricePreview() {
     var el = document.getElementById('pTierPreview');
-    var stdDisp = document.getElementById('pStandardPriceDisplay');
-    var insDisp = document.getElementById('pInsiderPriceDisplay');
+    var stdInput = document.getElementById('pStandardPriceInput');
+    var insInput = document.getElementById('pInsiderPriceInput');
     var cost = Number(document.getElementById('pCostPerUnit').value);
     var cls = document.getElementById('pProductClass').value || 'private_label';
     var insiderRaw = document.getElementById('pInsiderMarkup').value;
@@ -9710,8 +9719,8 @@ function renderTierPricePreview() {
 
     if (!(cost > 0)) {
         if (el) el.style.display = 'none';
-        if (stdDisp) stdDisp.textContent = '—';
-        if (insDisp) insDisp.textContent = '—';
+        if (stdInput) stdInput.value = '';
+        if (insInput) insInput.value = '';
         return;
     }
 
@@ -9725,12 +9734,10 @@ function renderTierPricePreview() {
     var insiderPrice = roundUpToQuarter(cost * (1 + insiderPct / 100));
     var standardPrice = roundUpToQuarter(cost * (1 + standardPct / 100));
 
-    if (stdDisp) stdDisp.textContent = '$' + standardPrice.toFixed(2);
-    if (insDisp) insDisp.textContent = '$' + insiderPrice.toFixed(2);
+    // Only overwrite the price input when the user isn't currently typing in it.
+    if (stdInput && document.activeElement !== stdInput) stdInput.value = standardPrice.toFixed(2);
+    if (insInput && document.activeElement !== insInput) insInput.value = insiderPrice.toFixed(2);
 
-    // Only call it an "override" when the value actually differs from the
-    // current class default. Auto-filled class defaults should read as
-    // "class default" even though they're technically in the input field.
     var insiderIsOverride = insiderOverride != null && insiderDefault != null && insiderOverride !== insiderDefault;
     var standardIsOverride = standardOverride != null && standardDefault != null && standardOverride !== standardDefault;
     var insiderSrc = insiderIsOverride ? '<span style="color:#c97a1a">override</span>' : 'class default';
@@ -9743,6 +9750,26 @@ function renderTierPricePreview() {
                 '<span><span style="color:var(--gray-600)">Standard:</span> <strong>$' + standardPrice.toFixed(2) + '</strong> <span style="color:var(--gray-500)">(+' + standardPct + '% · ' + standardSrc + ')</span></span>' +
             '</div>';
     }
+}
+// Margin input changed → recompute + write the price input, then redraw preview.
+function onMarkupInput(tier) {
+    renderTierPricePreview();
+}
+// Price input changed → back-calculate the margin % and write it into the
+// margin field, then redraw preview (which will re-round the price display).
+function onPriceInput(tier) {
+    var cost = Number(document.getElementById('pCostPerUnit').value);
+    if (!(cost > 0)) return; // no cost = can't back-calc
+    var priceInput = document.getElementById(tier === 'insider' ? 'pInsiderPriceInput' : 'pStandardPriceInput');
+    var markupInput = document.getElementById(tier === 'insider' ? 'pInsiderMarkup' : 'pStandardMarkup');
+    var price = Number(priceInput.value);
+    if (!(price > 0)) return;
+    var pct = ((price / cost) - 1) * 100;
+    // Round to 2 decimal places for cleanliness; user can adjust.
+    markupInput.value = pct.toFixed(2);
+    // Redraw the preview banner (but skip clobbering the price input
+    // the user is currently typing into).
+    renderTierPricePreview();
 }
 function editProduct(idx) { openProductModal(idx); }
 
