@@ -2529,10 +2529,10 @@
                 <div class="form-group"><label>Vendor Part Number</label><input type="text" class="form-control" id="pVendorPartNum"></div>
                 <div class="form-group"><label>UPC Number</label><input type="text" class="form-control" id="pUpc"></div>
                 <div class="form-group"><label>Package Size</label><input type="text" class="form-control" id="pPackageSize" placeholder="e.g., 120 Capsules"></div>
-                <div class="form-group"><label>Category</label>
-                    <select class="form-control" id="pCategory">
-                        <option value="">--</option>
-                    </select>
+                <div class="form-group"><label>Categories</label>
+                    <div id="pCategoriesList" style="border:1px solid var(--gray-300);border-radius:6px;padding:8px 10px;max-height:120px;overflow-y:auto;background:white;font-family:var(--sans);font-size:13px;line-height:1.6"></div>
+                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Tick every category this product belongs to. The first ticked becomes the primary category. <a href="#" onclick="event.preventDefault();navigate('admin-categories')" style="color:var(--ni-blue)">Manage list &rarr;</a></div>
+                    <select id="pCategory" style="display:none"><option value="">--</option></select>
                 </div>
                 <div class="form-group"><label>Product Class</label>
                     <select class="form-control" id="pProductClass" onchange="onProductClassChange()">
@@ -3177,6 +3177,7 @@ function supaProductToLocal(p) {
         upc: p.upc || '',
         packageSize: p.package_size || '',
         category: p.category || '',
+        categories: Array.isArray(p.categories) ? p.categories.slice() : (p.category ? [p.category] : []),
         costPerUnit: p.cost_per_unit != null ? parseFloat(p.cost_per_unit) : null,
         wholesalePrice: p.wholesale_price != null ? parseFloat(p.wholesale_price) : null,
         retailPrice: p.retail_price != null ? parseFloat(p.retail_price) : null,
@@ -3206,7 +3207,8 @@ function localProductToSupa(p) {
         vendor_part_num: p.vendorPartNum || null,
         upc: p.upc || null,
         package_size: p.packageSize || null,
-        category: p.category || null,
+        category: (Array.isArray(p.categories) && p.categories.length ? p.categories[0] : (p.category || null)),
+        categories: Array.isArray(p.categories) ? p.categories : (p.category ? [p.category] : []),
         cost_per_unit: p.costPerUnit,
         wholesale_price: p.wholesalePrice,
         retail_price: p.retailPrice,
@@ -3292,6 +3294,12 @@ async function refreshCategories() {
         DATA.categories = list;
         saveData();
         populateCategoryDropdowns();
+        // If the admin categories page is currently visible, re-render the
+        // table now that we have fresh data. Otherwise the first visit
+        // shows an empty body because DATA.categories was empty at nav time.
+        if (document.getElementById('page-admin-categories') && document.getElementById('page-admin-categories').classList.contains('active')) {
+            renderCategoriesTable();
+        }
     } catch (e) { console.warn('[categories] refresh failed:', e); }
 }
 // Rebuild every category-picker dropdown in the DOM from DATA.categories.
@@ -3299,18 +3307,51 @@ function populateCategoryDropdowns() {
     var active = (DATA.categories || []).filter(function(c) { return c.active !== false; });
     var options = active.map(function(c) { return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('');
 
+    // Hidden legacy select on the product form (still used by save-back-compat).
     var editSel = document.getElementById('pCategory');
     if (editSel) {
         var prev = editSel.value;
         editSel.innerHTML = '<option value="">--</option>' + options;
         if (prev && Array.prototype.some.call(editSel.options, function(o) { return o.value === prev; })) editSel.value = prev;
     }
+    // Multi-category checklist on the product edit form.
+    var list = document.getElementById('pCategoriesList');
+    if (list) {
+        // Preserve any tickmarks the user already made before we re-render.
+        var previouslyChecked = getSelectedProductCategories();
+        if (!active.length) {
+            list.innerHTML = '<span style="color:var(--gray-500);font-size:12px">No categories defined yet. <a href="#" onclick="event.preventDefault();navigate(\'admin-categories\')" style="color:var(--ni-blue)">Add some &rarr;</a></span>';
+        } else {
+            list.innerHTML = active.map(function(c) {
+                var isChecked = previouslyChecked.indexOf(c.name) !== -1;
+                return '<label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;cursor:pointer">' +
+                    '<input type="checkbox" value="' + esc(c.name) + '" class="product-category-check"' + (isChecked ? ' checked' : '') + '>' +
+                    esc(c.name) +
+                '</label>';
+            }).join('');
+        }
+    }
+    // Storefront filter still shows every category as options in a single-select.
     var storeSel = document.getElementById('storeCategoryFilter');
     if (storeSel) {
         var prevStore = storeSel.value;
         storeSel.innerHTML = '<option value="">All Categories</option>' + options;
         if (prevStore && Array.prototype.some.call(storeSel.options, function(o) { return o.value === prevStore; })) storeSel.value = prevStore;
     }
+}
+// Read the current multi-select state from the product form.
+function getSelectedProductCategories() {
+    return Array.prototype.map.call(
+        document.querySelectorAll('.product-category-check:checked'),
+        function(cb) { return cb.value; }
+    );
+}
+// Programmatically set which categories are ticked (called from openProductModal).
+function setSelectedProductCategories(names) {
+    var wanted = Array.isArray(names) ? names : [];
+    document.querySelectorAll('.product-category-check').forEach(function(cb) {
+        cb.checked = wanted.indexOf(cb.value) !== -1;
+    });
 }
 
 // ── Category admin UI (list, modal, save, delete) ──
@@ -7250,7 +7291,10 @@ function renderStorefront() {
     var products = DATA.products.filter(function(p) {
         // Storefront only shows active products (hide both inactive and draft)
         if (p.status !== 'active') return false;
-        if (cat && p.category !== cat) return false;
+        if (cat) {
+            var cats = Array.isArray(p.categories) && p.categories.length ? p.categories : (p.category ? [p.category] : []);
+            if (cats.indexOf(cat) === -1) return false;
+        }
         if (search) {
             var h = (p.name + ' ' + p.category + ' ' + p.sku + ' ' + p.upc + ' ' + p.packageSize).toLowerCase();
             if (h.indexOf(search) === -1) return false;
@@ -9083,6 +9127,7 @@ function openProductModal(idx) {
         document.getElementById('pUpc').value = p.upc || '';
         document.getElementById('pPackageSize').value = p.packageSize || '';
         document.getElementById('pCategory').value = p.category || '';
+        setSelectedProductCategories(Array.isArray(p.categories) && p.categories.length ? p.categories : (p.category ? [p.category] : []));
         document.getElementById('pCostPerUnit').value = p.costPerUnit != null ? p.costPerUnit : '';
         document.getElementById('pProductClass').value = p.productClass || 'private_label';
         document.getElementById('pInsiderMarkup').value = p.insiderMarkup != null ? p.insiderMarkup : '';
@@ -9112,6 +9157,7 @@ function openProductModal(idx) {
         document.getElementById('pMarginHint').textContent = '';
         document.getElementById('pVendor').selectedIndex = 0;
         document.getElementById('pCategory').selectedIndex = 0;
+        setSelectedProductCategories([]);
         document.getElementById('pTaxable').value = 'true';
         document.getElementById('pStatus').value = 'active';
         document.getElementById('pStock').value = 0;
@@ -9388,7 +9434,8 @@ async function saveProduct() {
         vendorPartNum: document.getElementById('pVendorPartNum').value.trim(),
         upc: document.getElementById('pUpc').value.trim(),
         packageSize: document.getElementById('pPackageSize').value.trim(),
-        category: document.getElementById('pCategory').value,
+        category: (getSelectedProductCategories()[0] || ''),
+        categories: getSelectedProductCategories(),
         costPerUnit: costPerUnit,
         wholesalePrice: wholesalePrice,
         productClass: document.getElementById('pProductClass').value || 'private_label',
@@ -14136,6 +14183,9 @@ loadProductClasses().then(function() {
     populateProductClassDropdown();
     if (typeof renderStorefront === 'function' && document.getElementById('page-storefront')) renderStorefront();
     renderCart();
+    // Re-render admin pages that depend on the class list if they're active.
+    var pricingPage = document.getElementById('page-admin-pricing-defaults');
+    if (pricingPage && pricingPage.classList.contains('active') && typeof renderPricingDefaultsPage === 'function') renderPricingDefaultsPage();
 });
 // Categories are readable by anyone (public read RLS). Load them so the
 // storefront filter + product edit dropdown always show the current list.
