@@ -10901,7 +10901,10 @@ function viewOrder(i) {
     }
 
     var actions = '';
-    if (o.status === 'pending' || o.status === 'processing') {
+    // ADMIN-ONLY action bar. Customers viewing their own order confirmation
+    // should never see Edit / Mark Shipped / Invoice CSV / Bill CSV / Cancel.
+    var isAdminView = !!IS_SUPA_ADMIN;
+    if (isAdminView && (o.status === 'pending' || o.status === 'processing')) {
         actions += '<button class="btn btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderEditModal(' + i + ')">Edit</button> ';
         if (o.status === 'pending') {
             actions += '<button class="btn btn-outline" onclick="updateOrderStatus(' + i + ',\'processing\')">Mark Processing</button> ';
@@ -10911,17 +10914,21 @@ function viewOrder(i) {
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button> ';
         actions += '<button class="btn btn-danger" onclick="closeModal(\'orderDetailModal\');cancelOrder(' + i + ')">Cancel</button>';
-    } else if (o.status === 'shipped') {
+    } else if (isAdminView && o.status === 'shipped') {
         actions += '<button class="btn btn-success" onclick="markDelivered(' + i + ')">Mark Delivered</button> ';
         actions += '<button class="btn btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button>';
-    } else if (o.status === 'delivered') {
+    } else if (isAdminView && o.status === 'delivered') {
         actions += '<button class="btn btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button>';
+    } else if (!isAdminView) {
+        // Customer-facing: give them a print-friendly view but nothing that
+        // could mutate the order or expose internal accounting data.
+        actions += '<button class="btn btn-outline" onclick="window.print()">&#128424; Print</button>';
     }
 
     document.getElementById('orderDetailBody').innerHTML =
