@@ -11791,7 +11791,7 @@ function resolveCsvField(sourceKey, ctx) {
         case 'item.taxable':
             if (!item) return '';
             var tx = item.taxable !== undefined ? item.taxable : true;
-            return tx ? 'Yes' : 'No';
+            return tx ? 'Taxable' : 'Non Taxable';
         case 'item.status': return item ? (item.status || 'active') : '';
         case 'item.min_order_qty': return item ? String(item.min_order_qty != null ? item.min_order_qty : (item.minOrderQty || 1)) : '';
         default: return '';
