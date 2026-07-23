@@ -12112,6 +12112,108 @@ async function loadSiteSettings() {
     return out;
 }
 
+// Per-CSV-type delivery config (recipient + NetSuite import URL). Cached
+// after the first fetch so re-opening the mapping page is instant.
+var NETSUITE_DELIVERY_CACHE = null;
+async function loadNetsuiteDelivery(force) {
+    if (NETSUITE_DELIVERY_CACHE && !force) return NETSUITE_DELIVERY_CACHE;
+    var out = { invoice: { recipient: '', importUrl: '' }, bill: { recipient: '', importUrl: '' }, customer: { recipient: '', importUrl: '' }, item: { recipient: '', importUrl: '' } };
+    try {
+        var r = await supa.from('settings').select('value').eq('key', 'netsuite_delivery').single();
+        if (r.data && r.data.value && typeof r.data.value === 'object') {
+            ['invoice','bill','customer','item'].forEach(function(k) {
+                if (r.data.value[k]) out[k] = { recipient: r.data.value[k].recipient || '', importUrl: r.data.value[k].importUrl || '' };
+            });
+        }
+    } catch (e) { console.warn('[netsuite_delivery] load failed:', e); }
+    NETSUITE_DELIVERY_CACHE = out;
+    return out;
+}
+async function saveNetsuiteDeliveryForKind(kind) {
+    var recipientEl = document.getElementById('delivRecipient');
+    var urlEl = document.getElementById('delivImportUrl');
+    if (!recipientEl || !urlEl) return;
+    var delivery = await loadNetsuiteDelivery(true); // fresh
+    delivery[kind] = { recipient: (recipientEl.value || '').trim(), importUrl: (urlEl.value || '').trim() };
+    var res = await supa.from('settings').upsert({ key: 'netsuite_delivery', value: delivery });
+    if (res.error) { showToast('Save failed: ' + res.error.message, 'error'); return; }
+    NETSUITE_DELIVERY_CACHE = delivery;
+    showToast('Delivery settings saved for ' + CSV_MAPPING_KINDS[kind].title);
+}
+
+// Render a plain-text preview of what the CSV email will look like for
+// the currently-open mapping tab, using either the last real order/product
+// or a synthetic sample. Opens in a modal so admin can eyeball before
+// customizing the mapping.
+async function previewCsvMappingEmail(kind) {
+    var mapping = await loadCsvMappingKind(kind);
+    var delivery = await loadNetsuiteDelivery();
+    var kindDelivery = (delivery && delivery[kind]) || { recipient: '', importUrl: '' };
+    var siteSettings = await loadSiteSettings();
+    var recipient = kindDelivery.recipient || siteSettings.accounting_notify_email || 'abrown@pharmacyinnovations.net';
+    var importUrl = kindDelivery.importUrl || '';
+    var cols = (mapping.columns || []).map(function(c) { return c.name; });
+
+    // Build a sample first-row using either the latest order/product or dummy data.
+    var sampleRow;
+    var subject;
+    var attachmentName;
+    if (kind === 'item') {
+        var sample = (DATA.products || []).find(function(p) { return p.sku && p.costPerUnit; }) || { sku: 'ML002', name: 'Ultra Spore Biotic', packageSize: '60 Capsules', vendor: 'NUTRITIONAL INNOVATIONS', costPerUnit: 36.43, productClass: 'private_label', itemType: 'Vitamin/Supplement', taxable: false, expenseAccount: '' };
+        subject = 'Add new NI item to NetSuite: ' + (sample.name || sample.sku);
+        attachmentName = 'ni-item-' + String(sample.sku || 'sample').replace(/[^A-Za-z0-9_-]/g, '_') + '.csv';
+        var itemCtx = {
+            sku: sample.sku, name: sample.name, description: sample.description, upc: sample.upc,
+            manufacturer: sample.manufacturer, vendor: sample.vendor, vendor_part_num: sample.vendorPartNum,
+            vendor_product_name: sample.vendorProductName, package_size: sample.packageSize,
+            category: sample.category, cost_per_unit: sample.costPerUnit, wholesale_price: sample.wholesalePrice,
+            retail_price: sample.retailPrice, product_class: sample.productClass, item_type: sample.itemType,
+            expense_account: sample.expenseAccount, taxable: sample.taxable, status: sample.status, min_order_qty: sample.minOrderQty,
+            insider_markup: sample.insiderMarkup, standard_markup: sample.standardMarkup
+        };
+        var ctx = { order: {}, customer: {}, location: {}, mapping: mapping, settings: siteSettings, item: itemCtx, lineType: 'item' };
+        sampleRow = (mapping.columns || []).map(function(c) { return c.source === 'static' ? (c.value || '') : resolveCsvField(c.source, ctx); });
+    } else {
+        // Invoice / Bill / Customer preview: use a small dummy order.
+        subject = kind === 'bill' ? 'Sample NI Bill CSV preview' : (kind === 'customer' ? 'Sample NI Customer CSV preview' : 'Sample NI Invoice CSV preview');
+        attachmentName = 'ni-' + kind + '-sample.csv';
+        var previewCustomer = { company_name: 'Pharmacy Innovations', contact_name: 'Kathy Mills', email: 'purchasing@pharmacyinnovations.net', billing_address: '640 Congaree Rd', billing_city: 'Greenville', billing_state: 'SC', billing_zip: '29607', payment_terms: 'Net-30', netsuite_entity_id: '4488', pharmacy_type: 'Compounding', is_intercompany: true };
+        var previewLocation = { location_name: 'TUC', address: '2729 E Speedway Blvd', city: 'Tucson', state: 'AZ', zip: '85716', contact_name: 'Kathy Mills', phone: '520-555-0100', billing_entity_name: 'Reeds Compounding Pharmacy', netsuite_entity_id: '4488', netsuite_location_id: 'TUC01', netsuite_subsidiary_id: 'REEDS' };
+        var previewOrder = { order_number: 'SAMPLE', invoice_number: 'NI-SAMPLE', placed_at: new Date().toISOString(), shipped_at: new Date().toISOString(), tracking_number: 'TRK-DEMO', carrier: 'FedEx', subtotal: 80.50, tax: 0, shipping: 0, total: 80.50, notes: 'Sample preview only', payment_method: 'invoice' };
+        var previewItem = { sku: 'ML002', product_name: 'Ultra Spore Biotic', qty: 2, unit_price: 40.25, line_total: 80.50 };
+        var ctx2 = { order: previewOrder, customer: previewCustomer, location: previewLocation, mapping: mapping, settings: siteSettings, item: previewItem, lineType: 'item', externalId: 'NI-SAMPLE', invoiceDate: '01/01/2026', dueDate: '01/31/2026', memo: 'NI Wholesale order #SAMPLE' };
+        sampleRow = (mapping.columns || []).map(function(c) { return c.source === 'static' ? (c.value || '') : resolveCsvField(c.source, ctx2); });
+    }
+
+    // Build the modal body.
+    var linkBlock = importUrl
+        ? '<div style="background:#eaf3fb;border:1px solid #cbd5e1;padding:12px 14px;border-radius:6px;margin:12px 0"><strong>&#128279; NetSuite Import Link:</strong> <a href="' + esc(importUrl) + '" target="_blank" rel="noopener" style="color:var(--ni-blue);word-break:break-all">' + esc(importUrl) + '</a></div>'
+        : '<div style="background:#fef9e7;border:1px solid #f4d03f;padding:12px 14px;border-radius:6px;margin:12px 0;color:#7d5f00"><strong>&#9888;</strong> No NetSuite Import URL set for this CSV type. Accounting will have to navigate the import screen manually. Enter one above and re-preview.</div>';
+    var colsPreview = cols.map(function(c, i) {
+        return '<tr><td style="padding:4px 8px;font-family:monospace;font-size:11px;color:#666">' + esc(c) + '</td><td style="padding:4px 8px;font-size:12px">' + esc(sampleRow[i] || '') + '</td></tr>';
+    }).join('');
+
+    var html = '<div style="font-family:var(--sans);font-size:13px;line-height:1.5">' +
+        '<div style="margin-bottom:14px;padding:10px 14px;background:#f5f2ea;border-radius:6px">' +
+            '<div><strong>To:</strong> ' + esc(recipient) + '</div>' +
+            '<div><strong>Subject:</strong> ' + esc(subject) + '</div>' +
+            '<div><strong>Attachment:</strong> ' + esc(attachmentName) + '</div>' +
+        '</div>' +
+        linkBlock +
+        '<div style="margin-top:14px"><strong>Sample first row of CSV</strong> (using ' + (kind === 'item' ? 'a real product from your catalog' : 'demo order data') + '):</div>' +
+        '<div style="max-height:320px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:4px;margin-top:8px"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="background:var(--gray-100);position:sticky;top:0"><th style="padding:6px 8px;text-align:left">Column</th><th style="padding:6px 8px;text-align:left">Value</th></tr></thead><tbody>' + colsPreview + '</tbody></table></div>' +
+    '</div>';
+
+    // Reuse the generic detail modal or open our own. Use a simple prompt-style modal.
+    var existing = document.getElementById('csvPreviewModal');
+    if (existing) existing.remove();
+    var overlay = document.createElement('div');
+    overlay.id = 'csvPreviewModal';
+    overlay.className = 'modal-overlay active';
+    overlay.innerHTML = '<div class="modal modal-lg"><div class="modal-header"><h2>' + esc(CSV_MAPPING_KINDS[kind].title) + ' &mdash; Email Preview</h2><button class="modal-close" onclick="document.getElementById(\'csvPreviewModal\').remove()">&times;</button></div><div class="modal-body">' + html + '</div><div class="modal-footer"><button class="btn btn-outline" onclick="document.getElementById(\'csvPreviewModal\').remove()">Close</button></div></div>';
+    document.body.appendChild(overlay);
+}
+
 // ─── Tier-based pricing ────────────────────────────────────────────────────
 // Wholesale price for any product = cost_per_unit * (1 + markupPct/100).
 // The class defaults live in the product_classes Supabase table (loaded
@@ -12361,11 +12463,23 @@ async function renderCsvMappingPage(kind) {
     var isInvoice = activeKind === 'invoice'; // only invoice has global settings + line labels
     var isBill = activeKind === 'bill';
     var siteSettings = await loadSiteSettings();
+    var delivery = await loadNetsuiteDelivery();
+    var kindDelivery = (delivery && delivery[activeKind]) || { recipient: '', importUrl: '' };
     body.innerHTML =
         '<div style="max-width:1200px">' +
         tabsHtml +
         '<div style="background:var(--ni-cream);border-left:3px solid var(--ni-deep-blue);padding:12px 16px;font-size:13px;font-family:var(--sans);color:var(--gray-700);margin-bottom:20px;line-height:1.5">' +
             '<strong>' + esc(activeCfg.title) + ':</strong> ' + esc(activeCfg.description) + ' Rename columns to match NetSuite\'s import template, reorder, add/remove, or set static values.' +
+        '</div>' +
+        // Delivery card: where does this CSV get emailed to, and what NetSuite
+        // link should the recipient click to import it?
+        '<div class="card"><div class="card-header"><h2>Delivery</h2><button class="btn btn-sm btn-outline" onclick="previewCsvMappingEmail(\'' + activeKind + '\')">&#128065; Preview Email</button></div>' +
+            '<div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);padding:0 20px 8px">Recipient defaults to <code>' + esc(siteSettings.accounting_notify_email || 'abrown@pharmacyinnovations.net') + '</code> if left blank. Import URL is a link included in the email so Accounting can jump straight to the NetSuite CSV Import screen for this record type.</div>' +
+            '<div class="form-row">' +
+                '<div class="form-group"><label>Recipient Email(s) &mdash; comma-separated</label><input type="email" class="form-control" id="delivRecipient" placeholder="' + esc(siteSettings.accounting_notify_email || 'accounting@example.com') + '" value="' + esc(kindDelivery.recipient || '') + '"></div>' +
+                '<div class="form-group"><label>NetSuite Import URL</label><input type="url" class="form-control" id="delivImportUrl" placeholder="https://####.app.netsuite.com/app/setup/assistants/nsimport/..." value="' + esc(kindDelivery.importUrl || '') + '"></div>' +
+            '</div>' +
+            '<div style="padding:0 20px 16px"><button class="btn btn-sm btn-outline" onclick="saveNetsuiteDeliveryForKind(\'' + activeKind + '\')">Save Delivery Settings</button></div>' +
         '</div>' +
         (isInvoice ? '<div class="card"><div class="card-header"><h2>Global Settings (Invoice only)</h2></div>' +
             '<div class="form-row">' +
