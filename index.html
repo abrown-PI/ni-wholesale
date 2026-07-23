@@ -1411,6 +1411,7 @@
                 <div class="form-group"><label>Standard Margin %</label><input type="number" class="form-control" id="pcStandardMargin" step="0.1" min="0" placeholder="e.g., 20"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">% over cost for regular customers.</div></div>
                 <div class="form-group"><label>Insider Margin %</label><input type="number" class="form-control" id="pcInsiderMargin" step="0.1" min="0" placeholder="e.g., 10"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">% over cost for PI + insider pharmacies.</div></div>
             </div>
+            <div class="form-group"><label>NetSuite Expense Account</label><input type="text" class="form-control" id="pcExpenseAccount" placeholder="e.g., 5010 COGS - Resale"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Default expense account used on the Item CSV for products in this class. Individual products can override.</div></div>
             <div class="form-group"><label>Status</label>
                 <select class="form-control" id="pcActive">
                     <option value="true">Active</option>
@@ -2560,6 +2561,9 @@
                 <input type="hidden" id="pProfitMargin">
                 <div id="pMarginHint" style="display:none"></div>
             </div>
+            <div class="form-row">
+                <div class="form-group"><label>NetSuite Expense Account</label><input type="text" class="form-control" id="pExpenseAccount" placeholder="Leave blank to use class default"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Overrides the class default on the Item CSV. <span id="pExpenseAccountClassDefault"></span></div></div>
+            </div>
             <div id="pTierPreview" style="display:none;padding:10px 14px;background:#eaf3fb;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px;font-family:var(--sans);font-size:13px"></div>
             <div class="form-row">
                 <div class="form-group"><label>Stock Qty</label><input type="number" class="form-control" id="pStock" min="0" value="0"></div>
@@ -3196,6 +3200,7 @@ function supaProductToLocal(p) {
         productClass: p.product_class || 'private_label',
         insiderMarkup: p.insider_markup != null ? parseFloat(p.insider_markup) : null,
         standardMarkup: p.standard_markup != null ? parseFloat(p.standard_markup) : null,
+        expenseAccount: p.expense_account || '',
         stock: p.stock || 0,
         testerStock: p.tester_stock || 0,
         lowStockThreshold: p.low_stock_threshold != null ? p.low_stock_threshold : 10,
@@ -3227,6 +3232,7 @@ function localProductToSupa(p) {
         product_class: p.productClass || 'private_label',
         insider_markup: (p.insiderMarkup != null && p.insiderMarkup !== '') ? Number(p.insiderMarkup) : null,
         standard_markup: (p.standardMarkup != null && p.standardMarkup !== '') ? Number(p.standardMarkup) : null,
+        expense_account: (p.expenseAccount && String(p.expenseAccount).trim()) || null,
         stock: p.stock || 0,
         tester_stock: p.testerStock || 0,
         low_stock_threshold: p.lowStockThreshold != null ? p.lowStockThreshold : 10,
@@ -3502,6 +3508,7 @@ function openProductClassModal(slug) {
     document.getElementById('pcSortOrder').value = existing ? existing.sortOrder : (100 + (PRODUCT_CLASSES.length * 10));
     document.getElementById('pcStandardMargin').value = existing ? existing.standardMargin : 20;
     document.getElementById('pcInsiderMargin').value = existing ? existing.insiderMargin : 10;
+    document.getElementById('pcExpenseAccount').value = existing ? (existing.expenseAccount || '') : '';
     document.getElementById('pcActive').value = existing ? String(existing.active !== false) : 'true';
 
     // Show the "also update N products" opt-in only when editing a class
@@ -3530,6 +3537,7 @@ async function saveProductClassForm() {
         sortOrder: Number(document.getElementById('pcSortOrder').value) || 100,
         standardMargin: Number(document.getElementById('pcStandardMargin').value) || 0,
         insiderMargin: Number(document.getElementById('pcInsiderMargin').value) || 0,
+        expenseAccount: (document.getElementById('pcExpenseAccount').value || '').trim(),
         active: document.getElementById('pcActive').value === 'true'
     };
     var isNew = !originalSlug;
@@ -9005,6 +9013,7 @@ async function buildSelectedItemsCsv() {
             package_size: product.packageSize, category: product.category,
             cost_per_unit: product.costPerUnit, wholesale_price: product.wholesalePrice,
             retail_price: product.retailPrice, product_class: product.productClass || 'private_label',
+        expense_account: product.expenseAccount || '',
             taxable: product.taxable !== false, status: product.status || 'active',
             min_order_qty: product.minOrderQty || 1
         };
@@ -9143,6 +9152,7 @@ function openProductModal(idx) {
         document.getElementById('pProductClass').value = p.productClass || 'private_label';
         document.getElementById('pInsiderMarkup').value = p.insiderMarkup != null ? p.insiderMarkup : '';
         document.getElementById('pStandardMarkup').value = p.standardMarkup != null ? p.standardMarkup : '';
+        document.getElementById('pExpenseAccount').value = p.expenseAccount || '';
         document.getElementById('pWholesalePrice').value = p.wholesalePrice != null ? p.wholesalePrice : '';
         document.getElementById('pRetailPrice').value = p.retailPrice != null ? p.retailPrice : '';
         // Calculate and show existing margin (prefer stored value, fall back to live calc)
@@ -9178,6 +9188,7 @@ function openProductModal(idx) {
         document.getElementById('pProductClass').value = 'private_label';
         document.getElementById('pInsiderMarkup').value = '';
         document.getElementById('pStandardMarkup').value = '';
+        document.getElementById('pExpenseAccount').value = '';
     }
     renderProductImagesGallery();
     renderVariantsSectionInModal();
@@ -9205,6 +9216,7 @@ async function generateItemCsvForProduct(product) {
         package_size: product.packageSize, category: product.category,
         cost_per_unit: product.costPerUnit, wholesale_price: product.wholesalePrice,
         retail_price: product.retailPrice, product_class: product.productClass || 'private_label',
+        expense_account: product.expenseAccount || '',
         taxable: product.taxable !== false, status: product.status || 'active',
         min_order_qty: product.minOrderQty || 1
     };
@@ -9262,6 +9274,14 @@ function onProductClassChange() {
     var standardDef = getClassDefaultPct('standard', cls);
     if (insiderField && (insiderField.value === '' || insiderField.value == null) && insiderDef != null) insiderField.value = insiderDef;
     if (standardField && (standardField.value === '' || standardField.value == null) && standardDef != null) standardField.value = standardDef;
+    // Expense account: show the class default as a hint so admins can see
+    // what the CSV will use if they don't override.
+    var classObj = PRODUCT_CLASSES.find(function(x) { return x.slug === cls; });
+    var hint = document.getElementById('pExpenseAccountClassDefault');
+    if (hint) {
+        var def = classObj && classObj.expenseAccount ? classObj.expenseAccount : '';
+        hint.textContent = def ? ('Class default: ' + def) : ('No class default set — configure on the Pricing Defaults page.');
+    }
     renderTierPricePreview();
 }
 
@@ -9478,6 +9498,7 @@ async function saveProduct() {
         productClass: document.getElementById('pProductClass').value || 'private_label',
         insiderMarkup: document.getElementById('pInsiderMarkup').value !== '' ? parseFloat(document.getElementById('pInsiderMarkup').value) : null,
         standardMarkup: document.getElementById('pStandardMarkup').value !== '' ? parseFloat(document.getElementById('pStandardMarkup').value) : null,
+        expenseAccount: (document.getElementById('pExpenseAccount').value || '').trim(),
         retailPrice: document.getElementById('pRetailPrice').value ? parseFloat(document.getElementById('pRetailPrice').value) : null,
         profitMargin: profitMargin,
         stock: parseInt(document.getElementById('pStock').value) || 0,
@@ -11066,6 +11087,7 @@ var CSV_SOURCE_OPTIONS = [
         ['item.wholesale_price', 'Wholesale Price (standard tier)'],
         ['item.retail_price', 'Suggested Retail'],
         ['item.product_class', 'Product Class (private_label / manufactured)'],
+        ['item.expense_account', 'Expense Account (product override or class default)'],
         ['item.taxable', 'Taxable (yes/no)'],
         ['item.status', 'Status'],
         ['item.min_order_qty', 'Min Order Qty']
@@ -11285,6 +11307,14 @@ function resolveCsvField(sourceKey, ctx) {
         case 'item.wholesale_price': return item ? _fmtMoney(item.wholesale_price != null ? item.wholesale_price : item.wholesalePrice) : '';
         case 'item.retail_price': return item ? _fmtMoney(item.retail_price != null ? item.retail_price : item.retailPrice) : '';
         case 'item.product_class': return item ? (item.product_class || item.productClass || 'private_label') : '';
+        case 'item.expense_account':
+            if (!item) return '';
+            // Product override wins; else look up the class default from PRODUCT_CLASSES.
+            var direct = item.expense_account || item.expenseAccount || '';
+            if (direct) return direct;
+            var clsSlug = item.product_class || item.productClass || '';
+            var classObj = (typeof PRODUCT_CLASSES !== 'undefined') ? PRODUCT_CLASSES.find(function(x) { return x.slug === clsSlug; }) : null;
+            return classObj && classObj.expenseAccount ? classObj.expenseAccount : '';
         case 'item.taxable':
             if (!item) return '';
             var tx = item.taxable !== undefined ? item.taxable : true;
@@ -11327,6 +11357,7 @@ async function loadProductClasses() {
                 slug: c.slug, label: c.label,
                 standardMargin: Number(c.standard_margin) || 0,
                 insiderMargin: Number(c.insider_margin) || 0,
+                expenseAccount: c.expense_account || '',
                 sortOrder: Number(c.sort_order) || 100,
                 active: c.active !== false,
                 createdAt: c.created_at || '', updatedAt: c.updated_at || ''
@@ -11340,6 +11371,7 @@ async function saveProductClass(cls, isNew) {
         slug: cls.slug, label: cls.label || cls.slug,
         standard_margin: Number(cls.standardMargin) || 0,
         insider_margin: Number(cls.insiderMargin) || 0,
+        expense_account: cls.expenseAccount || null,
         sort_order: Number(cls.sortOrder) || 100,
         active: cls.active !== false,
         updated_at: new Date().toISOString()
