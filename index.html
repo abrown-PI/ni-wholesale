@@ -858,7 +858,8 @@
             <div id="cartDiscountRow" style="display:none;justify-content:space-between;margin-bottom:4px;color:var(--success,#1e7a3a)"><span>Discount:</span><span id="cartDiscountAmount">$0.00</span></div>
         </div>
         <div class="cart-total"><span>Total:</span><span id="cartTotal">$0.00</span></div>
-        <button class="btn btn-success" style="width:100%;justify-content:center" onclick="proceedToCheckout()">Proceed to Checkout</button>
+        <div id="cartMinNotice" style="display:none;padding:8px 12px;background:#fef3c7;border:1px solid #f4d03f;border-radius:6px;font-family:var(--sans);font-size:12px;color:#7d5f00;margin-bottom:10px;line-height:1.4"></div>
+        <button class="btn btn-success" id="cartCheckoutBtn" style="width:100%;justify-content:center" onclick="proceedToCheckout()">Proceed to Checkout</button>
     </div>
 </div>
 
@@ -1544,6 +1545,16 @@
                         <option value="DHL">DHL</option>
                         <option value="Other">Other</option>
                     </select>
+                </div>
+            </div>
+            <div class="form-row" style="align-items:flex-end">
+                <div class="form-group"><label>Minimum Order (0 = no minimum)</label><input type="number" class="form-control" id="setMinOrderValue" step="0.01" min="0" placeholder="e.g., 250"></div>
+                <div class="form-group"><label>Minimum Unit</label>
+                    <select class="form-control" id="setMinOrderUnit">
+                        <option value="dollars">$ (subtotal)</option>
+                        <option value="qty">Qty (total units)</option>
+                    </select>
+                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Applied at checkout. Blocks orders below the threshold with a friendly message.</div>
                 </div>
             </div>
             <div class="form-group"><label>Notes (internal — e.g. handling time, fulfillment days)</label><textarea class="form-control" id="setShipNotes" rows="3"></textarea></div>
@@ -5904,6 +5915,10 @@ function renderShippingSettings() {
     document.getElementById('setShipFreeThreshold').value = s.freeShippingThreshold != null ? s.freeShippingThreshold : 0;
     document.getElementById('setShipDefaultCarrier').value = s.defaultCarrier || 'USPS';
     document.getElementById('setShipNotes').value = s.notes || '';
+    var minEl = document.getElementById('setMinOrderValue');
+    var minUnitEl = document.getElementById('setMinOrderUnit');
+    if (minEl) minEl.value = s.minOrderValue != null ? s.minOrderValue : 0;
+    if (minUnitEl) minUnitEl.value = s.minOrderUnit || 'dollars';
     renderShippingRatesTable();
 }
 
@@ -5955,6 +5970,10 @@ function saveShippingDefaults() {
     s.freeShippingThreshold = isNaN(thr) ? 0 : thr;
     s.defaultCarrier = document.getElementById('setShipDefaultCarrier').value || 'USPS';
     s.notes = document.getElementById('setShipNotes').value;
+    var minVal = parseFloat(document.getElementById('setMinOrderValue').value);
+    s.minOrderValue = isNaN(minVal) ? 0 : minVal;
+    var minUnit = document.getElementById('setMinOrderUnit').value;
+    s.minOrderUnit = (minUnit === 'qty') ? 'qty' : 'dollars';
     saveData();
     showToast('Shipping defaults saved');
 }
@@ -7236,6 +7255,24 @@ function renderCart() {
     }
     var grand = Math.max(0, sum - discount);
     tot.textContent = '$' + grand.toFixed(2);
+    // Show a shortfall warning + disable the checkout button when the
+    // cart is under the site-wide minimum order (if one is configured).
+    var minCheck = checkCartMinimum();
+    var notice = document.getElementById('cartMinNotice');
+    var checkoutBtn = document.getElementById('cartCheckoutBtn');
+    if (notice) {
+        if (minCheck.ok) {
+            notice.style.display = 'none';
+        } else {
+            notice.style.display = 'block';
+            notice.textContent = minCheck.message;
+        }
+    }
+    if (checkoutBtn) {
+        checkoutBtn.disabled = !minCheck.ok;
+        checkoutBtn.style.opacity = minCheck.ok ? '1' : '.55';
+        checkoutBtn.style.cursor = minCheck.ok ? 'pointer' : 'not-allowed';
+    }
 }
 function updateCartQty(i, d) { DATA.cart[i].qty += d; if (DATA.cart[i].qty <= 0) DATA.cart.splice(i, 1); saveData(); renderCart(); }
 function removeCartItem(i) { DATA.cart.splice(i, 1); saveData(); renderCart(); }
@@ -7279,6 +7316,8 @@ function submitOrder() {
 function confirmOrder() {
     var name = document.getElementById('orderCustomerName').value.trim(), email = document.getElementById('orderEmail').value.trim();
     if (!name || !email) { showToast('Customer name and email required', 'error'); return; }
+    var minCheck = checkCartMinimum();
+    if (!minCheck.ok) { showToast(minCheck.message, 'error'); return; }
     var now = new Date().toISOString();
     var orderId = 'ord_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
     var orderNumber = (DATA.orders || []).reduce(function(m, o) { return Math.max(m, (typeof o.orderNumber === 'number') ? o.orderNumber : 0); }, 0) + 1;
@@ -7421,6 +7460,8 @@ function proceedToCheckout() {
     var accounts = loadAccounts();
     var acct = accounts.find(function(a) { return a.id === session.accountId; });
     if (!acct || acct.status !== 'Approved') { showToast('Your account must be approved to place orders', 'error'); return; }
+    var minCheck = checkCartMinimum();
+    if (!minCheck.ok) { showToast(minCheck.message, 'error'); return; }
     // Close the cart sidebar if open
     var sb = document.getElementById('cartSidebar');
     var ov = document.getElementById('cartOverlay');
@@ -7932,6 +7973,8 @@ async function placeCheckoutOrder() {
         showToast('Please sign in with an approved account', 'error');
         return;
     }
+    var minCheck = checkCartMinimum();
+    if (!minCheck.ok) { showToast(minCheck.message, 'error'); return; }
     var btn = document.getElementById('coPlaceOrderBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Placing order...'; }
     try {
@@ -10949,6 +10992,37 @@ function getEffectivePrice(product, tier) {
     return getEffectivePriceDetail(product, tier).price;
 }
 
+// Returns { ok, unit, threshold, current, shortBy, message } describing
+// whether the current cart clears the site-wide minimum order.
+// unit: 'dollars' | 'qty'. Threshold 0 = no minimum.
+function checkCartMinimum() {
+    var s = (DATA.settings && DATA.settings.shipping) || {};
+    var threshold = Number(s.minOrderValue) || 0;
+    var unit = s.minOrderUnit === 'qty' ? 'qty' : 'dollars';
+    if (threshold <= 0) return { ok: true, unit: unit, threshold: 0, current: 0, shortBy: 0, message: '' };
+    var current;
+    if (unit === 'qty') {
+        current = (DATA.cart || []).reduce(function(s, item) { return s + (Number(item.qty) || 0); }, 0);
+    } else {
+        current = (DATA.cart || []).reduce(function(s, item) {
+            var p = DATA.products[item.productIndex];
+            return s + (Number(getEffectivePrice(p)) || 0) * (Number(item.qty) || 0);
+        }, 0);
+    }
+    var short = threshold - current;
+    if (short <= 0) return { ok: true, unit: unit, threshold: threshold, current: current, shortBy: 0, message: '' };
+    var fmt = unit === 'qty'
+        ? (Math.ceil(short) + ' more unit' + (Math.ceil(short) === 1 ? '' : 's'))
+        : ('$' + short.toFixed(2) + ' more');
+    var thrFmt = unit === 'qty'
+        ? (threshold + ' units')
+        : ('$' + threshold.toFixed(2));
+    return {
+        ok: false, unit: unit, threshold: threshold, current: current, shortBy: short,
+        message: 'Add ' + fmt + ' to reach the ' + thrFmt + ' minimum order.'
+    };
+}
+
 async function generateCsvFromMapping(order, customer, location, items) {
     var mapping = await loadCsvMapping();
     var settings = await loadSiteSettings();
@@ -13583,9 +13657,19 @@ function renderFaqPage() {
     var contact = getContactInfo();
     var shipping = (DATA.settings && DATA.settings.shipping) || {};
     var threshold = shipping.freeShippingThreshold || 0;
-    var minOrderAnswer = threshold > 0
-        ? 'There is no minimum order requirement. Orders over $' + threshold.toFixed(0) + ' qualify for free standard shipping; smaller orders ship at our published flat rates.'
-        : 'There is no minimum order requirement. Order what you need, when you need it. See the Shipping page for current rate tiers.';
+    var minOrderVal = Number(shipping.minOrderValue) || 0;
+    var minOrderUnit = shipping.minOrderUnit === 'qty' ? 'qty' : 'dollars';
+    var minOrderAnswer;
+    if (minOrderVal > 0) {
+        var minText = minOrderUnit === 'qty'
+            ? (minOrderVal + ' total units')
+            : ('$' + minOrderVal.toFixed(2));
+        minOrderAnswer = 'Minimum order is ' + minText + '.' + (threshold > 0 ? ' Orders over $' + threshold.toFixed(0) + ' qualify for free standard shipping.' : '');
+    } else {
+        minOrderAnswer = threshold > 0
+            ? 'There is no minimum order requirement. Orders over $' + threshold.toFixed(0) + ' qualify for free standard shipping; smaller orders ship at our published flat rates.'
+            : 'There is no minimum order requirement. Order what you need, when you need it. See the Shipping page for current rate tiers.';
+    }
 
     var faqs = [
         { q: 'How do I open a wholesale account?', a: 'Click Apply (or the Login / Register button at the top right) and complete the wholesale application with your pharmacy license number, DEA registration, and NPI. Most applications are reviewed within 1-2 business days, and you will receive an email once your account is approved.' },
