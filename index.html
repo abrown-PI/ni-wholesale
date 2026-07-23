@@ -6035,20 +6035,46 @@ async function confirmDeclineApplication() {
 // ════════════════════════════════════════════════════
 // ADMIN USERS
 // ════════════════════════════════════════════════════
-function loadAdminUsers() {
+// ADMIN_USERS_CACHE is populated from the Supabase list_admin_users RPC.
+// Kept in module scope so edit/delete flows have the row to work with.
+var ADMIN_USERS_CACHE = [];
+async function loadAdminUsers() {
     try {
-        const r = localStorage.getItem(ADMIN_USERS_KEY);
-        return r ? JSON.parse(r) : getDefaultAdminUsers();
-    } catch (e) { return getDefaultAdminUsers(); }
+        var r = await supa.rpc('list_admin_users');
+        if (r.error) throw r.error;
+        ADMIN_USERS_CACHE = (r.data || []).map(function(u) {
+            return { id: u.id, email: u.email || '', name: u.full_name || u.email || '(unnamed)', role: 'Super Admin', createdAt: u.created_at, lastSignInAt: u.last_sign_in_at };
+        });
+    } catch (e) {
+        console.warn('[admin users] rpc failed:', e);
+        ADMIN_USERS_CACHE = [];
+    }
+    return ADMIN_USERS_CACHE;
 }
-function saveAdminUsers(users) { localStorage.setItem(ADMIN_USERS_KEY, JSON.stringify(users)); }
+// Legacy no-op kept so any old caller doesn't blow up.
+function saveAdminUsers() { /* deprecated - all writes go through invite/remove RPCs */ }
 
-function renderAdminUsers() {
-    const users = loadAdminUsers();
-    document.getElementById('adminUsersTableBody').innerHTML = users.map((u, i) => {
-        const roleClass = u.role === 'Super Admin' ? 'badge-danger' : u.role === 'Manager' ? 'badge-warning' : 'badge-info';
-        return '<tr><td><strong>' + esc(u.name) + '</strong></td><td>' + esc(u.email) + '</td><td><span class="badge ' + roleClass + '">' + esc(u.role) + '</span></td><td style="white-space:nowrap"><button class="btn btn-sm btn-outline" onclick="editAdminUser(' + i + ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteAdminUser(' + i + ')">Del</button></td></tr>';
-    }).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No admin users</td></tr>';
+async function renderAdminUsers() {
+    var body = document.getElementById('adminUsersTableBody');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:20px;font-family:var(--sans)">Loading…</td></tr>';
+    var users = await loadAdminUsers();
+    if (!users.length) {
+        body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No admin users found. Sign in as an admin and try again.</td></tr>';
+        return;
+    }
+    body.innerHTML = users.map(function(u, i) {
+        var lastLogin = u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString() : '<span style="color:var(--gray-400)">never</span>';
+        return '<tr>' +
+            '<td><strong>' + esc(u.name) + '</strong><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans)">Last sign-in: ' + lastLogin + '</div></td>' +
+            '<td>' + esc(u.email) + '</td>' +
+            '<td><span class="badge badge-danger">Admin</span></td>' +
+            '<td style="white-space:nowrap">' +
+                '<button class="btn btn-sm btn-outline" onclick="editAdminUser(' + i + ')">Edit Name</button> ' +
+                '<button class="btn btn-sm btn-danger" onclick="deleteAdminUser(' + i + ')">Remove</button>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
 }
 
 function openAdminUserModal(i) {
@@ -6056,14 +6082,16 @@ function openAdminUserModal(i) {
     document.getElementById('adminUserEditIndex').value = i;
     document.getElementById('adminUserModalTitle').textContent = i >= 0 ? 'Edit Admin User' : 'Add Admin User';
     if (i >= 0) {
-        const users = loadAdminUsers();
-        document.getElementById('auName').value = users[i].name;
-        document.getElementById('auEmail').value = users[i].email;
-        document.getElementById('auRole').value = users[i].role;
+        var u = ADMIN_USERS_CACHE[i] || {};
+        document.getElementById('auName').value = u.name || '';
+        document.getElementById('auEmail').value = u.email || '';
+        document.getElementById('auEmail').disabled = true; // can't rename email
+        var roleEl = document.getElementById('auRole'); if (roleEl) { roleEl.value = 'Super Admin'; roleEl.disabled = true; }
     } else {
         document.getElementById('auName').value = '';
         document.getElementById('auEmail').value = '';
-        document.getElementById('auRole').value = 'Viewer';
+        document.getElementById('auEmail').disabled = false;
+        var roleEl2 = document.getElementById('auRole'); if (roleEl2) { roleEl2.value = 'Viewer'; roleEl2.disabled = false; }
     }
     openModal('adminUserModal');
 }
@@ -6075,15 +6103,19 @@ async function saveAdminUser() {
     const email = document.getElementById('auEmail').value.trim();
     const role = document.getElementById('auRole').value;
     if (!name || !email) { showToast('Name and email required', 'error'); return; }
-    const users = loadAdminUsers();
     const i = parseInt(document.getElementById('adminUserEditIndex').value);
     if (i >= 0) {
-        // Edit path: local metadata only (name/role label).
-        users[i] = { name, email, role };
-        saveAdminUsers(users);
-        showToast('Admin user updated');
+        // Edit path: update the auth user's raw_user_meta_data.full_name via RPC
+        // so the new name shows for every admin in every browser.
+        var u = ADMIN_USERS_CACHE[i];
+        if (!u || !u.id) { showToast('Admin row not found', 'error'); return; }
+        try {
+            var r = await supa.rpc('set_admin_full_name', { target_id: u.id, new_name: name });
+            if (r.error) throw r.error;
+        } catch (e) { showToast('Update failed: ' + (e.message || e), 'error'); return; }
+        showToast('Admin name updated');
         closeModal('adminUserModal');
-        renderAdminUsers();
+        await renderAdminUsers();
         return;
     }
     // New admin: create Supabase auth user + send invite email.
@@ -6169,13 +6201,21 @@ async function inviteInitialPiAdmins() {
     alert('Admin invite results:\n\n' + lines.join('\n'));
 }
 
-function deleteAdminUser(i) {
-    const users = loadAdminUsers();
-    if (!confirm('Delete admin user "' + users[i].name + '"?')) return;
-    users.splice(i, 1);
-    saveAdminUsers(users);
-    renderAdminUsers();
-    showToast('Admin user deleted');
+async function deleteAdminUser(i) {
+    var u = ADMIN_USERS_CACHE[i];
+    if (!u) return;
+    if (!confirm('Remove admin role from "' + (u.name || u.email) + '"?\n\nTheir auth account stays (they can still sign in as a pharmacy user if attached to one), but they lose admin access to this portal.')) return;
+    try {
+        var r = await supa.rpc('remove_admin_role', { target_id: u.id });
+        if (r.error) throw r.error;
+    } catch (e) {
+        var msg = (e && e.message) || 'Supabase error';
+        if (/cannot remove your own/i.test(msg)) msg = "You can't remove your own admin role — ask another admin to do it.";
+        showToast('Remove failed: ' + msg, 'error');
+        return;
+    }
+    await renderAdminUsers();
+    showToast('Admin role removed');
 }
 
 // ════════════════════════════════════════════════════
@@ -15042,9 +15082,9 @@ function dismissCookieBanner() {
 })();
 
 // Initialize default admin users if not present
-if (!localStorage.getItem(ADMIN_USERS_KEY)) {
-    saveAdminUsers(getDefaultAdminUsers());
-}
+// Legacy default seed removed — admin users now live in Supabase (profiles + auth.users).
+// Wipe stale localStorage entries so they don't re-seed the old Alexandra Brown default.
+try { localStorage.removeItem(ADMIN_USERS_KEY); } catch (e) { /* silent */ }
 
 // ── Pull products + accounts + orders from Supabase (source of truth) ──
 // Runs AFTER initial render so first paint is fast; then swaps in live data.
