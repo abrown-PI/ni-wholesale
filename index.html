@@ -2747,7 +2747,54 @@
                 <div class="form-group"><label>Minimum Order ($)</label><input type="number" class="form-control" id="vMinOrder" step="0.01" min="0" value="0"></div>
             </div>
 
-            <div class="form-group" style="margin-top:14px"><label>Notes</label><textarea class="form-control" id="vNotes" rows="3"></textarea></div>
+            <div style="padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin:18px 0 14px"><label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy)">How to Reorder</label></div>
+            <div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);margin-bottom:10px">Everything the next person needs to place a reorder without hunting. Portal password is stored in this browser only &mdash; treat as sensitive.</div>
+            <div class="form-row">
+                <div class="form-group"><label>Reorder Method</label>
+                    <select class="form-control" id="vReorderMethod">
+                        <option value="">Select...</option>
+                        <option value="website">Website portal</option>
+                        <option value="email">Email order</option>
+                        <option value="phone">Phone</option>
+                        <option value="fax">Fax</option>
+                        <option value="rep">Sales rep</option>
+                        <option value="edi">EDI / integration</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Order Cutoff / Lead Time</label><input type="text" class="form-control" id="vOrderCutoff" placeholder="e.g., By 2pm ET ships same day; delivery 3-5 days"></div>
+            </div>
+
+            <div style="background:#f5f7fa;padding:12px 14px;border-radius:6px;margin-bottom:12px;border-left:3px solid var(--ni-blue)">
+                <div style="font-family:var(--sans);font-size:12px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Website portal login</div>
+                <div class="form-row">
+                    <div class="form-group"><label>Portal URL</label><input type="url" class="form-control" id="vPortalUrl" placeholder="https://vendor-portal.example.com/login"></div>
+                    <div class="form-group"><label>Portal Username</label><input type="text" class="form-control" id="vPortalUsername" autocomplete="off"></div>
+                    <div class="form-group"><label>Portal Password</label><input type="password" class="form-control" id="vPortalPassword" autocomplete="new-password"></div>
+                </div>
+            </div>
+
+            <div style="background:#f5f7fa;padding:12px 14px;border-radius:6px;margin-bottom:12px;border-left:3px solid var(--ni-blue)">
+                <div style="font-family:var(--sans);font-size:12px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Sales rep</div>
+                <div class="form-row">
+                    <div class="form-group"><label>Rep Name</label><input type="text" class="form-control" id="vRepName"></div>
+                    <div class="form-group"><label>Rep Email</label><input type="email" class="form-control" id="vRepEmail"></div>
+                    <div class="form-group"><label>Rep Phone</label><input type="tel" class="form-control" id="vRepPhone"></div>
+                </div>
+            </div>
+
+            <div style="background:#f5f7fa;padding:12px 14px;border-radius:6px;margin-bottom:12px;border-left:3px solid var(--ni-blue)">
+                <div style="font-family:var(--sans);font-size:12px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Order-only contact (if different from main contact)</div>
+                <div class="form-row">
+                    <div class="form-group"><label>Order Email</label><input type="email" class="form-control" id="vOrderEmail" placeholder="orders@vendor.com"></div>
+                    <div class="form-group"><label>Order Phone</label><input type="tel" class="form-control" id="vOrderPhone"></div>
+                    <div class="form-group"><label>Order Fax</label><input type="text" class="form-control" id="vOrderFax"></div>
+                </div>
+            </div>
+
+            <div class="form-group"><label>Step-by-Step Ordering Instructions</label><textarea class="form-control" id="vOrderingInstructions" rows="5" placeholder="e.g.,&#10;1. Log into portal with credentials above.&#10;2. Click Reorder > Recent Orders and duplicate the last one.&#10;3. Confirm PO # matches PI account.&#10;4. Choose FedEx Ground unless order > 200 lbs then LTL."></textarea></div>
+
+            <div class="form-group" style="margin-top:14px"><label>General Notes</label><textarea class="form-control" id="vNotes" rows="3"></textarea></div>
         </div>
         <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('vendorModal')">Cancel</button><button class="btn btn-primary" onclick="saveVendor()">Save</button></div>
     </div>
@@ -10683,7 +10730,8 @@ function openVendorModal(i) {
     if (i === undefined) i = -1;
     document.getElementById('vendorEditIndex').value = i;
     document.getElementById('vendorModalTitle').textContent = i >= 0 ? 'Edit Vendor' : 'Add Vendor';
-    var fields = ['vName','vAccountNumber','vContactName','vEmail','vPhone','vWebsite','vAddress','vCity','vState','vZip','vMinOrder','vNotes'];
+    var fields = ['vName','vAccountNumber','vContactName','vEmail','vPhone','vWebsite','vAddress','vCity','vState','vZip','vMinOrder','vNotes',
+        'vReorderMethod','vOrderCutoff','vPortalUrl','vPortalUsername','vPortalPassword','vRepName','vRepEmail','vRepPhone','vOrderEmail','vOrderPhone','vOrderFax','vOrderingInstructions'];
     if (i >= 0) {
         var v = DATA.vendors[i];
         document.getElementById('vName').value = v.name || '';
@@ -10700,10 +10748,23 @@ function openVendorModal(i) {
         document.getElementById('vMinOrder').value = v.minOrder != null ? v.minOrder : 0;
         document.getElementById('vNotes').value = v.notes || '';
         document.getElementById('vStatus').value = v.status || 'active';
+        document.getElementById('vReorderMethod').value = v.reorderMethod || '';
+        document.getElementById('vOrderCutoff').value = v.orderCutoff || '';
+        document.getElementById('vPortalUrl').value = v.portalUrl || '';
+        document.getElementById('vPortalUsername').value = v.portalUsername || '';
+        document.getElementById('vPortalPassword').value = v.portalPassword || '';
+        document.getElementById('vRepName').value = v.repName || '';
+        document.getElementById('vRepEmail').value = v.repEmail || '';
+        document.getElementById('vRepPhone').value = v.repPhone || '';
+        document.getElementById('vOrderEmail').value = v.orderEmail || '';
+        document.getElementById('vOrderPhone').value = v.orderPhone || '';
+        document.getElementById('vOrderFax').value = v.orderFax || '';
+        document.getElementById('vOrderingInstructions').value = v.orderingInstructions || '';
     } else {
         fields.forEach(function(id) { document.getElementById(id).value = id === 'vMinOrder' ? '0' : ''; });
         document.getElementById('vPaymentTerms').value = 'Net-30';
         document.getElementById('vStatus').value = 'active';
+        document.getElementById('vReorderMethod').value = '';
     }
     openModal('vendorModal');
 }
@@ -10729,6 +10790,18 @@ function saveVendor() {
         minOrder: parseFloat(document.getElementById('vMinOrder').value) || 0,
         notes: document.getElementById('vNotes').value.trim(),
         status: document.getElementById('vStatus').value,
+        reorderMethod: document.getElementById('vReorderMethod').value,
+        orderCutoff: document.getElementById('vOrderCutoff').value.trim(),
+        portalUrl: document.getElementById('vPortalUrl').value.trim(),
+        portalUsername: document.getElementById('vPortalUsername').value.trim(),
+        portalPassword: document.getElementById('vPortalPassword').value,
+        repName: document.getElementById('vRepName').value.trim(),
+        repEmail: document.getElementById('vRepEmail').value.trim(),
+        repPhone: document.getElementById('vRepPhone').value.trim(),
+        orderEmail: document.getElementById('vOrderEmail').value.trim(),
+        orderPhone: document.getElementById('vOrderPhone').value.trim(),
+        orderFax: document.getElementById('vOrderFax').value.trim(),
+        orderingInstructions: document.getElementById('vOrderingInstructions').value.trim(),
         createdAt: existing.createdAt || nowIso,
         updatedAt: nowIso
     };
@@ -10789,6 +10862,8 @@ function showVendorDetail(i) {
         }).join('') + '</tbody></table></div>';
     }
 
+    var reorderHtml = buildVendorReorderPanel(v, i);
+
     document.getElementById('vendorDetailTitle').textContent = v.name;
     document.getElementById('vendorDetailBody').innerHTML =
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;font-family:var(--sans);font-size:13px">' +
@@ -10816,6 +10891,7 @@ function showVendorDetail(i) {
             '</div>' +
             (v.notes ? '<div style="grid-column:1/-1"><h3 style="font-family:var(--serif);font-size:15px;color:var(--ni-navy);margin-bottom:8px">Notes</h3><div>' + esc(v.notes) + '</div></div>' : '') +
         '</div>' +
+        reorderHtml +
         '<div style="margin-top:24px"><h3 style="font-family:var(--serif);font-size:15px;color:var(--ni-navy);margin-bottom:8px">Products from this Vendor (' + products.length + ')</h3>' + productsHtml + '</div>' +
         '<div style="margin-top:20px"><h3 style="font-family:var(--serif);font-size:15px;color:var(--ni-navy);margin-bottom:8px">Recent Purchase Orders</h3>' + posHtml + '</div>' +
         '<div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">' +
@@ -10824,6 +10900,108 @@ function showVendorDetail(i) {
             '<button class="btn btn-primary" onclick="closeModal(\'vendorDetailModal\');editVendor(' + i + ')">Edit Vendor</button>' +
         '</div>';
     openModal('vendorDetailModal');
+}
+
+// Build the "How to Reorder" panel for the vendor detail modal.
+// Only shows fields that have values so an empty vendor doesn't look cluttered.
+function buildVendorReorderPanel(v, i) {
+    var reorderMethodLabels = { website: 'Website portal', email: 'Email order', phone: 'Phone', fax: 'Fax', rep: 'Sales rep', edi: 'EDI / integration', other: 'Other' };
+    var methodLabel = reorderMethodLabels[v.reorderMethod] || '';
+    var hasAnything = !!(v.reorderMethod || v.orderCutoff || v.portalUrl || v.portalUsername || v.portalPassword || v.repName || v.repEmail || v.repPhone || v.orderEmail || v.orderPhone || v.orderFax || v.orderingInstructions);
+    if (!hasAnything) {
+        return '<div style="margin-top:24px;padding:16px;background:var(--gray-100);border-radius:6px;font-family:var(--sans);font-size:13px;color:var(--gray-600);text-align:center">' +
+            'No reorder instructions on file yet. ' +
+            '<a href="#" onclick="closeModal(\'vendorDetailModal\');editVendor(' + i + ');return false" style="color:var(--ni-deep-blue)">Add them &rarr;</a>' +
+        '</div>';
+    }
+
+    var headerBits = [];
+    if (methodLabel) headerBits.push('<span style="background:var(--ni-navy);color:#fff;padding:3px 10px;border-radius:999px;font-size:11px;letter-spacing:.5px;text-transform:uppercase">' + esc(methodLabel) + '</span>');
+    if (v.orderCutoff) headerBits.push('<span style="color:var(--gray-600);font-size:13px">&#128337; ' + esc(v.orderCutoff) + '</span>');
+
+    var portalBlock = '';
+    if (v.portalUrl || v.portalUsername || v.portalPassword) {
+        var portalRows = [];
+        if (v.portalUrl) {
+            portalRows.push('<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span><strong>Portal:</strong> <a href="' + esc(v.portalUrl) + '" target="_blank" rel="noopener" style="color:var(--ni-deep-blue);word-break:break-all">' + esc(v.portalUrl) + '</a></span><a href="' + esc(v.portalUrl) + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline" style="flex-shrink:0;margin-left:8px">Open &#8599;</a></div>');
+        }
+        if (v.portalUsername) {
+            portalRows.push('<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span><strong>Username:</strong> <code style="background:var(--gray-100);padding:2px 6px;border-radius:3px">' + esc(v.portalUsername) + '</code></span><button class="btn btn-sm btn-outline" onclick="copyVendorField(' + i + ', \'portalUsername\', this)" style="flex-shrink:0;margin-left:8px">Copy</button></div>');
+        }
+        if (v.portalPassword) {
+            portalRows.push('<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span><strong>Password:</strong> <code id="vendorPwDisplay-' + i + '" style="background:var(--gray-100);padding:2px 6px;border-radius:3px;letter-spacing:2px">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</code></span><div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px"><button class="btn btn-sm btn-outline" onclick="toggleVendorPw(' + i + ', this)">Reveal</button><button class="btn btn-sm btn-outline" onclick="copyVendorField(' + i + ', \'portalPassword\', this)">Copy</button></div></div>');
+        }
+        portalBlock = '<div style="background:#eaf3fb;padding:12px 14px;border-radius:6px;border:1px solid #cbd5e1;margin-bottom:10px">' +
+            '<div style="font-size:11px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Portal Login</div>' +
+            portalRows.join('') +
+        '</div>';
+    }
+
+    var repBlock = '';
+    if (v.repName || v.repEmail || v.repPhone) {
+        var repBits = [];
+        if (v.repName) repBits.push('<strong>' + esc(v.repName) + '</strong>');
+        if (v.repEmail) repBits.push('<a href="mailto:' + esc(v.repEmail) + '" style="color:var(--ni-deep-blue)">' + esc(v.repEmail) + '</a>');
+        if (v.repPhone) repBits.push('<a href="tel:' + esc(v.repPhone) + '" style="color:var(--ni-deep-blue)">' + esc(v.repPhone) + '</a>');
+        repBlock = '<div style="background:#f5f7fa;padding:10px 14px;border-radius:6px;margin-bottom:10px">' +
+            '<div style="font-size:11px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sales Rep</div>' +
+            '<div>' + repBits.join(' &nbsp;&middot;&nbsp; ') + '</div>' +
+        '</div>';
+    }
+
+    var orderContactBlock = '';
+    if (v.orderEmail || v.orderPhone || v.orderFax) {
+        var ocBits = [];
+        if (v.orderEmail) ocBits.push('<strong>Order email:</strong> <a href="mailto:' + esc(v.orderEmail) + '" style="color:var(--ni-deep-blue)">' + esc(v.orderEmail) + '</a>');
+        if (v.orderPhone) ocBits.push('<strong>Order phone:</strong> <a href="tel:' + esc(v.orderPhone) + '" style="color:var(--ni-deep-blue)">' + esc(v.orderPhone) + '</a>');
+        if (v.orderFax) ocBits.push('<strong>Fax:</strong> ' + esc(v.orderFax));
+        orderContactBlock = '<div style="background:#f5f7fa;padding:10px 14px;border-radius:6px;margin-bottom:10px">' +
+            '<div style="font-size:11px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Order Contact</div>' +
+            '<div style="line-height:1.7">' + ocBits.join('<br>') + '</div>' +
+        '</div>';
+    }
+
+    var stepsBlock = '';
+    if (v.orderingInstructions) {
+        stepsBlock = '<div style="background:#fefdf6;padding:12px 14px;border-radius:6px;border:1px solid #f0e8c8;margin-bottom:10px">' +
+            '<div style="font-size:11px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Step-by-Step Instructions</div>' +
+            '<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">' + esc(v.orderingInstructions) + '</div>' +
+        '</div>';
+    }
+
+    return '<div style="margin-top:24px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+            '<h3 style="font-family:var(--serif);font-size:15px;color:var(--ni-navy);margin:0">How to Reorder</h3>' +
+            (headerBits.length ? '<div style="display:flex;gap:12px;align-items:center">' + headerBits.join('') + '</div>' : '') +
+        '</div>' +
+        portalBlock + repBlock + orderContactBlock + stepsBlock +
+    '</div>';
+}
+
+// Copy a single vendor field to the clipboard and flash the button label.
+function copyVendorField(i, field, btn) {
+    var v = DATA.vendors[i];
+    if (!v || !v[field]) return;
+    try { navigator.clipboard.writeText(v[field]); } catch (e) { showToast('Copy failed', 'error'); return; }
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = orig; }, 1500);
+}
+
+// Toggle masked/revealed portal password on the vendor detail modal.
+function toggleVendorPw(i, btn) {
+    var v = DATA.vendors[i];
+    var el = document.getElementById('vendorPwDisplay-' + i);
+    if (!el || !v || !v.portalPassword) return;
+    if (btn.textContent === 'Reveal') {
+        el.textContent = v.portalPassword;
+        el.style.letterSpacing = '0';
+        btn.textContent = 'Hide';
+    } else {
+        el.textContent = '••••••••';
+        el.style.letterSpacing = '2px';
+        btn.textContent = 'Reveal';
+    }
 }
 function reorderFromVendor(i) {
     var v = DATA.vendors[i];
