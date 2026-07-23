@@ -3503,6 +3503,92 @@ function setSelectedProductCategories(names) {
     });
 }
 
+// ── Coupons + redemptions (Supabase-backed) ──
+function supaCouponToLocal(c) {
+    return {
+        id: c.id,
+        code: c.code || '',
+        description: c.description || '',
+        discountType: c.discount_type || 'percent',
+        discountValue: c.discount_value != null ? Number(c.discount_value) : 0,
+        minSubtotal: c.min_subtotal != null ? Number(c.min_subtotal) : null,
+        maxUses: c.max_uses != null ? Number(c.max_uses) : null,
+        usesCount: c.uses_count != null ? Number(c.uses_count) : 0,
+        onePerCustomer: !!c.one_per_customer,
+        expiresAt: c.expires_at || '',
+        customerId: c.customer_id || '',
+        active: c.active !== false,
+        createdAt: c.created_at || '',
+        updatedAt: c.updated_at || ''
+    };
+}
+function localCouponToSupa(c) {
+    return {
+        code: (c.code || '').toUpperCase(),
+        description: c.description || '',
+        discount_type: c.discountType || 'percent',
+        discount_value: (c.discountValue != null && c.discountValue !== '') ? Number(c.discountValue) : 0,
+        min_subtotal: (c.minSubtotal != null && c.minSubtotal !== '') ? Number(c.minSubtotal) : null,
+        max_uses: (c.maxUses != null && c.maxUses !== '') ? Number(c.maxUses) : null,
+        uses_count: Number(c.usesCount) || 0,
+        one_per_customer: !!c.onePerCustomer,
+        expires_at: c.expiresAt ? new Date(c.expiresAt).toISOString() : null,
+        customer_id: (c.customerId && /^[0-9a-f-]{36}$/i.test(c.customerId)) ? c.customerId : null,
+        active: c.active !== false,
+        updated_at: new Date().toISOString()
+    };
+}
+async function supaFetchCoupons() {
+    var r = await supa.from('coupons').select('*').order('created_at', { ascending: false });
+    if (r.error) throw r.error;
+    return (r.data || []).map(supaCouponToLocal);
+}
+async function supaSaveCoupon(coupon) {
+    var row = localCouponToSupa(coupon);
+    if (coupon.id && /^[0-9a-f-]{36}$/i.test(coupon.id)) {
+        var upd = await supa.from('coupons').update(row).eq('id', coupon.id).select().single();
+        if (upd.error) throw upd.error;
+        return supaCouponToLocal(upd.data);
+    }
+    var ins = await supa.from('coupons').insert(row).select().single();
+    if (ins.error) throw ins.error;
+    return supaCouponToLocal(ins.data);
+}
+async function supaDeleteCoupon(id) {
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return;
+    var r = await supa.from('coupons').delete().eq('id', id);
+    if (r.error) throw r.error;
+}
+async function supaFetchCouponRedemptions() {
+    var r = await supa.from('coupon_redemptions').select('*').order('created_at', { ascending: false });
+    if (r.error) throw r.error;
+    return (r.data || []).map(function(x) {
+        return { id: x.id, couponId: x.coupon_id, customerId: x.customer_id, orderId: x.order_id, discountAmount: Number(x.discount_amount) || 0, createdAt: x.created_at };
+    });
+}
+async function supaRecordCouponRedemption(couponId, customerId, orderId, discountAmount) {
+    if (!couponId) return;
+    var row = {
+        coupon_id: couponId,
+        customer_id: (customerId && /^[0-9a-f-]{36}$/i.test(customerId)) ? customerId : null,
+        order_id: (orderId && /^[0-9a-f-]{36}$/i.test(orderId)) ? orderId : null,
+        discount_amount: Number(discountAmount) || 0
+    };
+    var r = await supa.from('coupon_redemptions').insert(row);
+    if (r.error) console.warn('[coupon redemption]', r.error.message);
+}
+// Pull the fresh coupon list into DATA.coupons so validateCoupon() sees
+// what admins in other browsers have created. Safe to call anywhere.
+async function refreshCouponsFromSupabase() {
+    try {
+        var list = await supaFetchCoupons();
+        DATA.coupons = list;
+        var redemptions = await supaFetchCouponRedemptions();
+        DATA.couponRedemptions = redemptions;
+        saveData();
+    } catch (e) { console.warn('[coupons refresh]', e); }
+}
+
 // ── Inventory transactions (Supabase-backed ledger) ──
 function supaInventoryRowToLocal(r) {
     return {
@@ -7012,7 +7098,7 @@ function decrementCouponRedemption(code, orderId) {
 }
 
 // ─── Cart wire-up ───
-function applyCartCoupon() {
+async function applyCartCoupon() {
     var input = document.getElementById('cartCouponInput');
     if (!input) return;
     var code = input.value.trim().toUpperCase();
@@ -7020,6 +7106,8 @@ function applyCartCoupon() {
 
     var session = loadSession();
     if (!session) { showToast('Please log in to apply a coupon', 'error'); openModal('loginModal'); return; }
+    // Pull fresh coupon list so codes created in another browser are seen.
+    try { await refreshCouponsFromSupabase(); } catch (e) { /* silent */ }
     var accounts = loadAccounts();
     var acct = accounts.find(function(a) { return a.id === session.accountId; });
     if (!acct || acct.status !== 'Approved') { showToast('Your account must be approved to apply coupons', 'error'); return; }
@@ -7287,17 +7375,25 @@ function saveCoupon() {
         updatedAt: now
     };
 
+    var couponForSupa;
     if (idx >= 0) {
         var existing = DATA.coupons[idx];
-        // Preserve usesCount + id + createdAt on edit.
         Object.assign(existing, payload);
+        couponForSupa = existing;
     } else {
-        DATA.coupons.push(Object.assign({
-            id: newCouponId(),
-            usesCount: 0,
-            createdAt: now
-        }, payload));
+        couponForSupa = Object.assign({ usesCount: 0, createdAt: now }, payload);
+        DATA.coupons.push(couponForSupa);
     }
+    // Write to Supabase so other browsers/admins see this coupon.
+    supaSaveCoupon(couponForSupa).then(function(saved) {
+        // Backfill the returned uuid so subsequent edits target the correct row.
+        if (saved && saved.id) couponForSupa.id = saved.id;
+        saveData();
+    }).catch(function(e) {
+        var msg = (e && e.message) || 'Supabase error';
+        if (/duplicate key/i.test(msg)) msg = 'A coupon with that code already exists (in Supabase). Refresh to pull the latest list.';
+        showToast('Cloud save failed: ' + msg, 'error');
+    });
     saveData();
     closeModal('couponModal');
     renderCouponsPage();
@@ -7309,6 +7405,7 @@ function toggleCouponActive(idx) {
     if (!c) return;
     c.active = !c.active;
     c.updatedAt = new Date().toISOString();
+    supaSaveCoupon(c).catch(function(e) { showToast('Cloud save failed: ' + (e.message || e), 'error'); });
     saveData();
     renderCouponsPage();
     showToast(c.active ? 'Coupon enabled' : 'Coupon disabled');
@@ -7318,6 +7415,9 @@ function deleteCoupon(idx) {
     var c = DATA.coupons[idx];
     if (!c) return;
     if (!confirm('Delete coupon "' + c.code + '"? Past redemption rows will be kept for history but the code will no longer be valid.')) return;
+    if (c.id && /^[0-9a-f-]{36}$/i.test(c.id)) {
+        supaDeleteCoupon(c.id).catch(function(e) { console.warn('[coupon delete supa]', e); });
+    }
     DATA.coupons.splice(idx, 1);
     saveData();
     renderCouponsPage();
@@ -7561,7 +7661,7 @@ function navigate(pageId, opts) {
     if (pageId === 'admin-settings-general') renderGeneralSettings();
     if (pageId === 'admin-settings-shipping') renderShippingSettings();
     if (pageId === 'admin-site-info') renderSiteInfo();
-    if (pageId === 'admin-coupons') renderCouponsPage();
+    if (pageId === 'admin-coupons') { renderCouponsPage(); refreshCouponsFromSupabase().then(renderCouponsPage); }
     if (pageId === 'admin-payments') renderPaymentLogPage();
     if (pageId === 'checkout') renderCheckoutPage();
     if (pageId === 'quick-order') renderQuickOrderPage();
@@ -8599,10 +8699,11 @@ function formatCheckoutCardExp(input) {
     else input.value = v;
 }
 
-function applyCheckoutCoupon() {
+async function applyCheckoutCoupon() {
     var input = document.getElementById('checkoutCouponInput');
     var code = (input.value || '').trim().toUpperCase();
     if (!code) { showToast('Enter a coupon code', 'error'); return; }
+    try { await refreshCouponsFromSupabase(); } catch (e) { /* silent */ }
     var ctx = getCheckoutContext();
     var customerId = (ctx.customer && ctx.customer.id) || (ctx.account && ctx.account.customerId) || '';
     var sub = checkoutSubtotal();
@@ -14898,13 +14999,14 @@ loadProductClasses().then(function() {
     var pricingPage = document.getElementById('page-admin-pricing-defaults');
     if (pricingPage && pricingPage.classList.contains('active') && typeof renderPricingDefaultsPage === 'function') renderPricingDefaultsPage();
 });
-// Categories are readable by anyone (public read RLS). Load them so the
-// storefront filter + product edit dropdown always show the current list.
+// Public-read lookup tables (categories, item types, expense accounts,
+// coupons) load on boot so storefront + product forms have live values.
 refreshCategories();
-// Item types + expense accounts feed dropdowns on the product form and
-// class modal; load once on boot so those dropdowns populate on open.
 loadItemTypes().then(populateItemTypeDropdown);
 loadExpenseAccounts().then(populateExpenseAccountDropdowns);
+// Coupons: authenticated read only, but load them so validation works
+// across browsers (customer types code -> DATA.coupons has fresh list).
+refreshCouponsFromSupabase();
 
 // Browser back/forward — URL is source of truth
 window.addEventListener('popstate', function(e) {
