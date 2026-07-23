@@ -1380,40 +1380,56 @@
 <!-- ═══════════ PAGE: ADMIN — CLASS PRICING DEFAULTS ═══════════ -->
 <div class="page" id="page-admin-pricing-defaults">
     <div class="card">
-        <div class="card-header"><h2>Class Pricing Defaults</h2></div>
-        <div class="card-body">
-            <div style="background:var(--ni-cream);border-left:4px solid var(--ni-blue);padding:12px 16px;border-radius:var(--radius);margin-bottom:20px;font-family:var(--sans);font-size:13px;color:var(--ni-navy);line-height:1.5">
-                Set the default margin (% over cost) that gets auto-filled when you pick a Product Class on the product edit form. These defaults control pricing for every product that doesn't have its own per-product override.
-                <br><br>
-                <strong>Wholesale price</strong> = cost &times; (1 + margin/100). So Cost $10 + 20% margin = $12 wholesale.
-            </div>
+        <div class="card-header">
+            <h2>Product Classes &amp; Pricing</h2>
+            <button class="btn btn-primary" onclick="openProductClassModal()">+ Add Class</button>
+        </div>
+        <div style="padding:12px 18px 0;font-size:13px;color:var(--gray-600);font-family:var(--sans);line-height:1.5">
+            Each class has a <strong>Standard Margin %</strong> (regular customers) and <strong>Insider Margin %</strong> (PI + partners). Product wholesale price = cost &times; (1 + margin/100). When you edit a class, you can push the new margins to every product using it.
+        </div>
+        <div class="table-wrap" style="margin-top:12px">
+            <table>
+                <thead><tr><th style="width:60px">Order</th><th>Class</th><th style="width:150px">Standard %</th><th style="width:150px">Insider %</th><th style="width:120px">Products</th><th style="width:100px">Status</th><th style="width:220px">Actions</th></tr></thead>
+                <tbody id="productClassesBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-            <div class="table-wrap" style="max-width:720px">
-                <table>
-                    <thead><tr><th>Product Class</th><th style="width:180px">Standard Margin %</th><th style="width:180px">Insider (PI) Margin %</th></tr></thead>
-                    <tbody id="pricingDefaultsBody"></tbody>
-                </table>
+<!-- Product Class Add/Edit Modal -->
+<div class="modal-overlay" id="productClassModal">
+    <div class="modal" style="max-width:520px">
+        <div class="modal-header"><h2 id="productClassModalTitle">Add Product Class</h2><button class="modal-close" onclick="closeModal('productClassModal')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="pcOriginalSlug">
+            <div class="form-row">
+                <div class="form-group"><label>Class Name *</label><input type="text" class="form-control" id="pcLabel" placeholder="e.g., Beauty / Anti-Aging" oninput="onProductClassLabelInput()"></div>
+                <div class="form-group"><label>Sort Order</label><input type="number" class="form-control" id="pcSortOrder" min="0" step="10" value="100"></div>
             </div>
-
-            <div style="margin-top:16px;display:flex;gap:8px">
-                <button class="btn btn-primary" onclick="savePricingDefaultsForm()">Save Defaults</button>
-                <button class="btn btn-outline" onclick="renderPricingDefaultsPage()">Cancel</button>
+            <div class="form-group"><label>Slug (internal identifier)</label><input type="text" class="form-control" id="pcSlug" placeholder="auto-generated from name" style="font-family:monospace"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Auto-generated from the name. Only edit if you need a specific value &mdash; changing this on an existing class breaks any products already tagged with it.</div></div>
+            <div class="form-row">
+                <div class="form-group"><label>Standard Margin %</label><input type="number" class="form-control" id="pcStandardMargin" step="0.1" min="0" placeholder="e.g., 20"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">% over cost for regular customers.</div></div>
+                <div class="form-group"><label>Insider Margin %</label><input type="number" class="form-control" id="pcInsiderMargin" step="0.1" min="0" placeholder="e.g., 10"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">% over cost for PI + insider pharmacies.</div></div>
             </div>
-
-            <div style="border-top:1px solid var(--gray-200);margin-top:32px;padding-top:24px">
-                <h3 style="font-family:var(--serif);color:var(--ni-navy);margin:0 0 8px">Mass Update Products</h3>
-                <p style="font-size:13px;color:var(--gray-600);font-family:var(--sans);margin:0 0 16px">Wipe per-product margin overrides on every product in a class so the class default fully takes over. Before writing, we show you which products have overrides different from the current default so you can decide to keep them.</p>
-                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-                    <label style="font-family:var(--sans);font-size:13px">Apply defaults to:</label>
-                    <select class="form-control" id="massUpdateClass" style="width:auto">
-                        <option value="private_label">Private label</option>
-                        <option value="manufactured">Manufactured</option>
-                        <option value="resale">Resale</option>
-                    </select>
-                    <button class="btn btn-accent" onclick="previewMassPriceUpdate()">Preview &amp; Apply</button>
-                </div>
-                <div id="massUpdatePreview" style="margin-top:16px"></div>
+            <div class="form-group"><label>Status</label>
+                <select class="form-control" id="pcActive">
+                    <option value="true">Active</option>
+                    <option value="false">Inactive (hidden from product dropdown)</option>
+                </select>
             </div>
+            <div id="pcMassUpdateBlock" style="display:none;margin-top:14px;padding:12px 14px;background:#fef9e7;border:1px solid #f4d03f;border-radius:6px;font-family:var(--sans);font-size:13px">
+                <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin:0">
+                    <input type="checkbox" id="pcApplyToProducts" style="margin-top:3px">
+                    <span>
+                        <strong>Also update <span id="pcMassCount">0</span> product(s) using this class</strong>
+                        <div style="font-size:12px;color:var(--gray-600);margin-top:4px">Clears per-product overrides so every product in this class picks up the new margin. Products with custom overrides different from the class default get a chance to opt out on the next screen.</div>
+                    </span>
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('productClassModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveProductClassForm()">Save Class</button>
         </div>
     </div>
 </div>
@@ -2520,11 +2536,8 @@
                 </div>
                 <div class="form-group"><label>Product Class</label>
                     <select class="form-control" id="pProductClass" onchange="onProductClassChange()">
-                        <option value="private_label">Private label (NI-branded)</option>
-                        <option value="manufactured">Manufactured (third-party brand)</option>
-                        <option value="resale">Resale (third-party for resale)</option>
                     </select>
-                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Changing this auto-fills the margin fields with the class default.</div>
+                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Changing this auto-fills the margin fields with the class default. <a href="#" onclick="event.preventDefault();navigate('admin-pricing-defaults')" style="color:var(--ni-blue)">Manage classes &rarr;</a></div>
                 </div>
             </div>
             <div class="form-row">
@@ -3373,161 +3386,230 @@ async function deleteCategory(i) {
     showToast('Category deleted');
 }
 
-// ── Class Pricing Defaults admin page ──
-var PRICING_CLASS_LABELS = { private_label: 'Private label', manufactured: 'Manufactured', resale: 'Resale' };
+// ── Product Classes admin page (CRUD + mass-update prompt on edit) ──
+function populateProductClassDropdown() {
+    var sel = document.getElementById('pProductClass');
+    if (!sel) return;
+    var prev = sel.value;
+    var active = (PRODUCT_CLASSES || []).filter(function(c) { return c.active !== false; });
+    sel.innerHTML = active.map(function(c) { return '<option value="' + esc(c.slug) + '">' + esc(c.label) + '</option>'; }).join('');
+    if (prev && Array.prototype.some.call(sel.options, function(o) { return o.value === prev; })) sel.value = prev;
+}
 
 function renderPricingDefaultsPage() {
-    var body = document.getElementById('pricingDefaultsBody');
+    var body = document.getElementById('productClassesBody');
     if (!body) return;
-    // Ensure we have the latest rules from Supabase before rendering.
-    loadPricingTierRules().then(function() {
-        var classes = ['private_label', 'manufactured', 'resale'];
-        body.innerHTML = classes.map(function(cls) {
-            var std = getClassDefaultPct('standard', cls);
-            var ins = getClassDefaultPct('insider', cls);
+    loadProductClasses().then(function() {
+        populateProductClassDropdown();
+        if (!PRODUCT_CLASSES.length) {
+            body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:24px;font-family:var(--sans)">No product classes yet. Click "+ Add Class" to create one.</td></tr>';
+            return;
+        }
+        body.innerHTML = PRODUCT_CLASSES.map(function(c) {
+            var count = (DATA.products || []).filter(function(p) { return p.productClass === c.slug; }).length;
+            var badge = c.active !== false
+                ? '<span class="badge badge-success">Active</span>'
+                : '<span class="badge badge-danger">Inactive</span>';
             return '<tr>' +
-                '<td><strong>' + esc(PRICING_CLASS_LABELS[cls]) + '</strong> <span style="color:var(--gray-500);font-size:11px;font-family:monospace">(' + cls + ')</span></td>' +
-                '<td><input type="number" min="0" step="0.1" class="form-control" data-class="' + cls + '" data-tier="standard" value="' + (std != null ? std : '') + '" style="width:120px"> <span style="color:var(--gray-500);font-size:12px">%</span></td>' +
-                '<td><input type="number" min="0" step="0.1" class="form-control" data-class="' + cls + '" data-tier="insider" value="' + (ins != null ? ins : '') + '" style="width:120px"> <span style="color:var(--gray-500);font-size:12px">%</span></td>' +
+                '<td>' + Number(c.sortOrder || 100) + '</td>' +
+                '<td><strong>' + esc(c.label) + '</strong> <span style="color:var(--gray-500);font-size:11px;font-family:monospace">(' + esc(c.slug) + ')</span></td>' +
+                '<td>+' + Number(c.standardMargin).toFixed(1) + '%</td>' +
+                '<td>+' + Number(c.insiderMargin).toFixed(1) + '%</td>' +
+                '<td>' + count + '</td>' +
+                '<td>' + badge + '</td>' +
+                '<td style="white-space:nowrap">' +
+                    '<button class="btn btn-sm btn-outline" onclick="openProductClassModal(\'' + esc(c.slug) + '\')">Edit</button> ' +
+                    '<button class="btn btn-sm btn-danger" onclick="deleteProductClassFlow(\'' + esc(c.slug) + '\')">Delete</button>' +
+                '</td>' +
             '</tr>';
         }).join('');
-        // Clear any stale preview.
-        var preview = document.getElementById('massUpdatePreview');
-        if (preview) preview.innerHTML = '';
     });
 }
 
-async function savePricingDefaultsForm() {
-    var rules = { insider: {}, standard: {} };
-    document.querySelectorAll('#pricingDefaultsBody input[data-class]').forEach(function(inp) {
-        var cls = inp.getAttribute('data-class');
-        var tier = inp.getAttribute('data-tier');
-        var v = Number(inp.value);
-        if (!isNaN(v) && v >= 0) rules[tier][cls] = v;
-    });
-    try { await savePricingTierRules(rules); }
-    catch (e) { showToast('Save failed: ' + (e.message || e), 'error'); return; }
-    showToast('Pricing defaults saved. New products in each class will use these markups.');
-    // Also update in-memory storefront prices immediately.
-    if (typeof renderStorefront === 'function') { try { renderStorefront(); } catch (_e) {} }
-    renderCart();
+// Turn "Beauty / Anti-Aging" into "beauty_anti_aging" for the slug field.
+function slugifyClassName(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+// Only auto-populate the slug field when the admin hasn't manually
+// edited it or when adding a brand-new class.
+function onProductClassLabelInput() {
+    var slugField = document.getElementById('pcSlug');
+    if (!slugField) return;
+    var editingExisting = !!document.getElementById('pcOriginalSlug').value;
+    if (editingExisting) return; // never auto-clobber a saved slug
+    slugField.value = slugifyClassName(document.getElementById('pcLabel').value);
 }
 
-// Show a preview of what a mass update to the selected class would touch,
-// including a list of products whose current override differs from the
-// new default. Admin then confirms or cancels.
-async function previewMassPriceUpdate() {
-    var cls = document.getElementById('massUpdateClass').value;
-    var preview = document.getElementById('massUpdatePreview');
-    if (!preview) return;
-    preview.innerHTML = '<div style="padding:16px;color:var(--gray-500);font-family:var(--sans);font-size:13px">Loading…</div>';
+function openProductClassModal(slug) {
+    var editing = !!slug;
+    var existing = editing ? PRODUCT_CLASSES.find(function(x) { return x.slug === slug; }) : null;
+    document.getElementById('productClassModalTitle').textContent = editing ? 'Edit Class' : 'Add Class';
+    document.getElementById('pcOriginalSlug').value = editing ? slug : '';
+    document.getElementById('pcLabel').value = existing ? existing.label : '';
+    document.getElementById('pcSlug').value = existing ? existing.slug : '';
+    document.getElementById('pcSortOrder').value = existing ? existing.sortOrder : (100 + (PRODUCT_CLASSES.length * 10));
+    document.getElementById('pcStandardMargin').value = existing ? existing.standardMargin : 20;
+    document.getElementById('pcInsiderMargin').value = existing ? existing.insiderMargin : 10;
+    document.getElementById('pcActive').value = existing ? String(existing.active !== false) : 'true';
 
-    // Pull fresh product list from Supabase so we don't mass-update against stale local state.
-    var res = await supa.from('products').select('id, sku, name, product_class, insider_markup, standard_markup, cost_per_unit')
-        .eq('product_class', cls);
-    if (res.error) { preview.innerHTML = '<div style="color:var(--danger);padding:16px">Load failed: ' + esc(res.error.message) + '</div>'; return; }
+    // Show the "also update N products" opt-in only when editing a class
+    // that has products attached.
+    var count = editing ? (DATA.products || []).filter(function(p) { return p.productClass === slug; }).length : 0;
+    var block = document.getElementById('pcMassUpdateBlock');
+    var applyCb = document.getElementById('pcApplyToProducts');
+    applyCb.checked = false;
+    if (block) block.style.display = (editing && count > 0) ? 'block' : 'none';
+    document.getElementById('pcMassCount').textContent = count;
 
-    var products = res.data || [];
-    var insiderDefault = getClassDefaultPct('insider', cls);
-    var standardDefault = getClassDefaultPct('standard', cls);
+    openModal('productClassModal');
+    setTimeout(function() { document.getElementById('pcLabel').focus(); }, 50);
+}
 
-    if (!products.length) {
-        preview.innerHTML = '<div style="padding:16px;color:var(--gray-500);font-family:var(--sans);font-size:13px">No products in the <strong>' + esc(PRICING_CLASS_LABELS[cls]) + '</strong> class yet.</div>';
+async function saveProductClassForm() {
+    var originalSlug = document.getElementById('pcOriginalSlug').value || '';
+    var label = (document.getElementById('pcLabel').value || '').trim();
+    if (!label) { showToast('Class name required', 'error'); return; }
+    var slug = (document.getElementById('pcSlug').value || '').trim();
+    if (!slug) slug = slugifyClassName(label);
+    if (!/^[a-z0-9_]+$/i.test(slug)) { showToast('Slug can only contain letters, numbers, and underscores', 'error'); return; }
+    var cls = {
+        slug: slug,
+        label: label,
+        sortOrder: Number(document.getElementById('pcSortOrder').value) || 100,
+        standardMargin: Number(document.getElementById('pcStandardMargin').value) || 0,
+        insiderMargin: Number(document.getElementById('pcInsiderMargin').value) || 0,
+        active: document.getElementById('pcActive').value === 'true'
+    };
+    var isNew = !originalSlug;
+    if (!isNew && originalSlug !== slug) {
+        // Slug rename — need to update every product that referenced the old slug too.
+        if (!confirm('Renaming the slug from "' + originalSlug + '" to "' + slug + '" will re-tag every product using it. Proceed?')) return;
+    }
+    try {
+        if (!isNew && originalSlug !== slug) {
+            await supa.from('products').update({ product_class: slug }).eq('product_class', originalSlug);
+            await supa.from('product_classes').update({ slug: slug }).eq('slug', originalSlug);
+        }
+        await saveProductClass(cls, isNew && originalSlug === '');
+    } catch (e) {
+        var msg = (e && e.message) || 'Supabase error';
+        if (/duplicate key|product_classes_pkey/i.test(msg)) msg = 'A class with that slug already exists';
+        showToast('Save failed: ' + msg, 'error');
         return;
     }
 
-    // Classify: which products have overrides that differ from the class defaults?
-    var conflicts = [];
-    var willReset = [];
-    var alreadyMatchesOrBlank = [];
-    products.forEach(function(p) {
-        var hasInsider = p.insider_markup != null;
-        var hasStandard = p.standard_markup != null;
-        if (!hasInsider && !hasStandard) { alreadyMatchesOrBlank.push(p); return; }
-        var insiderMatches = !hasInsider || Number(p.insider_markup) === insiderDefault;
-        var standardMatches = !hasStandard || Number(p.standard_markup) === standardDefault;
-        if (insiderMatches && standardMatches) { willReset.push(p); return; }
-        conflicts.push({ product: p, insiderMatches: insiderMatches, standardMatches: standardMatches });
-    });
+    var applyToProducts = document.getElementById('pcApplyToProducts').checked;
+    closeModal('productClassModal');
+    populateProductClassDropdown();
 
-    var html = '<div style="border:1px solid var(--gray-200);border-radius:6px;padding:16px;background:white;font-family:var(--sans);font-size:13px;line-height:1.5">';
-    html += '<div style="margin-bottom:12px"><strong>' + products.length + ' product' + (products.length === 1 ? '' : 's') + ' in ' + esc(PRICING_CLASS_LABELS[cls]) + '.</strong> After update: <strong>+' + standardDefault + '% standard, +' + insiderDefault + '% insider</strong>.</div>';
-
-    if (conflicts.length) {
-        html += '<div style="margin:16px 0 8px;color:#c97a1a"><strong>' + conflicts.length + ' product' + (conflicts.length === 1 ? ' has' : 's have') + ' custom overrides that will be wiped.</strong> Uncheck any you want to <em>keep</em> as-is:</div>';
-        html += '<div style="max-height:280px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:4px;padding:8px 12px">';
-        html += conflicts.map(function(row, i) {
-            var p = row.product;
-            var stdCell = row.standardMatches ? '<span style="color:var(--gray-500)">matches</span>' : '<code style="background:var(--gray-100);padding:1px 4px;border-radius:3px">' + (p.standard_markup != null ? p.standard_markup + '%' : '(blank)') + '</code> &rarr; <code style="background:#eaf3fb;padding:1px 4px;border-radius:3px">' + standardDefault + '%</code>';
-            var insCell = row.insiderMatches ? '<span style="color:var(--gray-500)">matches</span>' : '<code style="background:var(--gray-100);padding:1px 4px;border-radius:3px">' + (p.insider_markup != null ? p.insider_markup + '%' : '(blank)') + '</code> &rarr; <code style="background:#eaf3fb;padding:1px 4px;border-radius:3px">' + insiderDefault + '%</code>';
-            return '<div style="display:grid;grid-template-columns:24px 1fr auto auto;gap:12px;padding:6px 0;border-bottom:1px solid var(--gray-100);align-items:center">' +
-                '<input type="checkbox" checked data-mass-update-id="' + esc(p.id) + '">' +
-                '<div><strong>' + esc(p.name) + '</strong> <span style="color:var(--gray-500);font-family:monospace;font-size:11px">' + esc(p.sku || '') + '</span></div>' +
-                '<div style="font-size:12px;white-space:nowrap">std: ' + stdCell + '</div>' +
-                '<div style="font-size:12px;white-space:nowrap">ins: ' + insCell + '</div>' +
-            '</div>';
-        }).join('');
-        html += '</div>';
+    if (applyToProducts && !isNew) {
+        // Prompt for the conflict-preview flow.
+        await previewClassMassUpdate(slug);
+    } else {
+        // Immediately refresh product cache + storefront so new margins apply.
+        try {
+            var fresh = await supaFetchProducts();
+            DATA.products = fresh;
+            saveData();
+        } catch (_e) { /* silent */ }
+        showToast(isNew ? 'Class added' : 'Class updated');
     }
-
-    if (willReset.length) {
-        html += '<div style="margin:16px 0 4px;color:var(--gray-600)"><strong>' + willReset.length + ' already-matching product' + (willReset.length === 1 ? '' : 's') + '</strong> will be normalized (overrides set to null, defaults apply).</div>';
-    }
-    if (alreadyMatchesOrBlank.length) {
-        html += '<div style="margin:8px 0 0;color:var(--gray-600)">' + alreadyMatchesOrBlank.length + ' product' + (alreadyMatchesOrBlank.length === 1 ? '' : 's') + ' already use the class default (no override) &mdash; no change needed.</div>';
-    }
-
-    html += '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">' +
-        '<button class="btn btn-outline" onclick="document.getElementById(\'massUpdatePreview\').innerHTML=\'\'">Cancel</button>' +
-        '<button class="btn btn-primary" onclick="confirmMassPriceUpdate(\'' + esc(cls) + '\')">Apply Update</button>' +
-    '</div></div>';
-
-    preview.innerHTML = html;
+    renderPricingDefaultsPage();
 }
 
-async function confirmMassPriceUpdate(cls) {
-    // Build the set of product IDs to touch:
-    //   - every product in the class where overrides ARE null (already default)
-    //   - every product in the class where overrides match the default
-    //   - every conflicting product where the admin left the box checked
-    var preview = document.getElementById('massUpdatePreview');
-    if (preview) preview.innerHTML = '<div style="padding:16px;color:var(--gray-500);font-family:var(--sans);font-size:13px">Applying…</div>';
+async function deleteProductClassFlow(slug) {
+    var count = (DATA.products || []).filter(function(p) { return p.productClass === slug; }).length;
+    var msg = 'Delete class "' + getClassLabel(slug) + '"?';
+    if (count > 0) msg += '\n\n' + count + ' product(s) currently use this class. They will keep the class name in their record but no longer have a default margin (their per-product overrides will still work).';
+    if (!confirm(msg)) return;
+    try { await deleteProductClass(slug); }
+    catch (e) { showToast('Delete failed: ' + (e.message || 'Supabase error'), 'error'); return; }
+    populateProductClassDropdown();
+    renderPricingDefaultsPage();
+    showToast('Class deleted');
+}
 
-    var idsChecked = new Set();
-    document.querySelectorAll('#massUpdatePreview input[type="checkbox"][data-mass-update-id]').forEach(function(cb) {
-        if (cb.checked) idsChecked.add(cb.getAttribute('data-mass-update-id'));
-    });
-
-    // Also fetch the fresh product list again so we can add non-conflict rows.
-    var res = await supa.from('products').select('id, insider_markup, standard_markup').eq('product_class', cls);
+// Show conflict preview when the admin chose "also update products" on edit.
+async function previewClassMassUpdate(slug) {
+    var res = await supa.from('products').select('id, sku, name, insider_markup, standard_markup').eq('product_class', slug);
     if (res.error) { showToast('Load failed: ' + res.error.message, 'error'); return; }
-    var idsToNull = [];
-    var insiderDefault = getClassDefaultPct('insider', cls);
-    var standardDefault = getClassDefaultPct('standard', cls);
-    (res.data || []).forEach(function(p) {
+    var products = res.data || [];
+    var cls = PRODUCT_CLASSES.find(function(x) { return x.slug === slug; });
+    if (!cls) { showToast('Class not found', 'error'); return; }
+    var stdDef = Number(cls.standardMargin) || 0;
+    var insDef = Number(cls.insiderMargin) || 0;
+
+    var conflicts = [];
+    var idsAlwaysUpdate = [];
+    products.forEach(function(p) {
         var hasOverride = p.insider_markup != null || p.standard_markup != null;
-        var insiderMatches = p.insider_markup == null || Number(p.insider_markup) === insiderDefault;
-        var standardMatches = p.standard_markup == null || Number(p.standard_markup) === standardDefault;
-        if (!hasOverride) { idsToNull.push(p.id); return; }
-        if (insiderMatches && standardMatches) { idsToNull.push(p.id); return; }
-        // Conflict: only include if the admin left the checkbox checked
-        if (idsChecked.has(p.id)) idsToNull.push(p.id);
+        if (!hasOverride) { idsAlwaysUpdate.push(p.id); return; }
+        var insMatches = p.insider_markup == null || Number(p.insider_markup) === insDef;
+        var stdMatches = p.standard_markup == null || Number(p.standard_markup) === stdDef;
+        if (insMatches && stdMatches) { idsAlwaysUpdate.push(p.id); return; }
+        conflicts.push({ product: p, insMatches: insMatches, stdMatches: stdMatches });
     });
 
-    if (!idsToNull.length) { showToast('Nothing to update', 'error'); return; }
+    if (!conflicts.length) {
+        // Nothing to ask about — just apply.
+        return applyClassMassUpdate(slug, idsAlwaysUpdate, null);
+    }
 
-    var upd = await supa.from('products').update({ insider_markup: null, standard_markup: null }).in('id', idsToNull);
+    // Render preview modal-lite inline on the page.
+    var preview = document.getElementById('productClassesBody');
+    if (!preview) return;
+    var previewCard = document.createElement('div');
+    previewCard.className = 'card';
+    previewCard.style.marginTop = '20px';
+    previewCard.style.border = '2px solid var(--ni-deep-blue)';
+    previewCard.innerHTML =
+        '<div class="card-header"><h3 style="margin:0">Confirm mass update for ' + esc(cls.label) + '</h3></div>' +
+        '<div class="card-body" style="font-family:var(--sans);font-size:13px;line-height:1.5">' +
+            '<div style="margin-bottom:12px">' + conflicts.length + ' product(s) have overrides that would change. Uncheck any you want to <em>keep</em> as-is (their overrides stay).</div>' +
+            '<div style="max-height:320px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:4px;padding:8px 12px">' +
+                conflicts.map(function(row) {
+                    var p = row.product;
+                    var stdCell = row.stdMatches ? '<span style="color:var(--gray-500)">matches</span>' : '<code>' + (p.standard_markup != null ? p.standard_markup + '%' : 'null') + '</code> &rarr; <code style="background:#eaf3fb;padding:1px 4px;border-radius:3px">' + stdDef + '%</code>';
+                    var insCell = row.insMatches ? '<span style="color:var(--gray-500)">matches</span>' : '<code>' + (p.insider_markup != null ? p.insider_markup + '%' : 'null') + '</code> &rarr; <code style="background:#eaf3fb;padding:1px 4px;border-radius:3px">' + insDef + '%</code>';
+                    return '<div style="display:grid;grid-template-columns:24px 1fr auto auto;gap:12px;padding:6px 0;border-bottom:1px solid var(--gray-100);align-items:center">' +
+                        '<input type="checkbox" checked data-conflict-id="' + esc(p.id) + '">' +
+                        '<div><strong>' + esc(p.name) + '</strong> <span style="color:var(--gray-500);font-family:monospace;font-size:11px">' + esc(p.sku || '') + '</span></div>' +
+                        '<div style="font-size:12px;white-space:nowrap">std: ' + stdCell + '</div>' +
+                        '<div style="font-size:12px;white-space:nowrap">ins: ' + insCell + '</div>' +
+                    '</div>';
+                }).join('') +
+            '</div>' +
+            '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">' +
+                '<button class="btn btn-outline" id="pcConflictCancelBtn">Cancel</button>' +
+                '<button class="btn btn-primary" id="pcConflictApplyBtn">Apply Update</button>' +
+            '</div>' +
+        '</div>';
+    preview.closest('.card').parentNode.appendChild(previewCard);
+
+    document.getElementById('pcConflictCancelBtn').onclick = function() { previewCard.remove(); showToast('Class saved. Existing overrides kept.'); };
+    document.getElementById('pcConflictApplyBtn').onclick = async function() {
+        var checked = Array.from(previewCard.querySelectorAll('input[data-conflict-id]:checked')).map(function(cb) { return cb.getAttribute('data-conflict-id'); });
+        var ids = idsAlwaysUpdate.concat(checked);
+        await applyClassMassUpdate(slug, ids, previewCard);
+    };
+}
+
+async function applyClassMassUpdate(slug, ids, previewCardEl) {
+    if (!ids.length) {
+        if (previewCardEl) previewCardEl.remove();
+        showToast('Class saved. Nothing to update.');
+        return;
+    }
+    var upd = await supa.from('products').update({ insider_markup: null, standard_markup: null }).in('id', ids);
     if (upd.error) { showToast('Update failed: ' + upd.error.message, 'error'); return; }
-
-    // Refresh local DATA.products so UI reflects the change.
     try {
         var fresh = await supaFetchProducts();
         DATA.products = fresh;
         saveData();
     } catch (_e) { /* silent */ }
-
-    showToast('Updated ' + idsToNull.length + ' product' + (idsToNull.length === 1 ? '' : 's') + ' to class defaults.');
-    if (preview) preview.innerHTML = '<div style="padding:12px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;font-family:var(--sans);font-size:13px;color:#166534">Updated ' + idsToNull.length + ' product' + (idsToNull.length === 1 ? '' : 's') + '. Their prices now follow the class defaults.</div>';
+    if (previewCardEl) previewCardEl.remove();
+    showToast('Class saved. Updated ' + ids.length + ' product(s) to the new default.');
+    renderPricingDefaultsPage();
 }
 
 // ── Vendor mappers & CRUD ──
@@ -11146,37 +11228,60 @@ async function loadSiteSettings() {
 }
 
 // ─── Tier-based pricing ────────────────────────────────────────────────────
-// Wholesale price for any product = cost_per_unit * (1 + markupPct/100),
-// where markupPct comes from PRICING_TIER_RULES keyed by tier + class,
-// unless the product itself has an override (products.insider_markup /
-// products.standard_markup). All rule + override values are PERCENTAGES
-// (10 = 10% over cost, 20 = 20% over cost, etc.).
-var PRICING_TIER_RULES = {
-    insider:  { manufactured: 10, private_label: 10, resale: 10 },
-    standard: { manufactured: 50, private_label: 20, resale: 20 }
-};
-async function loadPricingTierRules() {
+// Wholesale price for any product = cost_per_unit * (1 + markupPct/100).
+// The class defaults live in the product_classes Supabase table (loaded
+// into PRODUCT_CLASSES on boot). Per-product overrides on
+// products.insider_markup / products.standard_markup take precedence.
+// Values are PERCENTAGES (10 = 10% over cost).
+var PRODUCT_CLASSES = [];
+async function loadProductClasses() {
     try {
-        var r = await supa.from('settings').select('value').eq('key', 'pricing_tier_rules').single();
-        if (r.data && r.data.value && typeof r.data.value === 'object') {
-            PRICING_TIER_RULES = r.data.value;
-        }
-    } catch (e) { console.warn('[pricing rules] load failed, using defaults:', e); }
-    return PRICING_TIER_RULES;
+        var r = await supa.from('product_classes').select('*').order('sort_order').order('label');
+        if (r.error) throw r.error;
+        PRODUCT_CLASSES = (r.data || []).map(function(c) {
+            return {
+                slug: c.slug, label: c.label,
+                standardMargin: Number(c.standard_margin) || 0,
+                insiderMargin: Number(c.insider_margin) || 0,
+                sortOrder: Number(c.sort_order) || 100,
+                active: c.active !== false,
+                createdAt: c.created_at || '', updatedAt: c.updated_at || ''
+            };
+        });
+    } catch (e) { console.warn('[product_classes] load failed:', e); }
+    return PRODUCT_CLASSES;
 }
-// Save the class defaults back to Supabase.
-async function savePricingTierRules(rules) {
-    var res = await supa.from('settings').upsert({ key: 'pricing_tier_rules', value: rules });
+async function saveProductClass(cls, isNew) {
+    var row = {
+        slug: cls.slug, label: cls.label || cls.slug,
+        standard_margin: Number(cls.standardMargin) || 0,
+        insider_margin: Number(cls.insiderMargin) || 0,
+        sort_order: Number(cls.sortOrder) || 100,
+        active: cls.active !== false,
+        updated_at: new Date().toISOString()
+    };
+    var res = isNew
+        ? await supa.from('product_classes').insert(row).select().single()
+        : await supa.from('product_classes').update(row).eq('slug', cls.slug).select().single();
     if (res.error) throw res.error;
-    PRICING_TIER_RULES = rules;
+    await loadProductClasses();
+    return res.data;
 }
-// Class default lookup with resale falling back to private_label if the
-// admin never set a resale value.
-function getClassDefaultPct(tier, cls) {
-    var rulesForTier = PRICING_TIER_RULES[tier] || {};
-    if (rulesForTier[cls] != null) return Number(rulesForTier[cls]);
-    if (cls === 'resale' && rulesForTier.private_label != null) return Number(rulesForTier.private_label);
-    return null;
+async function deleteProductClass(slug) {
+    var res = await supa.from('product_classes').delete().eq('slug', slug);
+    if (res.error) throw res.error;
+    await loadProductClasses();
+}
+// Look up the current default margin for a tier + class slug. Returns null
+// if the class doesn't exist (product with a stale class name).
+function getClassDefaultPct(tier, slug) {
+    var c = PRODUCT_CLASSES.find(function(x) { return x.slug === slug; });
+    if (!c) return null;
+    return tier === 'insider' ? c.insiderMargin : c.standardMargin;
+}
+function getClassLabel(slug) {
+    var c = PRODUCT_CLASSES.find(function(x) { return x.slug === slug; });
+    return c ? c.label : slug;
 }
 // Returns 'insider' or 'standard' based on the currently-logged-in customer.
 // Anonymous storefront visitors + admins previewing without a customer session
@@ -14025,10 +14130,10 @@ loadData();
 populateVendorDropdowns();
 renderCart();
 updateLoginUI();
-// Load the pricing tier multipliers so getEffectivePrice() gets real
-// numbers instead of the built-in fallbacks. Fires on every page load,
-// including anonymous visitors so the storefront shows correct prices.
-loadPricingTierRules().then(function() {
+// Load product classes (source of truth for tier margins) so
+// getEffectivePrice() computes correct storefront prices on first paint.
+loadProductClasses().then(function() {
+    populateProductClassDropdown();
     if (typeof renderStorefront === 'function' && document.getElementById('page-storefront')) renderStorefront();
     renderCart();
 });
