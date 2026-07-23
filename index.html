@@ -2529,23 +2529,23 @@
                 <div class="form-group"><label>Vendor Part Number</label><input type="text" class="form-control" id="pVendorPartNum"></div>
                 <div class="form-group"><label>UPC Number</label><input type="text" class="form-control" id="pUpc"></div>
                 <div class="form-group"><label>Package Size</label><input type="text" class="form-control" id="pPackageSize" placeholder="e.g., 120 Capsules"></div>
-                <div class="form-group"><label>Categories</label>
+                <div class="form-group" style="grid-column:span 2"><label>Categories</label>
                     <div id="pCategoriesList" style="border:1px solid var(--gray-300);border-radius:6px;padding:8px 10px;max-height:120px;overflow-y:auto;background:white;font-family:var(--sans);font-size:13px;line-height:1.6"></div>
                     <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Tick every category this product belongs to. The first ticked becomes the primary category. <a href="#" onclick="event.preventDefault();navigate('admin-categories')" style="color:var(--ni-blue)">Manage list &rarr;</a></div>
                     <select id="pCategory" style="display:none"><option value="">--</option></select>
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group"><label>Product Class</label>
                     <select class="form-control" id="pProductClass" onchange="onProductClassChange()">
                     </select>
                     <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Changing this auto-fills the margin fields with the class default. <a href="#" onclick="event.preventDefault();navigate('admin-pricing-defaults')" style="color:var(--ni-blue)">Manage classes &rarr;</a></div>
                 </div>
-            </div>
-            <div class="form-row">
                 <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCostPerUnit" step="0.01" min="0" oninput="renderTierPricePreview()"></div>
-                <div class="form-group"><label>Standard Margin %</label><input type="number" class="form-control" id="pStandardMarkup" step="0.1" min="0" placeholder="e.g. 20" oninput="renderTierPricePreview()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Percent over cost for standard customers. Blank = use class default.</div></div>
-                <div class="form-group"><label>Insider Margin %</label><input type="number" class="form-control" id="pInsiderMarkup" step="0.1" min="0" placeholder="e.g. 10" oninput="renderTierPricePreview()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Percent over cost for PI pharmacies. Blank = use class default.</div></div>
-                <div class="form-group"><label>Wholesale Price ($)</label><input type="number" class="form-control" id="pWholesalePrice" step="0.01" min="0"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Legacy fallback — used only if Cost is empty.</div></div>
+                <div class="form-group"><label>Standard Margin %</label><input type="number" class="form-control" id="pStandardMarkup" step="0.1" min="0" placeholder="e.g. 20" oninput="renderTierPricePreview()"><div style="font-size:12px;color:var(--ni-navy);font-family:var(--sans);margin-top:4px"><strong>Standard price:</strong> <span id="pStandardPriceDisplay">--</span></div></div>
+                <div class="form-group"><label>Insider Margin %</label><input type="number" class="form-control" id="pInsiderMarkup" step="0.1" min="0" placeholder="e.g. 10" oninput="renderTierPricePreview()"><div style="font-size:12px;color:var(--ni-navy);font-family:var(--sans);margin-top:4px"><strong>Insider price:</strong> <span id="pInsiderPriceDisplay">--</span></div></div>
                 <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
+                <input type="hidden" id="pWholesalePrice">
                 <input type="hidden" id="pProfitMargin">
                 <div id="pMarginHint" style="display:none"></div>
             </div>
@@ -9170,7 +9170,9 @@ function openProductModal(idx) {
     }
     renderProductImagesGallery();
     renderVariantsSectionInModal();
-    renderTierPricePreview();
+    // Auto-fill margin fields from the class defaults if they're blank.
+    // Fires for both new products AND existing ones whose overrides were null.
+    onProductClassChange();
     var itemBtn = document.getElementById('emailItemCsvBtn');
     if (itemBtn) itemBtn.style.display = (idx >= 0 && DATA.products[idx] && DATA.products[idx].id) ? '' : 'none';
     openModal('productModal');
@@ -9254,30 +9256,47 @@ function onProductClassChange() {
 
 // Live preview of what customers on each tier will pay based on current
 // cost + class + per-product margin overrides. Values are PERCENTAGES.
+// Updates both the inline price spans next to each margin field and the
+// summary banner beneath.
 function renderTierPricePreview() {
     var el = document.getElementById('pTierPreview');
-    if (!el) return;
+    var stdDisp = document.getElementById('pStandardPriceDisplay');
+    var insDisp = document.getElementById('pInsiderPriceDisplay');
     var cost = Number(document.getElementById('pCostPerUnit').value);
     var cls = document.getElementById('pProductClass').value || 'private_label';
     var insiderRaw = document.getElementById('pInsiderMarkup').value;
     var standardRaw = document.getElementById('pStandardMarkup').value;
     var insiderOverride = (insiderRaw !== '' && !isNaN(Number(insiderRaw))) ? Number(insiderRaw) : null;
     var standardOverride = (standardRaw !== '' && !isNaN(Number(standardRaw))) ? Number(standardRaw) : null;
-    if (!(cost > 0)) { el.style.display = 'none'; return; }
+
+    if (!(cost > 0)) {
+        if (el) el.style.display = 'none';
+        if (stdDisp) stdDisp.textContent = '—';
+        if (insDisp) insDisp.textContent = '—';
+        return;
+    }
+
     var insiderPct = (insiderOverride != null) ? insiderOverride : getClassDefaultPct('insider', cls);
     var standardPct = (standardOverride != null) ? standardOverride : getClassDefaultPct('standard', cls);
     if (insiderPct == null) insiderPct = 10;
     if (standardPct == null) standardPct = 20;
-    var insiderPrice = (cost * (1 + insiderPct / 100)).toFixed(2);
-    var standardPrice = (cost * (1 + standardPct / 100)).toFixed(2);
+
+    var insiderPrice = roundUpToQuarter(cost * (1 + insiderPct / 100));
+    var standardPrice = roundUpToQuarter(cost * (1 + standardPct / 100));
+
+    if (stdDisp) stdDisp.textContent = '$' + standardPrice.toFixed(2);
+    if (insDisp) insDisp.textContent = '$' + insiderPrice.toFixed(2);
+
     var insiderSrc = insiderOverride != null ? '<span style="color:#c97a1a">override</span>' : 'class default';
     var standardSrc = standardOverride != null ? '<span style="color:#c97a1a">override</span>' : 'class default';
-    el.style.display = 'block';
-    el.innerHTML = '<strong>Auto-computed wholesale prices from this cost:</strong>' +
-        '<div style="display:flex;gap:24px;margin-top:6px;flex-wrap:wrap">' +
-            '<span><span style="color:var(--gray-600)">Insider (PI):</span> <strong>$' + insiderPrice + '</strong> <span style="color:var(--gray-500)">(+' + insiderPct + '% · ' + insiderSrc + ')</span></span>' +
-            '<span><span style="color:var(--gray-600)">Standard:</span> <strong>$' + standardPrice + '</strong> <span style="color:var(--gray-500)">(+' + standardPct + '% · ' + standardSrc + ')</span></span>' +
-        '</div>';
+    if (el) {
+        el.style.display = 'block';
+        el.innerHTML = '<strong>Auto-computed wholesale prices from this cost</strong> (rounded up to nearest $0.25):' +
+            '<div style="display:flex;gap:24px;margin-top:6px;flex-wrap:wrap">' +
+                '<span><span style="color:var(--gray-600)">Insider (PI):</span> <strong>$' + insiderPrice.toFixed(2) + '</strong> <span style="color:var(--gray-500)">(+' + insiderPct + '% · ' + insiderSrc + ')</span></span>' +
+                '<span><span style="color:var(--gray-600)">Standard:</span> <strong>$' + standardPrice.toFixed(2) + '</strong> <span style="color:var(--gray-500)">(+' + standardPct + '% · ' + standardSrc + ')</span></span>' +
+            '</div>';
+    }
 }
 function editProduct(idx) { openProductModal(idx); }
 
@@ -11370,8 +11389,12 @@ function getEffectivePriceDetail(product, tier) {
     var cost = Number(product.costPerUnit);
     if (cost > 0 && pct != null && !isNaN(pct)) {
         var multiplier = 1 + (pct / 100);
+        var raw = cost * multiplier;
+        // Round UP to the nearest $0.25 (never sell below the computed
+        // margin — better to overshoot by a few cents than undershoot).
+        var rounded = Math.ceil(raw * 4) / 4;
         return {
-            price: Math.round(cost * multiplier * 100) / 100,
+            price: rounded,
             source: source, multiplier: multiplier, markupPct: pct, tier: t, class: cls
         };
     }
@@ -11379,6 +11402,13 @@ function getEffectivePriceDetail(product, tier) {
         return { price: Number(product.wholesalePrice), source: 'flat' };
     }
     return { price: null, source: 'none' };
+}
+// Round any wholesale price to $0.25 up. Used in the product form preview
+// so what the admin sees matches what the customer pays.
+function roundUpToQuarter(n) {
+    var v = Number(n);
+    if (!isFinite(v)) return null;
+    return Math.ceil(v * 4) / 4;
 }
 function getEffectivePrice(product, tier) {
     return getEffectivePriceDetail(product, tier).price;
