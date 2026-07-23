@@ -1492,9 +1492,18 @@
 
 <!-- ═══════════ PAGE: ADMIN — EMAIL QUEUE ═══════════ -->
 <div class="page" id="page-admin-email-queue">
+    <div style="background:#eaf3fb;border-left:4px solid var(--ni-deep-blue);padding:14px 18px;border-radius:6px;margin:0 0 16px;font-family:var(--sans);font-size:13px;color:var(--ni-navy);line-height:1.5">
+        <strong>Where do the real emails live?</strong>
+        <br>
+        Welcome, customer approval, order shipped, NetSuite CSV, admin invite, password reset, and item CSV emails are all sent through <strong>Resend</strong> directly and don&rsquo;t appear on this page &mdash; they land in the recipient&rsquo;s inbox instantly.
+        <br><br>
+        View every real email (with delivery status, opens, and errors) at <a href="https://resend.com/emails" target="_blank" rel="noopener" style="color:var(--ni-blue)">resend.com/emails</a> using the NI Wholesale API key.
+        <br><br>
+        This local queue only tracks legacy outbound messages that never got wired to Resend (mostly draft order-confirmation stubs). Anything you see here is a leftover from local testing.
+    </div>
     <div class="stats-grid" id="emailQueueStats"></div>
     <div class="card">
-        <div class="card-header"><h2>Email Queue</h2></div>
+        <div class="card-header"><h2>Local Queue (legacy)</h2></div>
         <div class="admin-tabs" id="emailQueueTabs">
             <div class="admin-tab active" data-status="all" onclick="switchEmailQueueTab('all')">All</div>
             <div class="admin-tab" data-status="pending" onclick="switchEmailQueueTab('pending')">Pending</div>
