@@ -1059,9 +1059,18 @@
                 <option value="">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="draft">Draft</option>
             </select>
         </div>
+        <div id="productBulkBar" style="display:none;background:#eaf3fb;border:1px solid #cbd5e1;border-radius:6px;padding:10px 14px;margin:0 0 12px;font-family:var(--sans);font-size:13px;display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div><strong id="productBulkCount">0 selected</strong> <span style="color:var(--gray-600)">&mdash; generate a NetSuite Item CSV for the selected products</span></div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-sm btn-outline" onclick="downloadSelectedItemsCsv()">&#128190; Download CSV</button>
+                <button class="btn btn-sm btn-accent" onclick="emailSelectedItemsCsv()">&#128231; Email to Accounting</button>
+                <button class="btn btn-sm btn-outline" onclick="clearProductSelection()">Clear</button>
+            </div>
+        </div>
         <div class="table-wrap">
             <table>
                 <thead><tr>
+                    <th style="width:32px"><input type="checkbox" id="productSelectAll" onchange="toggleAllProductSelection(this.checked)" title="Select all filtered"></th>
                     <th>Image</th><th>SKU</th><th>Product Name</th><th>Vendor</th><th>UPC</th><th>Pkg Size</th><th>Stock</th><th>Cost</th><th>Sell Price</th><th>Retail Price</th><th>Margin</th><th>Status</th><th>Actions</th>
                 </tr></thead>
                 <tbody id="productTableBody"></tbody>
@@ -8316,6 +8325,10 @@ function renderProductStats() {
         '<div class="stat-card" style="border-left-color:var(--info)"><div class="stat-label">Total Stock</div><div class="stat-value">' + totalStock + '</div></div>' +
         '<div class="stat-card" style="border-left-color:' + (low ? 'var(--warning)' : 'var(--success)') + '"><div class="stat-label">Low/Out of Stock</div><div class="stat-value">' + low + '</div></div>';
 }
+// Product IDs selected on the catalog page (persists across renders while
+// filters change so users can build a multi-page selection).
+var SELECTED_PRODUCT_IDS = new Set();
+
 function renderProductTable() {
     var search = document.getElementById('catalogSearch').value.toLowerCase();
     var vendor = document.getElementById('catalogVendorFilter').value;
@@ -8326,6 +8339,10 @@ function renderProductTable() {
         if (search) { var h = ((p.sku || '') + ' ' + (p.name || '') + ' ' + (p.vendorProductName || '') + ' ' + (p.vendor || '') + ' ' + (p.upc || '')).toLowerCase(); if (h.indexOf(search) === -1) return false; }
         return true;
     });
+    // Header "select all" reflects whether every currently-visible row is checked.
+    var allVisibleChecked = filtered.length > 0 && filtered.every(function(p) { return p.id && SELECTED_PRODUCT_IDS.has(p.id); });
+    var selAll = document.getElementById('productSelectAll');
+    if (selAll) selAll.checked = allVisibleChecked;
     document.getElementById('productTableBody').innerHTML = filtered.map(function(p) {
         var margin = (p.costPerUnit && p.wholesalePrice) ? (((p.wholesalePrice - p.costPerUnit) / p.wholesalePrice) * 100).toFixed(1) + '%' : '--';
         var imgObj = getPrimaryImage(p);
@@ -8341,7 +8358,12 @@ function renderProductTable() {
         if (p.status === 'inactive') { statusLabel = 'Inactive'; statusClass = 'badge-danger'; }
         else if (p.status === 'draft') { statusLabel = 'Draft'; statusClass = 'badge-warning'; }
         else { statusLabel = 'Active'; statusClass = 'badge-success'; }
-        return '<tr>' +
+        var isChecked = p.id && SELECTED_PRODUCT_IDS.has(p.id);
+        var cbCell = p.id
+            ? '<td><input type="checkbox" data-product-id="' + esc(p.id) + '" onchange="toggleProductSelection(\'' + esc(p.id) + '\', this.checked)"' + (isChecked ? ' checked' : '') + '></td>'
+            : '<td><span title="Save this product first to make it selectable" style="color:var(--gray-400)">—</span></td>';
+        return '<tr' + (isChecked ? ' style="background:#f5faff"' : '') + '>' +
+            cbCell +
             '<td>' + img + '</td>' +
             '<td>' + esc(p.sku || '--') + '</td>' +
             '<td><strong>' + esc(p.name) + '</strong>' + variantBadge + (p.vendorProductName ? '<br><span style="font-size:11px;color:var(--gray-400)">' + esc(p.vendorProductName) + '</span>' : '') + '</td>' +
@@ -8357,6 +8379,120 @@ function renderProductTable() {
             '<td style="white-space:nowrap"><button class="btn btn-sm btn-outline" onclick="editProduct(' + p._idx + ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteProduct(' + p._idx + ')">Del</button></td>' +
         '</tr>';
     }).join('');
+    updateProductBulkBar();
+}
+
+function toggleProductSelection(productId, checked) {
+    if (checked) SELECTED_PRODUCT_IDS.add(productId);
+    else SELECTED_PRODUCT_IDS.delete(productId);
+    updateProductBulkBar();
+    // Reflect any header-checkbox change without a full re-render.
+    var rowCheckboxes = document.querySelectorAll('#productTableBody input[type="checkbox"]');
+    var allChecked = rowCheckboxes.length > 0 && Array.prototype.every.call(rowCheckboxes, function(cb) { return cb.checked; });
+    var selAll = document.getElementById('productSelectAll');
+    if (selAll) selAll.checked = allChecked;
+    // Update the row highlight without a full re-render.
+    var row = document.querySelector('#productTableBody input[data-product-id="' + productId + '"]');
+    if (row) {
+        var tr = row.closest('tr');
+        if (tr) tr.style.background = checked ? '#f5faff' : '';
+    }
+}
+function toggleAllProductSelection(checked) {
+    document.querySelectorAll('#productTableBody input[type="checkbox"][data-product-id]').forEach(function(cb) {
+        var id = cb.getAttribute('data-product-id');
+        if (checked) SELECTED_PRODUCT_IDS.add(id);
+        else SELECTED_PRODUCT_IDS.delete(id);
+        cb.checked = checked;
+        var tr = cb.closest('tr');
+        if (tr) tr.style.background = checked ? '#f5faff' : '';
+    });
+    updateProductBulkBar();
+}
+function clearProductSelection() {
+    SELECTED_PRODUCT_IDS.clear();
+    document.querySelectorAll('#productTableBody input[type="checkbox"][data-product-id]').forEach(function(cb) { cb.checked = false; var tr = cb.closest('tr'); if (tr) tr.style.background = ''; });
+    var selAll = document.getElementById('productSelectAll');
+    if (selAll) selAll.checked = false;
+    updateProductBulkBar();
+}
+function updateProductBulkBar() {
+    var bar = document.getElementById('productBulkBar');
+    var count = SELECTED_PRODUCT_IDS.size;
+    if (!bar) return;
+    if (count === 0) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    document.getElementById('productBulkCount').textContent = count + ' selected';
+}
+
+// Build a multi-row NetSuite Item CSV from the currently-selected products.
+async function buildSelectedItemsCsv() {
+    var mapping = await loadCsvMappingKind('item');
+    var cols = Array.isArray(mapping.columns) ? mapping.columns : [];
+    if (!cols.length) throw new Error('Item CSV mapping has no columns. Configure it under Admin → NetSuite CSV Mapping → Item CSV tab.');
+    var settings = await loadSiteSettings();
+    var selected = DATA.products.filter(function(p) { return p.id && SELECTED_PRODUCT_IDS.has(p.id); });
+    if (!selected.length) throw new Error('No products selected');
+    var csv = cols.map(function(c) { return _csvEscape(c.name); }).join(',') + '\r\n';
+    selected.forEach(function(product) {
+        var itemCtx = {
+            sku: product.sku, name: product.name, description: product.description,
+            upc: product.upc, manufacturer: product.manufacturer, vendor: product.vendor,
+            vendor_part_num: product.vendorPartNum, vendor_product_name: product.vendorProductName,
+            package_size: product.packageSize, category: product.category,
+            cost_per_unit: product.costPerUnit, wholesale_price: product.wholesalePrice,
+            retail_price: product.retailPrice, product_class: product.productClass || 'private_label',
+            taxable: product.taxable !== false, status: product.status || 'active',
+            min_order_qty: product.minOrderQty || 1
+        };
+        var ctxBase = { order: {}, customer: {}, location: {}, mapping: mapping, settings: settings, item: itemCtx, lineType: 'item' };
+        var row = cols.map(function(col) {
+            if (col.source === 'static') return col.value || '';
+            return resolveCsvField(col.source, ctxBase);
+        });
+        csv += row.map(_csvEscape).join(',') + '\r\n';
+    });
+    var stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    return { csv: csv, filename: 'ni-items-' + stamp + '-' + selected.length + '.csv', count: selected.length };
+}
+
+async function downloadSelectedItemsCsv() {
+    try {
+        var built = await buildSelectedItemsCsv();
+        var blob = new Blob([built.csv], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = built.filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
+        showToast('Downloaded ' + built.count + '-item CSV');
+    } catch (e) { showToast(e.message || 'Failed to build CSV', 'error'); }
+}
+
+async function emailSelectedItemsCsv() {
+    var ids = Array.from(SELECTED_PRODUCT_IDS);
+    if (!ids.length) { showToast('No products selected', 'error'); return; }
+    if (!confirm('Email a NetSuite Item CSV with ' + ids.length + ' item' + (ids.length === 1 ? '' : 's') + ' to Accounting?')) return;
+    try {
+        var { data: sess } = await supa.auth.getSession();
+        if (!sess || !sess.session) throw new Error('Please sign in as admin first');
+        var res = await fetch(SUPABASE_URL + '/functions/v1/notify-new-item', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + sess.session.access_token,
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_PUBLISHABLE_KEY
+            },
+            body: JSON.stringify({ productIds: ids })
+        });
+        var body = await res.json().catch(function() { return {}; });
+        if (!res.ok) throw new Error(body.error || ('HTTP ' + res.status));
+        showToast(body.emailSent ? (ids.length + '-item CSV sent to ' + (body.recipient || 'Accounting')) : ('Built but email failed: ' + (body.emailError || 'unknown')));
+    } catch (e) {
+        showToast('Send failed: ' + (e.message || 'Unknown error'), 'error');
+    }
 }
 
 function renderProductImagesGallery() {
