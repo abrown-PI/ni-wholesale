@@ -1262,6 +1262,15 @@
                     <div class="form-group"><label>Resale Certificate #</label><input type="text" class="form-control" id="custResaleCertNumber"></div>
                     <div class="form-group"><label>NetSuite Entity ID</label><input type="text" class="form-control" id="custNetsuiteEntityId" placeholder="e.g., 1234"></div>
                 </div>
+                <div class="form-row" style="margin-top:8px">
+                    <div class="form-group"><label>Pricing Tier</label>
+                        <select class="form-control" id="custPricingTier">
+                            <option value="standard">Standard (default)</option>
+                            <option value="insider">Insider &mdash; 10% over cost</option>
+                        </select>
+                        <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Insider: everything at cost × 1.10. Standard: private label × 1.20, manufactured × 1.50.</div>
+                    </div>
+                </div>
                 <div style="margin-top:12px;padding:12px;background:#fef9e7;border:1px solid #f4d03f;border-radius:6px;display:flex;align-items:flex-start;gap:10px">
                     <input type="checkbox" id="custIsIntercompany" style="margin-top:3px;width:16px;height:16px;cursor:pointer">
                     <label for="custIsIntercompany" style="margin:0;font-family:var(--sans);font-size:13px;line-height:1.4;cursor:pointer">
@@ -2406,11 +2415,19 @@
                 </div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCostPerUnit" step="0.01" min="0" oninput="calcSellFromMargin()"></div>
+                <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCostPerUnit" step="0.01" min="0" oninput="calcSellFromMargin();renderTierPricePreview()"></div>
+                <div class="form-group"><label>Product Class</label>
+                    <select class="form-control" id="pProductClass" onchange="renderTierPricePreview()">
+                        <option value="private_label">Private label (NI-branded)</option>
+                        <option value="manufactured">Manufactured (third-party brand)</option>
+                    </select>
+                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Drives the standard-tier markup: private label = 20%, manufactured = 50%.</div>
+                </div>
                 <div class="form-group"><label>Profit Margin %</label><input type="number" class="form-control" id="pProfitMargin" step="0.1" min="0" max="100" placeholder="e.g. 30" oninput="calcSellFromMargin()" style="border-color:var(--ni-deep-blue)"><div id="pMarginHint" style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px"></div></div>
-                <div class="form-group"><label>Wholesale Price ($)</label><input type="number" class="form-control" id="pWholesalePrice" step="0.01" min="0" oninput="calcMarginFromSell()"></div>
+                <div class="form-group"><label>Wholesale Price ($)</label><input type="number" class="form-control" id="pWholesalePrice" step="0.01" min="0" oninput="calcMarginFromSell()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Legacy fallback — used only if Cost is empty.</div></div>
                 <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
             </div>
+            <div id="pTierPreview" style="display:none;padding:10px 14px;background:#eaf3fb;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px;font-family:var(--sans);font-size:13px"></div>
             <div class="form-row">
                 <div class="form-group"><label>Stock Qty</label><input type="number" class="form-control" id="pStock" min="0" value="0"></div>
                 <div class="form-group"><label>Tester Stock</label><input type="number" class="form-control" id="pTesterStock" min="0" value="0"></div>
@@ -3042,6 +3059,7 @@ function supaProductToLocal(p) {
         wholesalePrice: p.wholesale_price != null ? parseFloat(p.wholesale_price) : null,
         retailPrice: p.retail_price != null ? parseFloat(p.retail_price) : null,
         profitMargin: p.profit_margin != null ? parseFloat(p.profit_margin) : null,
+        productClass: p.product_class || 'private_label',
         stock: p.stock || 0,
         testerStock: p.tester_stock || 0,
         lowStockThreshold: p.low_stock_threshold != null ? p.low_stock_threshold : 10,
@@ -3069,6 +3087,7 @@ function localProductToSupa(p) {
         wholesale_price: p.wholesalePrice,
         retail_price: p.retailPrice,
         profit_margin: p.profitMargin,
+        product_class: p.productClass || 'private_label',
         stock: p.stock || 0,
         tester_stock: p.testerStock || 0,
         low_stock_threshold: p.lowStockThreshold != null ? p.lowStockThreshold : 10,
@@ -3296,6 +3315,7 @@ async function supaFetchAdminCustomers() {
             taxId: c.tax_id || '', resaleCertNumber: c.resale_cert_number || '',
             netsuiteEntityId: c.netsuite_entity_id || '',
             isIntercompany: !!c.is_intercompany,
+            pricingTier: c.pricing_tier || 'standard',
             paymentTerms: c.payment_terms || 'Net-30',
             status: c.status || 'active',
             notes: c.notes || '',
@@ -3492,6 +3512,7 @@ async function supaSaveCustomer(cust, locations) {
         resale_cert_number: cust.resaleCertNumber || null,
         netsuite_entity_id: cust.netsuiteEntityId || null,
         is_intercompany: !!cust.isIntercompany,
+        pricing_tier: (cust.pricingTier === 'insider') ? 'insider' : 'standard',
         payment_terms: cust.paymentTerms || 'Net-30',
         status: cust.status || 'active',
         notes: cust.notes || ''
@@ -6019,7 +6040,7 @@ function applyCartCoupon() {
 
     var subtotal = DATA.cart.reduce(function(s, item) {
         var p = DATA.products[item.productIndex];
-        return s + (Number(p.wholesalePrice) || 0) * (Number(item.qty) || 0);
+        return s + (Number(getEffectivePrice(p)) || 0) * (Number(item.qty) || 0);
     }, 0);
 
     var result = validateCoupon(code, { customerId: customerId, subtotal: subtotal, shipping: 0 });
@@ -6706,7 +6727,7 @@ function renderFeatured() {
                 '<div class="product-category">' + esc(p.category || 'Supplement') + '</div>' +
                 '<div class="product-name">' + esc(p.name) + '</div>' +
                 '<div class="product-size">' + esc(p.packageSize || '') + '</div>' +
-                '<div><span class="product-price">' + (p.wholesalePrice ? '$' + Number(p.wholesalePrice).toFixed(2) : 'Contact for pricing') + '</span></div>' +
+                '<div><span class="product-price">' + (function(){ var ep = getEffectivePrice(p); return ep != null ? '$' + Number(ep).toFixed(2) : 'Contact for pricing'; })() + '</span></div>' +
             '</div></div>';
     }).join('');
 }
@@ -6738,7 +6759,8 @@ function renderStorefront() {
     if (!products.length) { grid.innerHTML = '<div class="empty-state"><p>No products found</p></div>'; return; }
     grid.innerHTML = products.map(function(p) {
         var idx = DATA.products.indexOf(p);
-        var price = p.wholesalePrice ? '$' + Number(p.wholesalePrice).toFixed(2) : 'Contact for pricing';
+        var ep = getEffectivePrice(p);
+        var price = ep != null ? '$' + Number(ep).toFixed(2) : 'Contact for pricing';
         var retail = p.retailPrice ? '<span class="product-retail">MSRP $' + Number(p.retailPrice).toFixed(2) + '</span>' : '';
         var newBadge = isNewProduct(p) ? '<span class="badge-new">New</span>' : '';
         var minQty = p.minOrderQty || 1;
@@ -6829,7 +6851,7 @@ function openProductDetail(idx) {
             '<div class="product-detail-info">' +
                 '<div class="detail-category">' + esc(p.category || 'Supplement') + '</div>' +
                 '<h2>' + esc(p.name) + '</h2>' +
-                '<div class="detail-price">' + (p.wholesalePrice ? '$' + Number(p.wholesalePrice).toFixed(2) : 'Contact for pricing') + '</div>' +
+                '<div class="detail-price">' + (function(){ var ep = getEffectivePrice(p); return ep != null ? '$' + Number(ep).toFixed(2) : 'Contact for pricing'; })() + '</div>' +
                 (p.retailPrice ? '<div class="detail-retail">Suggested Retail: $' + Number(p.retailPrice).toFixed(2) + '</div>' : '') +
                 (p.description ? '<div style="font-size:14px;color:var(--gray-700);margin-bottom:16px;font-family:var(--sans);line-height:1.5">' + esc(p.description) + '</div>' : '') +
                 '<div class="detail-meta">' +
@@ -6959,9 +6981,10 @@ function renderCart() {
     var sum = 0;
     c.innerHTML = DATA.cart.map(function(item, i) {
         var p = DATA.products[item.productIndex];
-        var line = p.wholesalePrice ? p.wholesalePrice * item.qty : 0;
+        var ep = getEffectivePrice(p);
+        var line = ep != null ? ep * item.qty : 0;
         sum += line;
-        return '<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">' + esc(p.name) + '</div><div class="cart-item-size">' + esc(p.packageSize || '') + '</div><div class="cart-item-qty"><button onclick="updateCartQty(' + i + ',-1)">-</button><span>' + item.qty + '</span><button onclick="updateCartQty(' + i + ',1)">+</button></div></div><div style="text-align:right"><div class="cart-item-price">' + (p.wholesalePrice ? '$' + line.toFixed(2) : 'TBD') + '</div><button class="cart-item-remove" onclick="removeCartItem(' + i + ')">&times;</button></div></div>';
+        return '<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">' + esc(p.name) + '</div><div class="cart-item-size">' + esc(p.packageSize || '') + '</div><div class="cart-item-qty"><button onclick="updateCartQty(' + i + ',-1)">-</button><span>' + item.qty + '</span><button onclick="updateCartQty(' + i + ',1)">+</button></div></div><div style="text-align:right"><div class="cart-item-price">' + (ep != null ? '$' + line.toFixed(2) : 'TBD') + '</div><button class="cart-item-remove" onclick="removeCartItem(' + i + ')">&times;</button></div></div>';
     }).join('');
 
     // ─── Coupon state ───
@@ -7041,9 +7064,10 @@ function submitOrder() {
     var total = 0;
     DATA.cart.forEach(function(item) {
         var p = DATA.products[item.productIndex];
-        var l = p.wholesalePrice ? p.wholesalePrice * item.qty : 0;
+        var ep = getEffectivePrice(p);
+        var l = ep != null ? ep * item.qty : 0;
         total += l;
-        html += '<tr><td>' + esc(p.name) + '</td><td>' + item.qty + '</td><td>' + (p.wholesalePrice ? '$' + l.toFixed(2) : 'TBD') + '</td></tr>';
+        html += '<tr><td>' + esc(p.name) + '</td><td>' + item.qty + '</td><td>' + (ep != null ? '$' + l.toFixed(2) : 'TBD') + '</td></tr>';
     });
     var disc = Number(DATA.cartCoupon && DATA.cartCoupon.discount) || 0;
     var grand = Math.max(0, total - disc);
@@ -7068,7 +7092,7 @@ function confirmOrder() {
     var subtotal = 0;
     var itemsArr = DATA.cart.map(function(c) {
         var p = DATA.products[c.productIndex];
-        var unit = Number(p.wholesalePrice) || 0;
+        var unit = Number(getEffectivePrice(p)) || 0;
         subtotal += unit * c.qty;
         return {
             productIndex: c.productIndex,
@@ -7403,7 +7427,7 @@ function checkoutSubtotal() {
     DATA.cart.forEach(function(it) {
         var p = DATA.products[it.productIndex];
         if (!p) return;
-        sum += (Number(p.wholesalePrice) || 0) * (Number(it.qty) || 0);
+        sum += (Number(getEffectivePrice(p)) || 0) * (Number(it.qty) || 0);
     });
     return sum;
 }
@@ -7566,7 +7590,7 @@ function refreshCheckoutTotals() {
     tbody.innerHTML = DATA.cart.map(function(item, i) {
         var p = DATA.products[item.productIndex];
         if (!p) return '';
-        var unit = Number(p.wholesalePrice) || 0;
+        var unit = Number(getEffectivePrice(p)) || 0;
         var line = unit * (Number(item.qty) || 0);
         sub += line;
         return '<tr>' +
@@ -7764,7 +7788,7 @@ async function placeCheckoutOrder() {
 
         var itemsArr = DATA.cart.map(function(c) {
             var p = DATA.products[c.productIndex];
-            var unit = Number(p.wholesalePrice) || 0;
+            var unit = Number(getEffectivePrice(p)) || 0;
             return {
                 productIndex: c.productIndex,
                 sku: p.sku || '',
@@ -8066,7 +8090,7 @@ function parseQuickOrder() {
             } else {
                 entry.status = 'ok';
                 entry.productName = p.name;
-                entry.unitPrice = Number(p.wholesalePrice) || 0;
+                entry.unitPrice = Number(getEffectivePrice(p)) || 0;
             }
         }
         parsed.push(entry);
@@ -8408,6 +8432,7 @@ function openProductModal(idx) {
         document.getElementById('pPackageSize').value = p.packageSize || '';
         document.getElementById('pCategory').value = p.category || '';
         document.getElementById('pCostPerUnit').value = p.costPerUnit != null ? p.costPerUnit : '';
+        document.getElementById('pProductClass').value = p.productClass || 'private_label';
         document.getElementById('pWholesalePrice').value = p.wholesalePrice != null ? p.wholesalePrice : '';
         document.getElementById('pRetailPrice').value = p.retailPrice != null ? p.retailPrice : '';
         // Calculate and show existing margin (prefer stored value, fall back to live calc)
@@ -8439,10 +8464,32 @@ function openProductModal(idx) {
         document.getElementById('pTesterStock').value = 0;
         document.getElementById('pLowStockThreshold').value = 10;
         document.getElementById('pMinOrderQty').value = 1;
+        document.getElementById('pProductClass').value = 'private_label';
     }
     renderProductImagesGallery();
     renderVariantsSectionInModal();
+    renderTierPricePreview();
     openModal('productModal');
+}
+
+// Live preview of what customers on each tier will pay based on current
+// cost + class. Called from open + oninput on cost and class fields.
+function renderTierPricePreview() {
+    var el = document.getElementById('pTierPreview');
+    if (!el) return;
+    var cost = Number(document.getElementById('pCostPerUnit').value);
+    var cls = document.getElementById('pProductClass').value || 'private_label';
+    if (!(cost > 0)) { el.style.display = 'none'; return; }
+    var insiderMult = (PRICING_TIER_RULES.insider || {})[cls] || 1.10;
+    var standardMult = (PRICING_TIER_RULES.standard || {})[cls] || (cls === 'manufactured' ? 1.50 : 1.20);
+    var insiderPrice = (cost * insiderMult).toFixed(2);
+    var standardPrice = (cost * standardMult).toFixed(2);
+    el.style.display = 'block';
+    el.innerHTML = '<strong>Auto-computed wholesale prices from this cost:</strong>' +
+        '<div style="display:flex;gap:24px;margin-top:6px">' +
+            '<span><span style="color:var(--gray-600)">Insider (PI):</span> <strong>$' + insiderPrice + '</strong> <span style="color:var(--gray-500)">(cost × ' + insiderMult + ')</span></span>' +
+            '<span><span style="color:var(--gray-600)">Standard:</span> <strong>$' + standardPrice + '</strong> <span style="color:var(--gray-500)">(cost × ' + standardMult + ')</span></span>' +
+        '</div>';
 }
 function editProduct(idx) { openProductModal(idx); }
 
@@ -8602,6 +8649,7 @@ async function saveProduct() {
         category: document.getElementById('pCategory').value,
         costPerUnit: costPerUnit,
         wholesalePrice: wholesalePrice,
+        productClass: document.getElementById('pProductClass').value || 'private_label',
         retailPrice: document.getElementById('pRetailPrice').value ? parseFloat(document.getElementById('pRetailPrice').value) : null,
         profitMargin: profitMargin,
         stock: parseInt(document.getElementById('pStock').value) || 0,
@@ -10368,6 +10416,64 @@ async function loadSiteSettings() {
     return out;
 }
 
+// ─── Tier-based pricing ────────────────────────────────────────────────────
+// Wholesale price for any product = cost_per_unit * multiplier, where the
+// multiplier comes from the pricing_tier_rules settings row, keyed by the
+// customer's pricing_tier and the product's product_class. Falls back to
+// wholesale_price when cost/class isn't set (legacy products).
+var PRICING_TIER_RULES = {
+    insider:  { manufactured: 1.10, private_label: 1.10 },
+    standard: { manufactured: 1.50, private_label: 1.20 }
+};
+async function loadPricingTierRules() {
+    try {
+        var r = await supa.from('settings').select('value').eq('key', 'pricing_tier_rules').single();
+        if (r.data && r.data.value && typeof r.data.value === 'object') {
+            PRICING_TIER_RULES = r.data.value;
+        }
+    } catch (e) { console.warn('[pricing rules] load failed, using defaults:', e); }
+    return PRICING_TIER_RULES;
+}
+// Returns 'insider' or 'standard' based on the currently-logged-in customer.
+// Anonymous storefront visitors + admins previewing without a customer session
+// get 'standard'. Admins can override by setting window.__previewPricingTier.
+function getCurrentPricingTier() {
+    if (window.__previewPricingTier) return window.__previewPricingTier;
+    var session = (typeof loadSession === 'function') ? loadSession() : null;
+    if (!session) return 'standard';
+    // Find the currently-active customer for this signed-in user.
+    var custId = session.customerId || (session.customer && session.customer.id);
+    if (!custId && Array.isArray(DATA.customers)) {
+        var byEmail = DATA.customers.find(function(c) { return (c.email || '').toLowerCase() === (session.email || '').toLowerCase(); });
+        if (byEmail) return byEmail.pricingTier || 'standard';
+    }
+    if (custId && Array.isArray(DATA.customers)) {
+        var match = DATA.customers.find(function(c) { return c.id === custId; });
+        if (match) return match.pricingTier || 'standard';
+    }
+    return 'standard';
+}
+// Returns { price, source } where source is 'tier' (computed) or 'flat'
+// (product's own wholesale_price fallback).
+function getEffectivePriceDetail(product, tier) {
+    if (!product) return { price: null, source: 'none' };
+    var t = tier || getCurrentPricingTier();
+    var cls = product.productClass || 'private_label';
+    var rulesForTier = PRICING_TIER_RULES[t] || PRICING_TIER_RULES.standard || {};
+    var mult = rulesForTier[cls];
+    var cost = Number(product.costPerUnit);
+    if (cost > 0 && typeof mult === 'number' && mult > 0) {
+        return { price: Math.round(cost * mult * 100) / 100, source: 'tier', multiplier: mult, tier: t, class: cls };
+    }
+    if (product.wholesalePrice != null) {
+        return { price: Number(product.wholesalePrice), source: 'flat' };
+    }
+    return { price: null, source: 'none' };
+}
+function getEffectivePrice(product, tier) {
+    return getEffectivePriceDetail(product, tier).price;
+}
+
 async function generateCsvFromMapping(order, customer, location, items) {
     var mapping = await loadCsvMapping();
     var settings = await loadSiteSettings();
@@ -11251,6 +11357,7 @@ function renderCustomerDetailPage() {
         custBillingAddress:'', custBillingCity:'', custBillingState:'', custBillingZip:'',
         custLicenseNumber:'', custDeaNumber:'', custNpiNumber:'',
         custTaxId:'', custResaleCertNumber:'', custNetsuiteEntityId:'',
+        custPricingTier:'standard',
         custNotes:''
     };
     var isIntercompany = false;
@@ -11275,6 +11382,7 @@ function renderCustomerDetailPage() {
         fields.custTaxId            = c.taxId              || '';
         fields.custResaleCertNumber = c.resaleCertNumber   || '';
         fields.custNetsuiteEntityId = c.netsuiteEntityId   || '';
+        fields.custPricingTier      = c.pricingTier        || 'standard';
         fields.custNotes            = c.notes              || '';
         isIntercompany = !!c.isIntercompany;
         currentEditLocations = getCustomerLocations(c.id).map(function(l) { return Object.assign({}, l); });
@@ -11553,6 +11661,7 @@ async function saveCustomer() {
     customer.netsuiteEntityId  = document.getElementById('custNetsuiteEntityId').value.trim();
     customer.notes             = document.getElementById('custNotes').value.trim();
     customer.isIntercompany    = !!document.getElementById('custIsIntercompany').checked;
+    customer.pricingTier       = document.getElementById('custPricingTier').value || 'standard';
     if (!customer.createdAt) customer.createdAt = nowIso;
     customer.updatedAt = nowIso;
 
@@ -13117,6 +13226,13 @@ loadData();
 populateVendorDropdowns();
 renderCart();
 updateLoginUI();
+// Load the pricing tier multipliers so getEffectivePrice() gets real
+// numbers instead of the built-in fallbacks. Fires on every page load,
+// including anonymous visitors so the storefront shows correct prices.
+loadPricingTierRules().then(function() {
+    if (typeof renderStorefront === 'function' && document.getElementById('page-storefront')) renderStorefront();
+    renderCart();
+});
 
 // Browser back/forward — URL is source of truth
 window.addEventListener('popstate', function(e) {
