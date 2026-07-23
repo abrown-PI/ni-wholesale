@@ -11867,7 +11867,13 @@ var CSV_SOURCE_OPTIONS = [
         ['item.unit_price', 'Unit Price'],
         ['item.line_total', 'Line Total'],
         ['item.rate', 'Rate (unit price OR line rate for shipping/tax/discount)'],
-        ['item.amount', 'Amount (line total OR shipping/tax/-discount amount)']
+        ['item.amount', 'Amount (line total OR shipping/tax/-discount amount)'],
+        ['item.sku_item_only',        'Item SKU (blank on shipping/tax/discount rows)'],
+        ['item.qty_item_only',        'Quantity (blank on shipping/tax/discount rows)'],
+        ['item.unit_price_item_only', 'Unit Price (blank on shipping/tax/discount rows)'],
+        ['item.line_total_item_only', 'Line Total (blank on shipping/tax/discount rows)'],
+        ['item.expense_account_for_bill', 'Expense Account (blank on item rows, fills on shipping row)'],
+        ['item.expense_amount_for_bill',  'Expense Amount (blank on item rows, shipping cost on shipping row)']
       ]},
     { group: 'Item (New Product / Item CSV)',
       items: [
@@ -12065,6 +12071,21 @@ function resolveCsvField(sourceKey, ctx) {
             if (lineType === 'shipping') return _lineSkus.shipping || 'SHIPPING';
             if (lineType === 'tax') return _lineSkus.tax || 'TAX';
             if (lineType === 'discount') return _lineSkus.discount || 'DISCOUNT';
+            return '';
+        // Blank-when-not-item variants for Bill CSV: product rows carry
+        // item info, shipping/tax/discount rows carry expense info only.
+        case 'item.sku_item_only':        return lineType === 'item' ? (item && item.sku) || '' : '';
+        case 'item.qty_item_only':        return lineType === 'item' ? String(item ? (item.qty || 0) : 0) : '';
+        case 'item.unit_price_item_only': return lineType === 'item' ? _fmtMoney(item ? item.unit_price : 0) : '';
+        case 'item.line_total_item_only': return lineType === 'item' ? _fmtMoney(item ? item.line_total : 0) : '';
+        case 'item.expense_account_for_bill':
+            if (lineType === 'item') return '';
+            return String(ctx.firstItemExpenseAccount || '');
+        case 'item.expense_amount_for_bill':
+            if (lineType === 'item') return '';
+            if (lineType === 'shipping') return _fmtMoney(order.shipping);
+            if (lineType === 'tax') return _fmtMoney(order.tax);
+            if (lineType === 'discount') return _fmtMoney(-Number(order.discount_amount || 0));
             return '';
         case 'item.product_name': return item ? (item.product_name || item.sku || '') : '';
         case 'item.name_or_label':
@@ -12455,7 +12476,21 @@ async function generateBillCsvFromMapping(order, customer, location, items) {
     var invoiceDate = _fmtDateUS(order.shipped_at || order.placed_at);
     var externalId = order.invoice_number || ('NI-' + String(order.order_number || '').padStart(5, '0'));
     var memo = 'Intercompany bill from NI Invoice ' + externalId;
-    var ctxBase = { order: order, customer: customer, location: location, mapping: mapping, settings: settings, externalId: externalId, invoiceDate: invoiceDate, dueDate: invoiceDate, memo: memo };
+    // First-item expense account for the shipping row on the bill CSV.
+    // Product override wins; else class default.
+    var firstItem = (items || [])[0];
+    var firstItemProduct = firstItem && Array.isArray(DATA.products)
+        ? DATA.products.find(function(p) { return (firstItem.sku && p.sku === firstItem.sku) || (p.name === firstItem.product_name); })
+        : null;
+    var firstItemExpenseAccount = '';
+    if (firstItemProduct) {
+        if (firstItemProduct.expenseAccount) firstItemExpenseAccount = firstItemProduct.expenseAccount;
+        else {
+            var cls = Array.isArray(PRODUCT_CLASSES) ? PRODUCT_CLASSES.find(function(c) { return c.slug === firstItemProduct.productClass; }) : null;
+            if (cls && cls.expenseAccount) firstItemExpenseAccount = cls.expenseAccount;
+        }
+    }
+    var ctxBase = { order: order, customer: customer, location: location, mapping: mapping, settings: settings, externalId: externalId, invoiceDate: invoiceDate, dueDate: invoiceDate, memo: memo, firstItemExpenseAccount: firstItemExpenseAccount };
     var cols = Array.isArray(mapping.columns) ? mapping.columns : [];
     if (!cols.length) throw new Error('Bill CSV mapping has no columns. Set it up under Admin → NetSuite CSV Mapping → Bill CSV tab.');
 
