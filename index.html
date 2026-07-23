@@ -1961,7 +1961,7 @@
     <div class="card" style="font-family:var(--sans);font-size:13px">
         <div class="form-group">
             <label>SKU lines</label>
-            <textarea class="form-control" id="quickOrderInput" rows="10" placeholder="NM236, 2&#10;NM234 1&#10;ML002,3" style="font-family:monospace"></textarea>
+            <textarea class="form-control" id="quickOrderInput" rows="10" placeholder="NM236, 2&#10;NM234 1&#10;ML002,3" style="font-family:monospace" oninput="parseQuickOrder()"></textarea>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button type="button" class="btn btn-outline" onclick="parseQuickOrder()">Preview</button>
