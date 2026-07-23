@@ -2512,6 +2512,38 @@
     </div>
 </div>
 
+<!-- Order Items — line-item-only edit for shipped/delivered orders -->
+<div class="modal-overlay" id="orderItemsEditModal">
+    <div class="modal" style="max-width:820px">
+        <div class="modal-header"><h2 id="orderItemsEditTitle">Edit Line Items</h2><button class="modal-close" onclick="closeModal('orderItemsEditModal')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="orderItemsEditIndex" value="-1">
+            <div style="padding:10px 14px;background:#fef9e7;border:1px solid #f4d03f;border-radius:6px;font-family:var(--sans);font-size:13px;color:#7d5f00;margin-bottom:14px">
+                This order is already <strong id="orderItemsEditStatus">shipped</strong>. Removing or changing lines here restores stock, updates the order total in the database, and changes what future CSV/PDF exports include. Ship-to, tracking, and coupon fields are not editable here.
+            </div>
+            <div style="border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden">
+                <table style="width:100%;font-family:var(--sans);font-size:13px">
+                    <thead><tr style="background:var(--gray-100)"><th style="padding:8px;text-align:left">Product</th><th style="padding:8px;text-align:left;width:110px">SKU</th><th style="padding:8px;text-align:center;width:90px">Qty</th><th style="padding:8px;text-align:right;width:110px">Unit Price</th><th style="padding:8px;text-align:right;width:110px">Line Total</th><th style="padding:8px;width:40px"></th></tr></thead>
+                    <tbody id="orderItemsEditBody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:14px;display:flex;justify-content:flex-end">
+                <div style="background:var(--gray-100);padding:14px 18px;border-radius:var(--radius);font-family:var(--sans);font-size:13px;min-width:280px">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Subtotal:</span><strong id="orderItemsEditSub">$0.00</strong></div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px;color:var(--gray-600)"><span>Tax (unchanged):</span><span id="orderItemsEditTax">$0.00</span></div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px;color:var(--gray-600)"><span>Shipping (unchanged):</span><span id="orderItemsEditShip">$0.00</span></div>
+                    <div id="orderItemsEditDiscRow" style="display:none;justify-content:space-between;margin-bottom:6px;color:var(--success,#1e7a3a)"><span>Discount:</span><span id="orderItemsEditDisc">-$0.00</span></div>
+                    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--gray-300);padding-top:8px;margin-top:4px"><span style="font-weight:700">New Total:</span><strong id="orderItemsEditTotal" style="font-size:16px;color:var(--ni-navy)">$0.00</strong></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('orderItemsEditModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveOrderItemsEdit()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
 <!-- Order — New/Edit Modal -->
 <div class="modal-overlay" id="orderEditModal">
     <div class="modal" style="max-width:1100px">
@@ -9061,10 +9093,12 @@ function viewOrder(i) {
         actions += '<button class="btn btn-danger" onclick="closeModal(\'orderDetailModal\');cancelOrder(' + i + ')">Cancel</button>';
     } else if (o.status === 'shipped') {
         actions += '<button class="btn btn-success" onclick="markDelivered(' + i + ')">Mark Delivered</button> ';
+        actions += '<button class="btn btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button>';
     } else if (o.status === 'delivered') {
+        actions += '<button class="btn btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteCsv(' + i + ')">&#128196; Invoice CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-outline" onclick="printPackingSlip(' + i + ')">Print Packing Slip</button>';
@@ -9091,6 +9125,228 @@ function viewOrder(i) {
             (actions ? '<div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">' + actions + '</div>' : '') +
         '</div>';
     openModal('orderDetailModal');
+}
+
+// ─── Edit line items on a shipped/delivered order ───
+// Working buffer for the currently-open Edit Items modal. Each entry:
+//   { srcId, productId, sku, productName, unitPrice, origQty, qty, removed }
+// srcId = original DATA.orderItems row id (or '' for legacy inline items).
+var currentEditItemsLines = [];
+
+function openOrderItemsEditModal(idx) {
+    var o = DATA.orders[idx];
+    if (!o) return;
+    if (o.status !== 'shipped' && o.status !== 'delivered') {
+        showToast('Use the full Edit for pending/processing orders', 'error');
+        return;
+    }
+    document.getElementById('orderItemsEditIndex').value = idx;
+    document.getElementById('orderItemsEditTitle').textContent = 'Edit Line Items — ' + orderNumberDisplay(o);
+    document.getElementById('orderItemsEditStatus').textContent = o.status;
+
+    var items = getOrderItems(o.id);
+    currentEditItemsLines = items.map(function(it) {
+        var q = Number(it.qty) || 0;
+        return {
+            srcId: it.id || '',
+            productId: it.productId || '',
+            sku: it.sku || '',
+            productName: it.productName || '',
+            unitPrice: Number(it.unitPrice) || 0,
+            origQty: q,
+            qty: q,
+            removed: false
+        };
+    });
+    renderOrderItemsEditRows();
+    openModal('orderItemsEditModal');
+}
+
+function renderOrderItemsEditRows() {
+    var body = document.getElementById('orderItemsEditBody');
+    var idx = parseInt(document.getElementById('orderItemsEditIndex').value, 10);
+    var o = DATA.orders[idx] || {};
+
+    if (!currentEditItemsLines.length) {
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:16px">No items on this order.</td></tr>';
+    } else {
+        body.innerHTML = currentEditItemsLines.map(function(ln, i) {
+            var lt = (ln.removed ? 0 : (ln.qty * ln.unitPrice));
+            var rowStyle = ln.removed ? 'opacity:.4;text-decoration:line-through' : '';
+            var actionBtn = ln.removed
+                ? '<button class="btn btn-sm btn-outline" title="Restore" onclick="restoreOrderItemsEditLine(' + i + ')">&#8630;</button>'
+                : '<button class="btn btn-sm btn-danger" title="Remove line" onclick="removeOrderItemsEditLine(' + i + ')">&times;</button>';
+            return '<tr style="' + rowStyle + '">' +
+                '<td style="padding:8px">' + esc(ln.productName) + '</td>' +
+                '<td style="padding:8px;font-family:monospace;font-size:11px">' + esc(ln.sku || '--') + '</td>' +
+                '<td style="padding:8px;text-align:center">' + (ln.removed
+                    ? String(ln.qty)
+                    : '<input type="number" min="0" step="1" value="' + ln.qty + '" onchange="updateOrderItemsEditQty(' + i + ', this.value)" style="width:70px;padding:4px 6px;text-align:center;font-family:var(--sans);font-size:13px;border:1px solid var(--gray-300);border-radius:4px">') + '</td>' +
+                '<td style="padding:8px;text-align:right">$' + ln.unitPrice.toFixed(2) + '</td>' +
+                '<td style="padding:8px;text-align:right">$' + lt.toFixed(2) + '</td>' +
+                '<td style="padding:8px;text-align:center">' + actionBtn + '</td>' +
+            '</tr>';
+        }).join('');
+    }
+
+    var sub = currentEditItemsLines.reduce(function(s, ln) {
+        return s + (ln.removed ? 0 : ln.qty * ln.unitPrice);
+    }, 0);
+    var taxPct = Number(o.taxPct) || 0;
+    var tax = sub * (taxPct / 100);
+    var ship = Number(o.shipping) || 0;
+    var disc = Number(o.discountAmount) || 0;
+    if (disc > sub + ship) disc = sub + ship;
+    var total = sub + tax + ship - disc;
+
+    document.getElementById('orderItemsEditSub').textContent = '$' + sub.toFixed(2);
+    document.getElementById('orderItemsEditTax').textContent = '$' + tax.toFixed(2) + (taxPct ? ' (' + taxPct + '%)' : '');
+    document.getElementById('orderItemsEditShip').textContent = '$' + ship.toFixed(2);
+    var discRow = document.getElementById('orderItemsEditDiscRow');
+    if (disc > 0) {
+        discRow.style.display = 'flex';
+        document.getElementById('orderItemsEditDisc').textContent = '-$' + disc.toFixed(2);
+    } else {
+        discRow.style.display = 'none';
+    }
+    document.getElementById('orderItemsEditTotal').textContent = '$' + total.toFixed(2);
+}
+
+function updateOrderItemsEditQty(i, val) {
+    var q = Math.max(0, Math.floor(Number(val) || 0));
+    currentEditItemsLines[i].qty = q;
+    renderOrderItemsEditRows();
+}
+function removeOrderItemsEditLine(i) {
+    currentEditItemsLines[i].removed = true;
+    currentEditItemsLines[i].qty = 0;
+    renderOrderItemsEditRows();
+}
+function restoreOrderItemsEditLine(i) {
+    currentEditItemsLines[i].removed = false;
+    if (!currentEditItemsLines[i].qty) currentEditItemsLines[i].qty = currentEditItemsLines[i].origQty || 1;
+    renderOrderItemsEditRows();
+}
+
+async function saveOrderItemsEdit() {
+    var idx = parseInt(document.getElementById('orderItemsEditIndex').value, 10);
+    var o = DATA.orders[idx];
+    if (!o) return;
+    var keptLines = currentEditItemsLines.filter(function(ln) { return !ln.removed && ln.qty > 0; });
+    if (!keptLines.length) {
+        showToast('An order must have at least one line — cancel the order instead', 'error');
+        return;
+    }
+
+    var now = new Date().toISOString();
+    var sub = keptLines.reduce(function(s, ln) { return s + ln.qty * ln.unitPrice; }, 0);
+    var taxPct = Number(o.taxPct) || 0;
+    var tax = sub * (taxPct / 100);
+    var ship = Number(o.shipping) || 0;
+    var disc = Number(o.discountAmount) || 0;
+    if (disc > sub + ship) disc = sub + ship;
+    var total = sub + tax + ship - disc;
+
+    var dbOrderId = o.supabaseOrderId || o.id;
+    var isSupaOrder = dbOrderId && /^[0-9a-f-]{36}$/i.test(dbOrderId);
+
+    // Push to Supabase first (source of truth). If it fails, bail before touching local state.
+    if (isSupaOrder) {
+        try {
+            var del = await supa.from('order_items').delete().eq('order_id', dbOrderId);
+            if (del.error) throw del.error;
+            var rows = keptLines.map(function(ln) {
+                return {
+                    order_id: dbOrderId,
+                    product_id: (ln.productId && /^[0-9a-f-]{36}$/i.test(ln.productId)) ? ln.productId : null,
+                    product_name: ln.productName,
+                    sku: ln.sku || null,
+                    qty: ln.qty,
+                    unit_price: ln.unitPrice,
+                    line_total: ln.qty * ln.unitPrice
+                };
+            });
+            var ins = await supa.from('order_items').insert(rows);
+            if (ins.error) throw ins.error;
+            var upd = await supa.from('orders').update({
+                subtotal: sub, tax: tax, total: total,
+                items: keptLines.map(function(ln) {
+                    return { sku: ln.sku || '', name: ln.productName, productName: ln.productName, qty: ln.qty, unitPrice: ln.unitPrice };
+                })
+            }).eq('id', dbOrderId);
+            if (upd.error) throw upd.error;
+        } catch (e) {
+            showToast('Supabase update failed: ' + (e.message || e), 'error');
+            return;
+        }
+    }
+
+    // ─── Local state: restore stock deltas and rewrite items ───
+    currentEditItemsLines.forEach(function(ln) {
+        var newQty = ln.removed ? 0 : ln.qty;
+        var delta = newQty - (ln.origQty || 0);
+        if (delta === 0) return;
+        var product = (DATA.products || []).find(function(p) {
+            if (ln.sku && p.sku) return p.sku === ln.sku;
+            return p.name === ln.productName;
+        });
+        if (!product) return;
+        if (delta > 0) {
+            product.stock = Math.max(0, (product.stock || 0) - delta);
+            DATA.inventory.push({
+                date: now.slice(0,10), type: 'OUT', reference: 'Order #' + o.orderNumber,
+                productName: product.name, sku: product.sku || '', vendor: product.vendor || '',
+                qty: delta, soldBy: '', customerId: o.customerId || '',
+                customerLocationId: o.customerLocationId || '',
+                customerName: o.customerName, notes: 'Post-ship line edit (qty increased)'
+            });
+        } else {
+            product.stock = (product.stock || 0) + (-delta);
+            DATA.inventory.push({
+                date: now.slice(0,10), type: 'IN', reference: 'Order #' + o.orderNumber,
+                productName: product.name, sku: product.sku || '', vendor: product.vendor || '',
+                qty: -delta, soldBy: '', customerId: o.customerId || '',
+                customerLocationId: o.customerLocationId || '',
+                customerName: o.customerName, notes: ln.removed ? 'Post-ship line removed — stock restored' : 'Post-ship line edit (qty decreased — stock restored)'
+            });
+        }
+    });
+
+    DATA.orderItems = (DATA.orderItems || []).filter(function(it) { return it.orderId !== o.id; });
+    o.items = [];
+    keptLines.forEach(function(ln) {
+        DATA.orderItems.push({
+            id: 'oi_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+            orderId: o.id,
+            productId: ln.productId || ln.sku || '',
+            variantId: '',
+            sku: ln.sku || '',
+            productName: ln.productName || '',
+            qty: ln.qty,
+            receivedQty: 0,
+            unitPrice: ln.unitPrice,
+            lineTotal: ln.qty * ln.unitPrice,
+            createdAt: now
+        });
+        o.items.push({
+            sku: ln.sku || '',
+            name: ln.productName || '',
+            productName: ln.productName || '',
+            qty: ln.qty,
+            unitPrice: ln.unitPrice
+        });
+    });
+    o.subtotal = sub;
+    o.tax = tax;
+    o.total = total;
+    var editNote = '[' + now.slice(0,10) + ' items edited] ' + keptLines.length + ' line' + (keptLines.length === 1 ? '' : 's') + ', new total $' + total.toFixed(2);
+    o.internalNotes = editNote + (o.internalNotes ? '\n' + o.internalNotes : '');
+    saveData();
+
+    closeModal('orderItemsEditModal');
+    showToast('Order ' + orderNumberDisplay(o) + ' updated — new total $' + total.toFixed(2));
+    renderOrders();
+    viewOrder(idx);
 }
 
 function updateOrderStatus(i, status) {
