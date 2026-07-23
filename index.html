@@ -10970,6 +10970,7 @@ function viewOrder(i) {
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button>';
         resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'customer\')">&#128231; Customer</button> ';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'ordersTeam\')">&#128231; New Order (Orders Team)</button> ';
         resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'accounting\')">&#128231; Accounting</button>';
     } else if (isAdminView && o.status === 'delivered') {
         actions += '<button class="btn btn-sm btn-accent" onclick="closeModal(\'orderDetailModal\');openOrderItemsEditModal(' + i + ')">Edit Items</button> ';
@@ -10977,6 +10978,7 @@ function viewOrder(i) {
         actions += '<button class="btn btn-sm btn-outline" onclick="downloadNetsuiteBillCsv(' + i + ')">&#128196; Bill CSV</button> ';
         actions += '<button class="btn btn-sm btn-outline" onclick="printPackingSlip(' + i + ')">Packing Slip</button>';
         resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'customer\')">&#128231; Customer</button> ';
+        resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'placed\',\'ordersTeam\')">&#128231; New Order (Orders Team)</button> ';
         resendActions += '<button class="btn btn-sm btn-outline" onclick="resendOrderEmails(' + i + ',\'shipped\',\'accounting\')">&#128231; Accounting</button>';
     } else if (!isAdminView) {
         // Customer-facing: give them a print-friendly view but nothing that
