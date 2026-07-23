@@ -7085,8 +7085,12 @@ function validateCoupon(code, opts) {
     } else if (coupon.discountType === 'fixed') {
         discount = Math.min(subtotal, Number(coupon.discountValue));
     } else if (coupon.discountType === 'free_shipping') {
+        // Free-shipping coupons zero the shipping line — do NOT also
+        // return a positive discount value, or the checkout will
+        // double-count (subtract shipping cost from subtotal AND make
+        // shipping free).
         freeShipping = true;
-        discount = shipping;
+        discount = 0;
     }
 
     return {
