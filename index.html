@@ -770,6 +770,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="7" height="7"/><rect x="14" y="4" width="7" height="7"/><rect x="3" y="15" width="7" height="7"/><rect x="14" y="15" width="7" height="7"/></svg>
             Categories
         </a>
+        <a href="#" data-page="admin-pricing-defaults" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            Pricing Defaults
+        </a>
         <a href="#" data-page="admin-site-info" class="admin-nav-link">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             Site Info
@@ -1369,6 +1373,47 @@
                 <thead><tr><th style="width:60px">Order</th><th>Name</th><th style="width:120px">Products</th><th style="width:100px">Status</th><th style="width:220px">Actions</th></tr></thead>
                 <tbody id="categoriesTableBody"></tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — CLASS PRICING DEFAULTS ═══════════ -->
+<div class="page" id="page-admin-pricing-defaults">
+    <div class="card">
+        <div class="card-header"><h2>Class Pricing Defaults</h2></div>
+        <div class="card-body">
+            <div style="background:var(--ni-cream);border-left:4px solid var(--ni-blue);padding:12px 16px;border-radius:var(--radius);margin-bottom:20px;font-family:var(--sans);font-size:13px;color:var(--ni-navy);line-height:1.5">
+                Set the default margin (% over cost) that gets auto-filled when you pick a Product Class on the product edit form. These defaults control pricing for every product that doesn't have its own per-product override.
+                <br><br>
+                <strong>Wholesale price</strong> = cost &times; (1 + margin/100). So Cost $10 + 20% margin = $12 wholesale.
+            </div>
+
+            <div class="table-wrap" style="max-width:720px">
+                <table>
+                    <thead><tr><th>Product Class</th><th style="width:180px">Standard Margin %</th><th style="width:180px">Insider (PI) Margin %</th></tr></thead>
+                    <tbody id="pricingDefaultsBody"></tbody>
+                </table>
+            </div>
+
+            <div style="margin-top:16px;display:flex;gap:8px">
+                <button class="btn btn-primary" onclick="savePricingDefaultsForm()">Save Defaults</button>
+                <button class="btn btn-outline" onclick="renderPricingDefaultsPage()">Cancel</button>
+            </div>
+
+            <div style="border-top:1px solid var(--gray-200);margin-top:32px;padding-top:24px">
+                <h3 style="font-family:var(--serif);color:var(--ni-navy);margin:0 0 8px">Mass Update Products</h3>
+                <p style="font-size:13px;color:var(--gray-600);font-family:var(--sans);margin:0 0 16px">Wipe per-product margin overrides on every product in a class so the class default fully takes over. Before writing, we show you which products have overrides different from the current default so you can decide to keep them.</p>
+                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                    <label style="font-family:var(--sans);font-size:13px">Apply defaults to:</label>
+                    <select class="form-control" id="massUpdateClass" style="width:auto">
+                        <option value="private_label">Private label</option>
+                        <option value="manufactured">Manufactured</option>
+                        <option value="resale">Resale</option>
+                    </select>
+                    <button class="btn btn-accent" onclick="previewMassPriceUpdate()">Preview &amp; Apply</button>
+                </div>
+                <div id="massUpdatePreview" style="margin-top:16px"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -2473,23 +2518,23 @@
                         <option value="">--</option>
                     </select>
                 </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCostPerUnit" step="0.01" min="0" oninput="calcSellFromMargin();renderTierPricePreview()"></div>
                 <div class="form-group"><label>Product Class</label>
-                    <select class="form-control" id="pProductClass" onchange="renderTierPricePreview()">
+                    <select class="form-control" id="pProductClass" onchange="onProductClassChange()">
                         <option value="private_label">Private label (NI-branded)</option>
                         <option value="manufactured">Manufactured (third-party brand)</option>
+                        <option value="resale">Resale (third-party for resale)</option>
                     </select>
-                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Drives the standard-tier markup: private label = 20%, manufactured = 50%.</div>
+                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Changing this auto-fills the margin fields with the class default.</div>
                 </div>
-                <div class="form-group"><label>Profit Margin %</label><input type="number" class="form-control" id="pProfitMargin" step="0.1" min="0" max="100" placeholder="e.g. 30" oninput="calcSellFromMargin()" style="border-color:var(--ni-deep-blue)"><div id="pMarginHint" style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px"></div></div>
-                <div class="form-group"><label>Wholesale Price ($)</label><input type="number" class="form-control" id="pWholesalePrice" step="0.01" min="0" oninput="calcMarginFromSell()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Legacy fallback — used only if Cost is empty.</div></div>
-                <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>Insider Markup (multiplier)</label><input type="number" class="form-control" id="pInsiderMarkup" step="0.01" min="0" placeholder="1.10 = 10% over cost" oninput="renderTierPricePreview()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Blank = use tier default (currently 1.10). Overrides for this product only.</div></div>
-                <div class="form-group"><label>Standard Markup (multiplier)</label><input type="number" class="form-control" id="pStandardMarkup" step="0.01" min="0" placeholder="1.20 or 1.50" oninput="renderTierPricePreview()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Blank = use tier default based on class. Overrides for this product only.</div></div>
+                <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCostPerUnit" step="0.01" min="0" oninput="renderTierPricePreview()"></div>
+                <div class="form-group"><label>Standard Margin %</label><input type="number" class="form-control" id="pStandardMarkup" step="0.1" min="0" placeholder="e.g. 20" oninput="renderTierPricePreview()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Percent over cost for standard customers. Blank = use class default.</div></div>
+                <div class="form-group"><label>Insider Margin %</label><input type="number" class="form-control" id="pInsiderMarkup" step="0.1" min="0" placeholder="e.g. 10" oninput="renderTierPricePreview()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Percent over cost for PI pharmacies. Blank = use class default.</div></div>
+                <div class="form-group"><label>Wholesale Price ($)</label><input type="number" class="form-control" id="pWholesalePrice" step="0.01" min="0"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Legacy fallback — used only if Cost is empty.</div></div>
+                <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
+                <input type="hidden" id="pProfitMargin">
+                <div id="pMarginHint" style="display:none"></div>
             </div>
             <div id="pTierPreview" style="display:none;padding:10px 14px;background:#eaf3fb;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px;font-family:var(--sans);font-size:13px"></div>
             <div class="form-row">
@@ -3328,6 +3373,163 @@ async function deleteCategory(i) {
     showToast('Category deleted');
 }
 
+// ── Class Pricing Defaults admin page ──
+var PRICING_CLASS_LABELS = { private_label: 'Private label', manufactured: 'Manufactured', resale: 'Resale' };
+
+function renderPricingDefaultsPage() {
+    var body = document.getElementById('pricingDefaultsBody');
+    if (!body) return;
+    // Ensure we have the latest rules from Supabase before rendering.
+    loadPricingTierRules().then(function() {
+        var classes = ['private_label', 'manufactured', 'resale'];
+        body.innerHTML = classes.map(function(cls) {
+            var std = getClassDefaultPct('standard', cls);
+            var ins = getClassDefaultPct('insider', cls);
+            return '<tr>' +
+                '<td><strong>' + esc(PRICING_CLASS_LABELS[cls]) + '</strong> <span style="color:var(--gray-500);font-size:11px;font-family:monospace">(' + cls + ')</span></td>' +
+                '<td><input type="number" min="0" step="0.1" class="form-control" data-class="' + cls + '" data-tier="standard" value="' + (std != null ? std : '') + '" style="width:120px"> <span style="color:var(--gray-500);font-size:12px">%</span></td>' +
+                '<td><input type="number" min="0" step="0.1" class="form-control" data-class="' + cls + '" data-tier="insider" value="' + (ins != null ? ins : '') + '" style="width:120px"> <span style="color:var(--gray-500);font-size:12px">%</span></td>' +
+            '</tr>';
+        }).join('');
+        // Clear any stale preview.
+        var preview = document.getElementById('massUpdatePreview');
+        if (preview) preview.innerHTML = '';
+    });
+}
+
+async function savePricingDefaultsForm() {
+    var rules = { insider: {}, standard: {} };
+    document.querySelectorAll('#pricingDefaultsBody input[data-class]').forEach(function(inp) {
+        var cls = inp.getAttribute('data-class');
+        var tier = inp.getAttribute('data-tier');
+        var v = Number(inp.value);
+        if (!isNaN(v) && v >= 0) rules[tier][cls] = v;
+    });
+    try { await savePricingTierRules(rules); }
+    catch (e) { showToast('Save failed: ' + (e.message || e), 'error'); return; }
+    showToast('Pricing defaults saved. New products in each class will use these markups.');
+    // Also update in-memory storefront prices immediately.
+    if (typeof renderStorefront === 'function') { try { renderStorefront(); } catch (_e) {} }
+    renderCart();
+}
+
+// Show a preview of what a mass update to the selected class would touch,
+// including a list of products whose current override differs from the
+// new default. Admin then confirms or cancels.
+async function previewMassPriceUpdate() {
+    var cls = document.getElementById('massUpdateClass').value;
+    var preview = document.getElementById('massUpdatePreview');
+    if (!preview) return;
+    preview.innerHTML = '<div style="padding:16px;color:var(--gray-500);font-family:var(--sans);font-size:13px">Loading…</div>';
+
+    // Pull fresh product list from Supabase so we don't mass-update against stale local state.
+    var res = await supa.from('products').select('id, sku, name, product_class, insider_markup, standard_markup, cost_per_unit')
+        .eq('product_class', cls);
+    if (res.error) { preview.innerHTML = '<div style="color:var(--danger);padding:16px">Load failed: ' + esc(res.error.message) + '</div>'; return; }
+
+    var products = res.data || [];
+    var insiderDefault = getClassDefaultPct('insider', cls);
+    var standardDefault = getClassDefaultPct('standard', cls);
+
+    if (!products.length) {
+        preview.innerHTML = '<div style="padding:16px;color:var(--gray-500);font-family:var(--sans);font-size:13px">No products in the <strong>' + esc(PRICING_CLASS_LABELS[cls]) + '</strong> class yet.</div>';
+        return;
+    }
+
+    // Classify: which products have overrides that differ from the class defaults?
+    var conflicts = [];
+    var willReset = [];
+    var alreadyMatchesOrBlank = [];
+    products.forEach(function(p) {
+        var hasInsider = p.insider_markup != null;
+        var hasStandard = p.standard_markup != null;
+        if (!hasInsider && !hasStandard) { alreadyMatchesOrBlank.push(p); return; }
+        var insiderMatches = !hasInsider || Number(p.insider_markup) === insiderDefault;
+        var standardMatches = !hasStandard || Number(p.standard_markup) === standardDefault;
+        if (insiderMatches && standardMatches) { willReset.push(p); return; }
+        conflicts.push({ product: p, insiderMatches: insiderMatches, standardMatches: standardMatches });
+    });
+
+    var html = '<div style="border:1px solid var(--gray-200);border-radius:6px;padding:16px;background:white;font-family:var(--sans);font-size:13px;line-height:1.5">';
+    html += '<div style="margin-bottom:12px"><strong>' + products.length + ' product' + (products.length === 1 ? '' : 's') + ' in ' + esc(PRICING_CLASS_LABELS[cls]) + '.</strong> After update: <strong>+' + standardDefault + '% standard, +' + insiderDefault + '% insider</strong>.</div>';
+
+    if (conflicts.length) {
+        html += '<div style="margin:16px 0 8px;color:#c97a1a"><strong>' + conflicts.length + ' product' + (conflicts.length === 1 ? ' has' : 's have') + ' custom overrides that will be wiped.</strong> Uncheck any you want to <em>keep</em> as-is:</div>';
+        html += '<div style="max-height:280px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:4px;padding:8px 12px">';
+        html += conflicts.map(function(row, i) {
+            var p = row.product;
+            var stdCell = row.standardMatches ? '<span style="color:var(--gray-500)">matches</span>' : '<code style="background:var(--gray-100);padding:1px 4px;border-radius:3px">' + (p.standard_markup != null ? p.standard_markup + '%' : '(blank)') + '</code> &rarr; <code style="background:#eaf3fb;padding:1px 4px;border-radius:3px">' + standardDefault + '%</code>';
+            var insCell = row.insiderMatches ? '<span style="color:var(--gray-500)">matches</span>' : '<code style="background:var(--gray-100);padding:1px 4px;border-radius:3px">' + (p.insider_markup != null ? p.insider_markup + '%' : '(blank)') + '</code> &rarr; <code style="background:#eaf3fb;padding:1px 4px;border-radius:3px">' + insiderDefault + '%</code>';
+            return '<div style="display:grid;grid-template-columns:24px 1fr auto auto;gap:12px;padding:6px 0;border-bottom:1px solid var(--gray-100);align-items:center">' +
+                '<input type="checkbox" checked data-mass-update-id="' + esc(p.id) + '">' +
+                '<div><strong>' + esc(p.name) + '</strong> <span style="color:var(--gray-500);font-family:monospace;font-size:11px">' + esc(p.sku || '') + '</span></div>' +
+                '<div style="font-size:12px;white-space:nowrap">std: ' + stdCell + '</div>' +
+                '<div style="font-size:12px;white-space:nowrap">ins: ' + insCell + '</div>' +
+            '</div>';
+        }).join('');
+        html += '</div>';
+    }
+
+    if (willReset.length) {
+        html += '<div style="margin:16px 0 4px;color:var(--gray-600)"><strong>' + willReset.length + ' already-matching product' + (willReset.length === 1 ? '' : 's') + '</strong> will be normalized (overrides set to null, defaults apply).</div>';
+    }
+    if (alreadyMatchesOrBlank.length) {
+        html += '<div style="margin:8px 0 0;color:var(--gray-600)">' + alreadyMatchesOrBlank.length + ' product' + (alreadyMatchesOrBlank.length === 1 ? '' : 's') + ' already use the class default (no override) &mdash; no change needed.</div>';
+    }
+
+    html += '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">' +
+        '<button class="btn btn-outline" onclick="document.getElementById(\'massUpdatePreview\').innerHTML=\'\'">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="confirmMassPriceUpdate(\'' + esc(cls) + '\')">Apply Update</button>' +
+    '</div></div>';
+
+    preview.innerHTML = html;
+}
+
+async function confirmMassPriceUpdate(cls) {
+    // Build the set of product IDs to touch:
+    //   - every product in the class where overrides ARE null (already default)
+    //   - every product in the class where overrides match the default
+    //   - every conflicting product where the admin left the box checked
+    var preview = document.getElementById('massUpdatePreview');
+    if (preview) preview.innerHTML = '<div style="padding:16px;color:var(--gray-500);font-family:var(--sans);font-size:13px">Applying…</div>';
+
+    var idsChecked = new Set();
+    document.querySelectorAll('#massUpdatePreview input[type="checkbox"][data-mass-update-id]').forEach(function(cb) {
+        if (cb.checked) idsChecked.add(cb.getAttribute('data-mass-update-id'));
+    });
+
+    // Also fetch the fresh product list again so we can add non-conflict rows.
+    var res = await supa.from('products').select('id, insider_markup, standard_markup').eq('product_class', cls);
+    if (res.error) { showToast('Load failed: ' + res.error.message, 'error'); return; }
+    var idsToNull = [];
+    var insiderDefault = getClassDefaultPct('insider', cls);
+    var standardDefault = getClassDefaultPct('standard', cls);
+    (res.data || []).forEach(function(p) {
+        var hasOverride = p.insider_markup != null || p.standard_markup != null;
+        var insiderMatches = p.insider_markup == null || Number(p.insider_markup) === insiderDefault;
+        var standardMatches = p.standard_markup == null || Number(p.standard_markup) === standardDefault;
+        if (!hasOverride) { idsToNull.push(p.id); return; }
+        if (insiderMatches && standardMatches) { idsToNull.push(p.id); return; }
+        // Conflict: only include if the admin left the checkbox checked
+        if (idsChecked.has(p.id)) idsToNull.push(p.id);
+    });
+
+    if (!idsToNull.length) { showToast('Nothing to update', 'error'); return; }
+
+    var upd = await supa.from('products').update({ insider_markup: null, standard_markup: null }).in('id', idsToNull);
+    if (upd.error) { showToast('Update failed: ' + upd.error.message, 'error'); return; }
+
+    // Refresh local DATA.products so UI reflects the change.
+    try {
+        var fresh = await supaFetchProducts();
+        DATA.products = fresh;
+        saveData();
+    } catch (_e) { /* silent */ }
+
+    showToast('Updated ' + idsToNull.length + ' product' + (idsToNull.length === 1 ? '' : 's') + ' to class defaults.');
+    if (preview) preview.innerHTML = '<div style="padding:12px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;font-family:var(--sans);font-size:13px;color:#166534">Updated ' + idsToNull.length + ' product' + (idsToNull.length === 1 ? '' : 's') + '. Their prices now follow the class defaults.</div>';
+}
+
 // ── Vendor mappers & CRUD ──
 function supaVendorToLocal(v) {
     return {
@@ -3950,6 +4152,7 @@ async function submitAdminSignIn() {
         if (pageId === 'admin-customers') renderCustomers();
         if (pageId === 'admin-vendors') { renderVendors(); refreshVendorsFromSupabase(); }
     if (pageId === 'admin-categories') { renderCategoriesTable(); refreshCategories(); }
+    if (pageId === 'admin-pricing-defaults') renderPricingDefaultsPage();
         if (pageId === 'admin-dashboard') renderAdminDashboard();
     } catch (e) { console.warn('post-signin refresh:', e); }
 }
@@ -6567,6 +6770,7 @@ var ADMIN_PAGE_TITLES = {
     'admin-payments': 'Payments',
     'admin-vendors': 'Vendors',
     'admin-categories': 'Product Categories',
+    'admin-pricing-defaults': 'Pricing Defaults',
     'admin-pos': 'Purchase Orders',
     'admin-reports': 'Reports',
     'admin-accounts': 'Pharmacy Applications',
@@ -8905,27 +9109,46 @@ async function emailItemCsvForCurrentProduct() {
     }
 }
 
+// When the product class changes, auto-fill BOTH margin fields with the
+// class defaults (only if the field is currently blank — never overwrite
+// what the admin typed). This is what makes "pick a class, get default
+// pricing" work.
+function onProductClassChange() {
+    var cls = document.getElementById('pProductClass').value || 'private_label';
+    var insiderField = document.getElementById('pInsiderMarkup');
+    var standardField = document.getElementById('pStandardMarkup');
+    var insiderDef = getClassDefaultPct('insider', cls);
+    var standardDef = getClassDefaultPct('standard', cls);
+    if (insiderField && (insiderField.value === '' || insiderField.value == null) && insiderDef != null) insiderField.value = insiderDef;
+    if (standardField && (standardField.value === '' || standardField.value == null) && standardDef != null) standardField.value = standardDef;
+    renderTierPricePreview();
+}
+
 // Live preview of what customers on each tier will pay based on current
-// cost + class + per-product markup overrides. Called from open + oninput.
+// cost + class + per-product margin overrides. Values are PERCENTAGES.
 function renderTierPricePreview() {
     var el = document.getElementById('pTierPreview');
     if (!el) return;
     var cost = Number(document.getElementById('pCostPerUnit').value);
     var cls = document.getElementById('pProductClass').value || 'private_label';
-    var insiderOverride = Number(document.getElementById('pInsiderMarkup').value);
-    var standardOverride = Number(document.getElementById('pStandardMarkup').value);
+    var insiderRaw = document.getElementById('pInsiderMarkup').value;
+    var standardRaw = document.getElementById('pStandardMarkup').value;
+    var insiderOverride = (insiderRaw !== '' && !isNaN(Number(insiderRaw))) ? Number(insiderRaw) : null;
+    var standardOverride = (standardRaw !== '' && !isNaN(Number(standardRaw))) ? Number(standardRaw) : null;
     if (!(cost > 0)) { el.style.display = 'none'; return; }
-    var insiderMult = (insiderOverride > 0) ? insiderOverride : ((PRICING_TIER_RULES.insider || {})[cls] || 1.10);
-    var standardMult = (standardOverride > 0) ? standardOverride : ((PRICING_TIER_RULES.standard || {})[cls] || (cls === 'manufactured' ? 1.50 : 1.20));
-    var insiderPrice = (cost * insiderMult).toFixed(2);
-    var standardPrice = (cost * standardMult).toFixed(2);
-    var insiderSrc = insiderOverride > 0 ? '<span style="color:#c97a1a">override</span>' : 'class default';
-    var standardSrc = standardOverride > 0 ? '<span style="color:#c97a1a">override</span>' : 'class default';
+    var insiderPct = (insiderOverride != null) ? insiderOverride : getClassDefaultPct('insider', cls);
+    var standardPct = (standardOverride != null) ? standardOverride : getClassDefaultPct('standard', cls);
+    if (insiderPct == null) insiderPct = 10;
+    if (standardPct == null) standardPct = 20;
+    var insiderPrice = (cost * (1 + insiderPct / 100)).toFixed(2);
+    var standardPrice = (cost * (1 + standardPct / 100)).toFixed(2);
+    var insiderSrc = insiderOverride != null ? '<span style="color:#c97a1a">override</span>' : 'class default';
+    var standardSrc = standardOverride != null ? '<span style="color:#c97a1a">override</span>' : 'class default';
     el.style.display = 'block';
     el.innerHTML = '<strong>Auto-computed wholesale prices from this cost:</strong>' +
         '<div style="display:flex;gap:24px;margin-top:6px;flex-wrap:wrap">' +
-            '<span><span style="color:var(--gray-600)">Insider (PI):</span> <strong>$' + insiderPrice + '</strong> <span style="color:var(--gray-500)">(cost × ' + insiderMult + ' · ' + insiderSrc + ')</span></span>' +
-            '<span><span style="color:var(--gray-600)">Standard:</span> <strong>$' + standardPrice + '</strong> <span style="color:var(--gray-500)">(cost × ' + standardMult + ' · ' + standardSrc + ')</span></span>' +
+            '<span><span style="color:var(--gray-600)">Insider (PI):</span> <strong>$' + insiderPrice + '</strong> <span style="color:var(--gray-500)">(+' + insiderPct + '% · ' + insiderSrc + ')</span></span>' +
+            '<span><span style="color:var(--gray-600)">Standard:</span> <strong>$' + standardPrice + '</strong> <span style="color:var(--gray-500)">(+' + standardPct + '% · ' + standardSrc + ')</span></span>' +
         '</div>';
 }
 function editProduct(idx) { openProductModal(idx); }
@@ -10923,13 +11146,14 @@ async function loadSiteSettings() {
 }
 
 // ─── Tier-based pricing ────────────────────────────────────────────────────
-// Wholesale price for any product = cost_per_unit * multiplier, where the
-// multiplier comes from the pricing_tier_rules settings row, keyed by the
-// customer's pricing_tier and the product's product_class. Falls back to
-// wholesale_price when cost/class isn't set (legacy products).
+// Wholesale price for any product = cost_per_unit * (1 + markupPct/100),
+// where markupPct comes from PRICING_TIER_RULES keyed by tier + class,
+// unless the product itself has an override (products.insider_markup /
+// products.standard_markup). All rule + override values are PERCENTAGES
+// (10 = 10% over cost, 20 = 20% over cost, etc.).
 var PRICING_TIER_RULES = {
-    insider:  { manufactured: 1.10, private_label: 1.10 },
-    standard: { manufactured: 1.50, private_label: 1.20 }
+    insider:  { manufactured: 10, private_label: 10, resale: 10 },
+    standard: { manufactured: 50, private_label: 20, resale: 20 }
 };
 async function loadPricingTierRules() {
     try {
@@ -10939,6 +11163,20 @@ async function loadPricingTierRules() {
         }
     } catch (e) { console.warn('[pricing rules] load failed, using defaults:', e); }
     return PRICING_TIER_RULES;
+}
+// Save the class defaults back to Supabase.
+async function savePricingTierRules(rules) {
+    var res = await supa.from('settings').upsert({ key: 'pricing_tier_rules', value: rules });
+    if (res.error) throw res.error;
+    PRICING_TIER_RULES = rules;
+}
+// Class default lookup with resale falling back to private_label if the
+// admin never set a resale value.
+function getClassDefaultPct(tier, cls) {
+    var rulesForTier = PRICING_TIER_RULES[tier] || {};
+    if (rulesForTier[cls] != null) return Number(rulesForTier[cls]);
+    if (cls === 'resale' && rulesForTier.private_label != null) return Number(rulesForTier.private_label);
+    return null;
 }
 // Returns 'insider' or 'standard' based on the currently-logged-in customer.
 // Anonymous storefront visitors + admins previewing without a customer session
@@ -10968,19 +11206,21 @@ function getEffectivePriceDetail(product, tier) {
     // Per-product override wins over the class rule when non-null.
     var overrideKey = (t === 'insider') ? 'insiderMarkup' : 'standardMarkup';
     var override = product[overrideKey];
-    var mult;
-    if (override != null && !isNaN(Number(override)) && Number(override) > 0) {
-        mult = Number(override);
+    var pct;
+    var source;
+    if (override != null && override !== '' && !isNaN(Number(override))) {
+        pct = Number(override);
+        source = 'override';
     } else {
-        var rulesForTier = PRICING_TIER_RULES[t] || PRICING_TIER_RULES.standard || {};
-        mult = rulesForTier[cls];
+        pct = getClassDefaultPct(t, cls);
+        source = 'tier';
     }
     var cost = Number(product.costPerUnit);
-    if (cost > 0 && typeof mult === 'number' && mult > 0) {
+    if (cost > 0 && pct != null && !isNaN(pct)) {
+        var multiplier = 1 + (pct / 100);
         return {
-            price: Math.round(cost * mult * 100) / 100,
-            source: override != null && Number(override) > 0 ? 'override' : 'tier',
-            multiplier: mult, tier: t, class: cls
+            price: Math.round(cost * multiplier * 100) / 100,
+            source: source, multiplier: multiplier, markupPct: pct, tier: t, class: cls
         };
     }
     if (product.wholesalePrice != null) {
