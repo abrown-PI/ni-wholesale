@@ -2551,9 +2551,11 @@
                     <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Changing this auto-fills the margin fields with the class default. <a href="#" onclick="event.preventDefault();navigate('admin-pricing-defaults')" style="color:var(--ni-blue)">Manage classes &rarr;</a></div>
                 </div>
                 <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCostPerUnit" step="0.01" min="0" oninput="renderTierPricePreview()"></div>
+                <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
+            </div>
+            <div class="form-row">
                 <div class="form-group"><label>Standard Margin %</label><input type="number" class="form-control" id="pStandardMarkup" step="0.1" min="0" placeholder="e.g. 20" oninput="renderTierPricePreview()"><div style="font-size:12px;color:var(--ni-navy);font-family:var(--sans);margin-top:4px"><strong>Standard price:</strong> <span id="pStandardPriceDisplay">--</span></div></div>
                 <div class="form-group"><label>Insider Margin %</label><input type="number" class="form-control" id="pInsiderMarkup" step="0.1" min="0" placeholder="e.g. 10" oninput="renderTierPricePreview()"><div style="font-size:12px;color:var(--ni-navy);font-family:var(--sans);margin-top:4px"><strong>Insider price:</strong> <span id="pInsiderPriceDisplay">--</span></div></div>
-                <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
                 <input type="hidden" id="pWholesalePrice">
                 <input type="hidden" id="pProfitMargin">
                 <div id="pMarginHint" style="display:none"></div>
@@ -9285,8 +9287,10 @@ function renderTierPricePreview() {
         return;
     }
 
-    var insiderPct = (insiderOverride != null) ? insiderOverride : getClassDefaultPct('insider', cls);
-    var standardPct = (standardOverride != null) ? standardOverride : getClassDefaultPct('standard', cls);
+    var insiderDefault = getClassDefaultPct('insider', cls);
+    var standardDefault = getClassDefaultPct('standard', cls);
+    var insiderPct = (insiderOverride != null) ? insiderOverride : insiderDefault;
+    var standardPct = (standardOverride != null) ? standardOverride : standardDefault;
     if (insiderPct == null) insiderPct = 10;
     if (standardPct == null) standardPct = 20;
 
@@ -9296,8 +9300,13 @@ function renderTierPricePreview() {
     if (stdDisp) stdDisp.textContent = '$' + standardPrice.toFixed(2);
     if (insDisp) insDisp.textContent = '$' + insiderPrice.toFixed(2);
 
-    var insiderSrc = insiderOverride != null ? '<span style="color:#c97a1a">override</span>' : 'class default';
-    var standardSrc = standardOverride != null ? '<span style="color:#c97a1a">override</span>' : 'class default';
+    // Only call it an "override" when the value actually differs from the
+    // current class default. Auto-filled class defaults should read as
+    // "class default" even though they're technically in the input field.
+    var insiderIsOverride = insiderOverride != null && insiderDefault != null && insiderOverride !== insiderDefault;
+    var standardIsOverride = standardOverride != null && standardDefault != null && standardOverride !== standardDefault;
+    var insiderSrc = insiderIsOverride ? '<span style="color:#c97a1a">override</span>' : 'class default';
+    var standardSrc = standardIsOverride ? '<span style="color:#c97a1a">override</span>' : 'class default';
     if (el) {
         el.style.display = 'block';
         el.innerHTML = '<strong>Auto-computed wholesale prices from this cost</strong> (rounded up to nearest $0.25):' +
