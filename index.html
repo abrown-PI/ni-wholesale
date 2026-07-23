@@ -774,6 +774,14 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
             Pricing Defaults
         </a>
+        <a href="#" data-page="admin-item-types" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            Item Types
+        </a>
+        <a href="#" data-page="admin-expense-accounts" class="admin-nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+            Expense Accounts
+        </a>
         <a href="#" data-page="admin-site-info" class="admin-nav-link">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             Site Info
@@ -1411,7 +1419,10 @@
                 <div class="form-group"><label>Standard Margin %</label><input type="number" class="form-control" id="pcStandardMargin" step="0.1" min="0" placeholder="e.g., 20"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">% over cost for regular customers.</div></div>
                 <div class="form-group"><label>Insider Margin %</label><input type="number" class="form-control" id="pcInsiderMargin" step="0.1" min="0" placeholder="e.g., 10"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">% over cost for PI + insider pharmacies.</div></div>
             </div>
-            <div class="form-group"><label>NetSuite Expense Account</label><input type="text" class="form-control" id="pcExpenseAccount" placeholder="e.g., 5010 COGS - Resale"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Default expense account used on the Item CSV for products in this class. Individual products can override.</div></div>
+            <div class="form-group"><label>NetSuite Expense Account</label>
+                <select class="form-control" id="pcExpenseAccount"><option value="">— none —</option></select>
+                <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Default expense account used on the Item CSV for products in this class. Individual products can override. <a href="#" onclick="event.preventDefault();closeModal('productClassModal');navigate('admin-expense-accounts')" style="color:var(--ni-blue)">Manage list &rarr;</a></div>
+            </div>
             <div class="form-group"><label>Status</label>
                 <select class="form-control" id="pcActive">
                     <option value="true">Active</option>
@@ -1431,6 +1442,93 @@
         <div class="modal-footer">
             <button class="btn btn-outline" onclick="closeModal('productClassModal')">Cancel</button>
             <button class="btn btn-primary" onclick="saveProductClassForm()">Save Class</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — ITEM TYPES ═══════════ -->
+<div class="page" id="page-admin-item-types">
+    <div class="card">
+        <div class="card-header"><h2>Item Types</h2>
+            <button class="btn btn-primary" onclick="openItemTypeModal()">+ Add Item Type</button>
+        </div>
+        <div style="padding:12px 18px 0;font-size:13px;color:var(--gray-600);font-family:var(--sans);line-height:1.5">
+            Dropdown values for the <strong>Item Type</strong> field on the product edit form. Whatever you pick per product flows into the Item Type column on the NetSuite Item CSV.
+        </div>
+        <div class="table-wrap" style="margin-top:12px">
+            <table>
+                <thead><tr><th style="width:60px">Order</th><th>Name</th><th style="width:120px">Products</th><th style="width:100px">Status</th><th style="width:220px">Actions</th></tr></thead>
+                <tbody id="itemTypesTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="itemTypeModal">
+    <div class="modal" style="max-width:460px">
+        <div class="modal-header"><h2 id="itemTypeModalTitle">Add Item Type</h2><button class="modal-close" onclick="closeModal('itemTypeModal')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="itOriginalSlug">
+            <div class="form-row">
+                <div class="form-group"><label>Name *</label><input type="text" class="form-control" id="itName" placeholder="e.g., Vitamin/Supplement" oninput="onItemTypeNameInput()"></div>
+                <div class="form-group"><label>Sort Order</label><input type="number" class="form-control" id="itSortOrder" min="0" step="10" value="100"></div>
+            </div>
+            <div class="form-group"><label>Slug</label><input type="text" class="form-control" id="itSlug" style="font-family:monospace"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Auto-generated from the name. Only edit if you need a specific value.</div></div>
+            <div class="form-group"><label>Status</label>
+                <select class="form-control" id="itActive">
+                    <option value="true">Active</option>
+                    <option value="false">Inactive (hidden from dropdown)</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('itemTypeModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveItemTypeForm()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ PAGE: ADMIN — EXPENSE ACCOUNTS ═══════════ -->
+<div class="page" id="page-admin-expense-accounts">
+    <div class="card">
+        <div class="card-header"><h2>Expense Accounts</h2>
+            <button class="btn btn-primary" onclick="openExpenseAccountModal()">+ Add Expense Account</button>
+        </div>
+        <div style="padding:12px 18px 0;font-size:13px;color:var(--gray-600);font-family:var(--sans);line-height:1.5">
+            Dropdown values for the <strong>NetSuite Expense Account</strong> field on the product edit form and product class edit modal. Use the exact account name as it appears in NetSuite.
+        </div>
+        <div class="table-wrap" style="margin-top:12px">
+            <table>
+                <thead><tr><th style="width:60px">Order</th><th>Name</th><th style="width:180px">NetSuite ID</th><th style="width:120px">Products</th><th style="width:100px">Status</th><th style="width:220px">Actions</th></tr></thead>
+                <tbody id="expenseAccountsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="expenseAccountModal">
+    <div class="modal" style="max-width:520px">
+        <div class="modal-header"><h2 id="expenseAccountModalTitle">Add Expense Account</h2><button class="modal-close" onclick="closeModal('expenseAccountModal')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="eaOriginalSlug">
+            <div class="form-row">
+                <div class="form-group"><label>Name *</label><input type="text" class="form-control" id="eaName" placeholder="e.g., 5010 COGS - Resale" oninput="onExpenseAccountNameInput()"></div>
+                <div class="form-group"><label>Sort Order</label><input type="number" class="form-control" id="eaSortOrder" min="0" step="10" value="100"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>NetSuite Internal ID</label><input type="text" class="form-control" id="eaNetsuiteId" placeholder="Optional — for reference"></div>
+                <div class="form-group"><label>Slug</label><input type="text" class="form-control" id="eaSlug" style="font-family:monospace"></div>
+            </div>
+            <div class="form-group"><label>Status</label>
+                <select class="form-control" id="eaActive">
+                    <option value="true">Active</option>
+                    <option value="false">Inactive (hidden from dropdowns)</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('expenseAccountModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveExpenseAccountForm()">Save</button>
         </div>
     </div>
 </div>
@@ -2562,7 +2660,14 @@
                 <div id="pMarginHint" style="display:none"></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>NetSuite Expense Account</label><input type="text" class="form-control" id="pExpenseAccount" placeholder="Leave blank to use class default"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Overrides the class default on the Item CSV. <span id="pExpenseAccountClassDefault"></span></div></div>
+                <div class="form-group"><label>NetSuite Item Type</label>
+                    <select class="form-control" id="pItemType"><option value="">— Select —</option></select>
+                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Flows to the Item CSV Item Type column. <a href="#" onclick="event.preventDefault();navigate('admin-item-types')" style="color:var(--ni-blue)">Manage list &rarr;</a></div>
+                </div>
+                <div class="form-group"><label>NetSuite Expense Account</label>
+                    <select class="form-control" id="pExpenseAccount"><option value="">— use class default —</option></select>
+                    <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Overrides the class default on the Item CSV. <span id="pExpenseAccountClassDefault"></span> <a href="#" onclick="event.preventDefault();navigate('admin-expense-accounts')" style="color:var(--ni-blue)">Manage list &rarr;</a></div>
+                </div>
             </div>
             <div id="pTierPreview" style="display:none;padding:10px 14px;background:#eaf3fb;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px;font-family:var(--sans);font-size:13px"></div>
             <div class="form-row">
@@ -3201,6 +3306,7 @@ function supaProductToLocal(p) {
         insiderMarkup: p.insider_markup != null ? parseFloat(p.insider_markup) : null,
         standardMarkup: p.standard_markup != null ? parseFloat(p.standard_markup) : null,
         expenseAccount: p.expense_account || '',
+        itemType: p.item_type || '',
         stock: p.stock || 0,
         testerStock: p.tester_stock || 0,
         lowStockThreshold: p.low_stock_threshold != null ? p.low_stock_threshold : 10,
@@ -3233,6 +3339,7 @@ function localProductToSupa(p) {
         insider_markup: (p.insiderMarkup != null && p.insiderMarkup !== '') ? Number(p.insiderMarkup) : null,
         standard_markup: (p.standardMarkup != null && p.standardMarkup !== '') ? Number(p.standardMarkup) : null,
         expense_account: (p.expenseAccount && String(p.expenseAccount).trim()) || null,
+        item_type: (p.itemType && String(p.itemType).trim()) || null,
         stock: p.stock || 0,
         tester_stock: p.testerStock || 0,
         low_stock_threshold: p.lowStockThreshold != null ? p.lowStockThreshold : 10,
@@ -3369,6 +3476,210 @@ function setSelectedProductCategories(names) {
     document.querySelectorAll('.product-category-check').forEach(function(cb) {
         cb.checked = wanted.indexOf(cb.value) !== -1;
     });
+}
+
+// ── Item Types (admin lookup) ──
+var ITEM_TYPES = [];
+async function loadItemTypes() {
+    try {
+        var r = await supa.from('item_types').select('*').order('sort_order').order('name');
+        if (r.error) throw r.error;
+        ITEM_TYPES = (r.data || []).map(function(t) {
+            return { slug: t.slug, name: t.name, sortOrder: Number(t.sort_order) || 100, active: t.active !== false };
+        });
+    } catch (e) { console.warn('[item_types] load failed:', e); }
+    return ITEM_TYPES;
+}
+async function saveItemTypeRow(t, isNew) {
+    var row = { slug: t.slug, name: t.name, sort_order: Number(t.sortOrder) || 100, active: t.active !== false, updated_at: new Date().toISOString() };
+    var res = isNew
+        ? await supa.from('item_types').insert(row).select().single()
+        : await supa.from('item_types').update(row).eq('slug', t.slug).select().single();
+    if (res.error) throw res.error;
+    await loadItemTypes();
+}
+async function deleteItemTypeRow(slug) {
+    var res = await supa.from('item_types').delete().eq('slug', slug);
+    if (res.error) throw res.error;
+    await loadItemTypes();
+}
+function populateItemTypeDropdown() {
+    var sel = document.getElementById('pItemType');
+    if (!sel) return;
+    var prev = sel.value;
+    var active = ITEM_TYPES.filter(function(t) { return t.active !== false; });
+    sel.innerHTML = '<option value="">— Select —</option>' + active.map(function(t) {
+        return '<option value="' + esc(t.name) + '">' + esc(t.name) + '</option>';
+    }).join('');
+    if (prev && Array.prototype.some.call(sel.options, function(o) { return o.value === prev; })) sel.value = prev;
+}
+function renderItemTypesTable() {
+    var body = document.getElementById('itemTypesTableBody');
+    if (!body) return;
+    if (!ITEM_TYPES.length) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:24px;font-family:var(--sans)">No item types yet. Click + Add Item Type to create one.</td></tr>'; return; }
+    body.innerHTML = ITEM_TYPES.map(function(t) {
+        var count = (DATA.products || []).filter(function(p) { return p.itemType === t.name; }).length;
+        var badge = t.active !== false ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>';
+        return '<tr><td>' + Number(t.sortOrder) + '</td><td><strong>' + esc(t.name) + '</strong> <span style="color:var(--gray-500);font-size:11px;font-family:monospace">(' + esc(t.slug) + ')</span></td><td>' + count + '</td><td>' + badge + '</td><td style="white-space:nowrap"><button class="btn btn-sm btn-outline" onclick="openItemTypeModal(\'' + esc(t.slug) + '\')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteItemTypeFlow(\'' + esc(t.slug) + '\')">Delete</button></td></tr>';
+    }).join('');
+}
+function openItemTypeModal(slug) {
+    var editing = !!slug;
+    var existing = editing ? ITEM_TYPES.find(function(x) { return x.slug === slug; }) : null;
+    document.getElementById('itemTypeModalTitle').textContent = editing ? 'Edit Item Type' : 'Add Item Type';
+    document.getElementById('itOriginalSlug').value = editing ? slug : '';
+    document.getElementById('itName').value = existing ? existing.name : '';
+    document.getElementById('itSlug').value = existing ? existing.slug : '';
+    document.getElementById('itSortOrder').value = existing ? existing.sortOrder : (100 + (ITEM_TYPES.length * 10));
+    document.getElementById('itActive').value = existing ? String(existing.active !== false) : 'true';
+    openModal('itemTypeModal');
+    setTimeout(function() { document.getElementById('itName').focus(); }, 50);
+}
+function onItemTypeNameInput() {
+    var slugField = document.getElementById('itSlug');
+    if (!slugField || document.getElementById('itOriginalSlug').value) return;
+    slugField.value = slugifyClassName(document.getElementById('itName').value);
+}
+async function saveItemTypeForm() {
+    var name = (document.getElementById('itName').value || '').trim();
+    if (!name) { showToast('Name required', 'error'); return; }
+    var slug = (document.getElementById('itSlug').value || '').trim() || slugifyClassName(name);
+    if (!/^[a-z0-9_]+$/i.test(slug)) { showToast('Slug can only contain letters, numbers, underscores', 'error'); return; }
+    var originalSlug = document.getElementById('itOriginalSlug').value || '';
+    var t = { slug: slug, name: name, sortOrder: Number(document.getElementById('itSortOrder').value) || 100, active: document.getElementById('itActive').value === 'true' };
+    try {
+        if (originalSlug && originalSlug !== slug) {
+            await supa.from('products').update({ item_type: name }).eq('item_type', ITEM_TYPES.find(function(x) { return x.slug === originalSlug; }).name);
+            await supa.from('item_types').update({ slug: slug }).eq('slug', originalSlug);
+        }
+        await saveItemTypeRow(t, !originalSlug);
+    } catch (e) {
+        var msg = e.message || 'Supabase error';
+        if (/duplicate key/i.test(msg)) msg = 'An item type with that slug already exists';
+        showToast('Save failed: ' + msg, 'error'); return;
+    }
+    closeModal('itemTypeModal');
+    populateItemTypeDropdown();
+    renderItemTypesTable();
+    showToast(originalSlug ? 'Item type updated' : 'Item type added');
+}
+async function deleteItemTypeFlow(slug) {
+    var t = ITEM_TYPES.find(function(x) { return x.slug === slug; });
+    if (!t) return;
+    var count = (DATA.products || []).filter(function(p) { return p.itemType === t.name; }).length;
+    var msg = 'Delete item type "' + t.name + '"?';
+    if (count) msg += '\n\n' + count + ' product(s) reference it and will keep the name in their record but lose the dropdown link.';
+    if (!confirm(msg)) return;
+    try { await deleteItemTypeRow(slug); }
+    catch (e) { showToast('Delete failed: ' + (e.message || 'Supabase error'), 'error'); return; }
+    populateItemTypeDropdown();
+    renderItemTypesTable();
+    showToast('Item type deleted');
+}
+
+// ── Expense Accounts (admin lookup) ──
+var EXPENSE_ACCOUNTS = [];
+async function loadExpenseAccounts() {
+    try {
+        var r = await supa.from('expense_accounts').select('*').order('sort_order').order('name');
+        if (r.error) throw r.error;
+        EXPENSE_ACCOUNTS = (r.data || []).map(function(a) {
+            return { slug: a.slug, name: a.name, netsuiteId: a.netsuite_id || '', sortOrder: Number(a.sort_order) || 100, active: a.active !== false };
+        });
+    } catch (e) { console.warn('[expense_accounts] load failed:', e); }
+    return EXPENSE_ACCOUNTS;
+}
+async function saveExpenseAccountRow(a, isNew) {
+    var row = { slug: a.slug, name: a.name, netsuite_id: a.netsuiteId || null, sort_order: Number(a.sortOrder) || 100, active: a.active !== false, updated_at: new Date().toISOString() };
+    var res = isNew
+        ? await supa.from('expense_accounts').insert(row).select().single()
+        : await supa.from('expense_accounts').update(row).eq('slug', a.slug).select().single();
+    if (res.error) throw res.error;
+    await loadExpenseAccounts();
+}
+async function deleteExpenseAccountRow(slug) {
+    var res = await supa.from('expense_accounts').delete().eq('slug', slug);
+    if (res.error) throw res.error;
+    await loadExpenseAccounts();
+}
+function populateExpenseAccountDropdowns() {
+    var active = EXPENSE_ACCOUNTS.filter(function(a) { return a.active !== false; });
+    var options = active.map(function(a) { return '<option value="' + esc(a.name) + '">' + esc(a.name) + '</option>'; }).join('');
+    var pSel = document.getElementById('pExpenseAccount');
+    if (pSel && pSel.tagName === 'SELECT') {
+        var prev = pSel.value;
+        pSel.innerHTML = '<option value="">— use class default —</option>' + options;
+        if (prev && Array.prototype.some.call(pSel.options, function(o) { return o.value === prev; })) pSel.value = prev;
+    }
+    var cSel = document.getElementById('pcExpenseAccount');
+    if (cSel && cSel.tagName === 'SELECT') {
+        var prevC = cSel.value;
+        cSel.innerHTML = '<option value="">— none —</option>' + options;
+        if (prevC && Array.prototype.some.call(cSel.options, function(o) { return o.value === prevC; })) cSel.value = prevC;
+    }
+}
+function renderExpenseAccountsTable() {
+    var body = document.getElementById('expenseAccountsTableBody');
+    if (!body) return;
+    if (!EXPENSE_ACCOUNTS.length) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:24px;font-family:var(--sans)">No expense accounts yet. Click + Add Expense Account to create one.</td></tr>'; return; }
+    body.innerHTML = EXPENSE_ACCOUNTS.map(function(a) {
+        var count = (DATA.products || []).filter(function(p) { return p.expenseAccount === a.name; }).length;
+        var badge = a.active !== false ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>';
+        return '<tr><td>' + Number(a.sortOrder) + '</td><td><strong>' + esc(a.name) + '</strong></td><td>' + esc(a.netsuiteId || '—') + '</td><td>' + count + '</td><td>' + badge + '</td><td style="white-space:nowrap"><button class="btn btn-sm btn-outline" onclick="openExpenseAccountModal(\'' + esc(a.slug) + '\')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteExpenseAccountFlow(\'' + esc(a.slug) + '\')">Delete</button></td></tr>';
+    }).join('');
+}
+function openExpenseAccountModal(slug) {
+    var editing = !!slug;
+    var existing = editing ? EXPENSE_ACCOUNTS.find(function(x) { return x.slug === slug; }) : null;
+    document.getElementById('expenseAccountModalTitle').textContent = editing ? 'Edit Expense Account' : 'Add Expense Account';
+    document.getElementById('eaOriginalSlug').value = editing ? slug : '';
+    document.getElementById('eaName').value = existing ? existing.name : '';
+    document.getElementById('eaNetsuiteId').value = existing ? (existing.netsuiteId || '') : '';
+    document.getElementById('eaSlug').value = existing ? existing.slug : '';
+    document.getElementById('eaSortOrder').value = existing ? existing.sortOrder : (100 + (EXPENSE_ACCOUNTS.length * 10));
+    document.getElementById('eaActive').value = existing ? String(existing.active !== false) : 'true';
+    openModal('expenseAccountModal');
+    setTimeout(function() { document.getElementById('eaName').focus(); }, 50);
+}
+function onExpenseAccountNameInput() {
+    var slugField = document.getElementById('eaSlug');
+    if (!slugField || document.getElementById('eaOriginalSlug').value) return;
+    slugField.value = slugifyClassName(document.getElementById('eaName').value);
+}
+async function saveExpenseAccountForm() {
+    var name = (document.getElementById('eaName').value || '').trim();
+    if (!name) { showToast('Name required', 'error'); return; }
+    var slug = (document.getElementById('eaSlug').value || '').trim() || slugifyClassName(name);
+    if (!/^[a-z0-9_]+$/i.test(slug)) { showToast('Slug can only contain letters, numbers, underscores', 'error'); return; }
+    var originalSlug = document.getElementById('eaOriginalSlug').value || '';
+    var a = { slug: slug, name: name, netsuiteId: (document.getElementById('eaNetsuiteId').value || '').trim(), sortOrder: Number(document.getElementById('eaSortOrder').value) || 100, active: document.getElementById('eaActive').value === 'true' };
+    try {
+        if (originalSlug && originalSlug !== slug) {
+            await supa.from('expense_accounts').update({ slug: slug }).eq('slug', originalSlug);
+        }
+        await saveExpenseAccountRow(a, !originalSlug);
+    } catch (e) {
+        var msg = e.message || 'Supabase error';
+        if (/duplicate key/i.test(msg)) msg = 'An expense account with that slug already exists';
+        showToast('Save failed: ' + msg, 'error'); return;
+    }
+    closeModal('expenseAccountModal');
+    populateExpenseAccountDropdowns();
+    renderExpenseAccountsTable();
+    showToast(originalSlug ? 'Expense account updated' : 'Expense account added');
+}
+async function deleteExpenseAccountFlow(slug) {
+    var a = EXPENSE_ACCOUNTS.find(function(x) { return x.slug === slug; });
+    if (!a) return;
+    var count = (DATA.products || []).filter(function(p) { return p.expenseAccount === a.name; }).length;
+    var msg = 'Delete expense account "' + a.name + '"?';
+    if (count) msg += '\n\n' + count + ' product(s) reference it; they will keep the name in their record.';
+    if (!confirm(msg)) return;
+    try { await deleteExpenseAccountRow(slug); }
+    catch (e) { showToast('Delete failed: ' + (e.message || 'Supabase error'), 'error'); return; }
+    populateExpenseAccountDropdowns();
+    renderExpenseAccountsTable();
+    showToast('Expense account deleted');
 }
 
 // ── Category admin UI (list, modal, save, delete) ──
@@ -4295,6 +4606,8 @@ async function submitAdminSignIn() {
         if (pageId === 'admin-vendors') { renderVendors(); refreshVendorsFromSupabase(); }
     if (pageId === 'admin-categories') { renderCategoriesTable(); refreshCategories(); }
     if (pageId === 'admin-pricing-defaults') renderPricingDefaultsPage();
+    if (pageId === 'admin-item-types') { renderItemTypesTable(); loadItemTypes().then(function() { renderItemTypesTable(); populateItemTypeDropdown(); }); }
+    if (pageId === 'admin-expense-accounts') { renderExpenseAccountsTable(); loadExpenseAccounts().then(function() { renderExpenseAccountsTable(); populateExpenseAccountDropdowns(); }); }
         if (pageId === 'admin-dashboard') renderAdminDashboard();
     } catch (e) { console.warn('post-signin refresh:', e); }
 }
@@ -6913,6 +7226,8 @@ var ADMIN_PAGE_TITLES = {
     'admin-vendors': 'Vendors',
     'admin-categories': 'Product Categories',
     'admin-pricing-defaults': 'Pricing Defaults',
+    'admin-item-types': 'Item Types',
+    'admin-expense-accounts': 'Expense Accounts',
     'admin-pos': 'Purchase Orders',
     'admin-reports': 'Reports',
     'admin-accounts': 'Pharmacy Applications',
@@ -9030,6 +9345,7 @@ async function buildSelectedItemsCsv() {
             cost_per_unit: product.costPerUnit, wholesale_price: product.wholesalePrice,
             retail_price: product.retailPrice, product_class: product.productClass || 'private_label',
         expense_account: product.expenseAccount || '',
+        item_type: product.itemType || '',
             taxable: product.taxable !== false, status: product.status || 'active',
             min_order_qty: product.minOrderQty || 1
         };
@@ -9169,6 +9485,7 @@ function openProductModal(idx) {
         document.getElementById('pInsiderMarkup').value = p.insiderMarkup != null ? p.insiderMarkup : '';
         document.getElementById('pStandardMarkup').value = p.standardMarkup != null ? p.standardMarkup : '';
         document.getElementById('pExpenseAccount').value = p.expenseAccount || '';
+        document.getElementById('pItemType').value = p.itemType || '';
         document.getElementById('pWholesalePrice').value = p.wholesalePrice != null ? p.wholesalePrice : '';
         document.getElementById('pRetailPrice').value = p.retailPrice != null ? p.retailPrice : '';
         // Calculate and show existing margin (prefer stored value, fall back to live calc)
@@ -9205,6 +9522,7 @@ function openProductModal(idx) {
         document.getElementById('pInsiderMarkup').value = '';
         document.getElementById('pStandardMarkup').value = '';
         document.getElementById('pExpenseAccount').value = '';
+        document.getElementById('pItemType').value = '';
     }
     renderProductImagesGallery();
     renderVariantsSectionInModal();
@@ -9233,6 +9551,7 @@ async function generateItemCsvForProduct(product) {
         cost_per_unit: product.costPerUnit, wholesale_price: product.wholesalePrice,
         retail_price: product.retailPrice, product_class: product.productClass || 'private_label',
         expense_account: product.expenseAccount || '',
+        item_type: product.itemType || '',
         taxable: product.taxable !== false, status: product.status || 'active',
         min_order_qty: product.minOrderQty || 1
     };
@@ -9515,6 +9834,7 @@ async function saveProduct() {
         insiderMarkup: document.getElementById('pInsiderMarkup').value !== '' ? parseFloat(document.getElementById('pInsiderMarkup').value) : null,
         standardMarkup: document.getElementById('pStandardMarkup').value !== '' ? parseFloat(document.getElementById('pStandardMarkup').value) : null,
         expenseAccount: (document.getElementById('pExpenseAccount').value || '').trim(),
+        itemType: (document.getElementById('pItemType').value || '').trim(),
         retailPrice: document.getElementById('pRetailPrice').value ? parseFloat(document.getElementById('pRetailPrice').value) : null,
         profitMargin: profitMargin,
         stock: parseInt(document.getElementById('pStock').value) || 0,
@@ -11103,6 +11423,7 @@ var CSV_SOURCE_OPTIONS = [
         ['item.wholesale_price', 'Wholesale Price (standard tier)'],
         ['item.retail_price', 'Suggested Retail'],
         ['item.product_class', 'Product Class (private_label / manufactured)'],
+        ['item.item_type', 'Item Type (Vitamin/Supplement, OTC, etc.)'],
         ['item.expense_account', 'Expense Account (product override or class default)'],
         ['item.taxable', 'Taxable (yes/no)'],
         ['item.status', 'Status'],
@@ -11323,6 +11644,7 @@ function resolveCsvField(sourceKey, ctx) {
         case 'item.wholesale_price': return item ? _fmtMoney(item.wholesale_price != null ? item.wholesale_price : item.wholesalePrice) : '';
         case 'item.retail_price': return item ? _fmtMoney(item.retail_price != null ? item.retail_price : item.retailPrice) : '';
         case 'item.product_class': return item ? (item.product_class || item.productClass || 'private_label') : '';
+        case 'item.item_type': return item ? (item.item_type || item.itemType || '') : '';
         case 'item.expense_account':
             if (!item) return '';
             // Product override wins; else look up the class default from PRODUCT_CLASSES.
@@ -14286,6 +14608,10 @@ loadProductClasses().then(function() {
 // Categories are readable by anyone (public read RLS). Load them so the
 // storefront filter + product edit dropdown always show the current list.
 refreshCategories();
+// Item types + expense accounts feed dropdowns on the product form and
+// class modal; load once on boot so those dropdowns populate on open.
+loadItemTypes().then(populateItemTypeDropdown);
+loadExpenseAccounts().then(populateExpenseAccountDropdowns);
 
 // Browser back/forward — URL is source of truth
 window.addEventListener('popstate', function(e) {
