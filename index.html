@@ -1931,11 +1931,12 @@
                     <div id="coPaymentDetails" style="margin-top:12px"></div>
                 </div>
             </div>
-            <!-- Notes -->
+            <!-- PO Number + Notes -->
             <div class="card">
-                <div class="card-header"><h2 style="font-size:18px">Order Notes</h2></div>
+                <div class="card-header"><h2 style="font-size:18px">Purchase Order &amp; Notes</h2></div>
                 <div style="padding:0 0 8px">
-                    <textarea class="form-control" id="coNotes" rows="3" placeholder="Special instructions for this order (optional)"></textarea>
+                    <div class="form-group"><label>PO Number (optional)</label><input type="text" class="form-control" id="coPoNumber" placeholder="Your internal PO # for this order"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Appears on your invoice for your accounts-payable records.</div></div>
+                    <div class="form-group"><label>Order Notes</label><textarea class="form-control" id="coNotes" rows="3" placeholder="Special instructions for this order (optional)"></textarea></div>
                 </div>
             </div>
             <!-- Place Order -->
@@ -8554,6 +8555,7 @@ function renderCheckoutPage() {
     document.getElementById('coBillFields').style.display = 'none';
 
     document.getElementById('coNotes').value = '';
+    var poEl = document.getElementById('coPoNumber'); if (poEl) poEl.value = '';
 
     renderCheckoutShippingMethods();
     renderCheckoutPaymentOptions();
@@ -9049,6 +9051,7 @@ async function placeCheckoutOrder() {
             discountAmount: discountAmount,
             refundAmount: 0, refundedAt: '',
             notes: document.getElementById('coNotes').value.trim(),
+            poNumber: (document.getElementById('coPoNumber') && document.getElementById('coPoNumber').value || '').trim(),
             internalNotes: '',
             items: itemsArr,
             subtotal: sub,
@@ -9121,7 +9124,8 @@ async function placeCheckoutOrder() {
                 discount_amount: discountAmount, coupon_code: couponCode || null,
                 payment_method: order.paymentMethod, payment_status: 'Unpaid',
                 status: 'pending', carrier: shipPick.carrier || null,
-                notes: order.notes || null, internal_notes: ''
+                notes: order.notes || null, internal_notes: '',
+                po_number: order.poNumber || null
             };
             var supaItems = order.items.map(function(it) {
                 var p = DATA.products[it.productIndex];
@@ -10887,6 +10891,7 @@ function viewOrder(i) {
     if (o.cancelledAt) dates += '<div><strong>Cancelled:</strong> ' + esc(new Date(o.cancelledAt).toLocaleString()) + '</div>';
     if (o.invoiceNumber) dates += '<div style="margin-top:4px"><strong>Invoice #:</strong> <code style="background:var(--gray-100);padding:2px 6px;border-radius:3px">' + esc(o.invoiceNumber) + '</code> <a href="#" onclick="editOrderInvoiceNumber(' + i + ');return false" style="font-size:11px;color:var(--ni-blue);text-decoration:none;margin-left:6px">edit</a></div>';
     else if (o.status === 'shipped' || o.status === 'delivered') dates += '<div style="margin-top:4px;color:var(--gray-500)">No invoice # &mdash; <a href="#" onclick="editOrderInvoiceNumber(' + i + ');return false" style="color:var(--ni-blue);text-decoration:none">assign one</a></div>';
+    if (o.poNumber) dates += '<div style="margin-top:4px"><strong>Customer PO #:</strong> <code style="background:var(--gray-100);padding:2px 6px;border-radius:3px">' + esc(o.poNumber) + '</code></div>';
 
     var customerBlock = '<div><strong>Customer:</strong><br>' + esc(o.customerName || '--') + '<br>' +
         (o.email ? esc(o.email) + '<br>' : '') +
@@ -11794,6 +11799,7 @@ var CSV_SOURCE_OPTIONS = [
       items: [
         ['order.order_number', 'Order Number (raw)'],
         ['order.invoice_number', 'NetSuite Invoice #'],
+        ['order.po_number', 'Customer PO # (entered at checkout)'],
         ['order.placed_at', 'Placed Date'],
         ['order.shipped_at', 'Shipped Date'],
         ['order.tracking_number', 'Tracking Number'],
@@ -11993,6 +11999,7 @@ function resolveCsvField(sourceKey, ctx) {
         // order fields
         case 'order.order_number': return String(order.order_number || '');
         case 'order.invoice_number': return order.invoice_number || ('NI-' + String(order.order_number || '').padStart(5, '0'));
+        case 'order.po_number': return order.po_number || '';
         case 'order.placed_at': return order.placed_at || '';
         case 'order.shipped_at': return order.shipped_at || '';
         case 'order.tracking_number': return order.tracking_number || '';
@@ -15349,6 +15356,7 @@ function supaOrderToLocal(o) {
         paymentStatus: o.payment_status || 'Unpaid', payment_status: o.payment_status || 'Unpaid',
         status: o.status || 'pending', notes: o.notes || '', internalNotes: o.internal_notes || '',
         invoiceNumber: o.invoice_number || '',
+        poNumber: o.po_number || '',
         items: items
     };
 }
