@@ -2688,6 +2688,20 @@
                 <div id="productVariantsSection"></div>
                 <div style="margin-top:10px"><button type="button" class="btn btn-sm btn-outline" onclick="addVariantRow()">+ Add Variant</button></div>
             </div>
+
+            <!-- Inventory History (populated by renderProductInventoryHistory when the modal opens) -->
+            <div id="pInventoryHistoryWrap" style="margin-top:24px;display:none">
+                <div style="padding-bottom:6px;border-bottom:1px solid var(--gray-200);margin:0 0 12px;display:flex;justify-content:space-between;align-items:center">
+                    <label style="font-family:var(--serif);font-size:16px;color:var(--ni-navy);margin:0">Inventory History</label>
+                    <span id="pInventoryHistoryCount" style="font-size:12px;color:var(--gray-500);font-family:var(--sans)"></span>
+                </div>
+                <div style="max-height:280px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px">
+                    <table style="width:100%;font-family:var(--sans);font-size:12px;border-collapse:collapse">
+                        <thead><tr style="background:var(--gray-100);position:sticky;top:0"><th style="padding:6px 8px;text-align:left">Date</th><th style="padding:6px 8px;text-align:center;width:50px">Type</th><th style="padding:6px 8px;text-align:center;width:60px">Qty</th><th style="padding:6px 8px;text-align:right;width:80px">Unit Cost</th><th style="padding:6px 8px;text-align:right;width:90px">Line Total</th><th style="padding:6px 8px;text-align:left">Reference</th><th style="padding:6px 8px;text-align:left">Received / Sold By</th><th style="padding:6px 8px;text-align:left">Notes</th></tr></thead>
+                        <tbody id="pInventoryHistoryBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
         <div class="modal-footer"><button class="btn btn-outline" onclick="closeProductModal()">Cancel</button><button class="btn btn-outline" id="emailItemCsvBtn" style="display:none" onclick="emailItemCsvForCurrentProduct()" title="Email an Item CSV to Accounting so they can add this item in NetSuite">&#128231; Send Item CSV to Accounting</button><button class="btn btn-primary" onclick="saveProduct()">Save Product</button></div>
     </div>
@@ -2745,11 +2759,12 @@
                 <div class="form-group"><label>Date</label><input type="date" class="form-control" id="rcvDate"></div>
                 <div class="form-group"><label>Vendor</label><select class="form-control" id="rcvVendor" onchange="renderReceiveTable()"><option value="">All Vendors</option></select></div>
                 <div class="form-group"><label>Reference / Invoice #</label><input type="text" class="form-control" id="rcvRef" placeholder="Optional"></div>
+                <div class="form-group"><label>Received By</label><input type="text" class="form-control" id="rcvReceivedBy" placeholder="Auto-filled from signed-in admin"></div>
             </div>
             <div style="margin-bottom:8px"><input type="text" class="search-input" id="rcvSearch" placeholder="Search products..." oninput="renderReceiveTable()" style="width:100%"></div>
             <div style="max-height:400px;overflow-y:auto">
                 <table style="width:100%;font-family:var(--sans);font-size:13px">
-                    <thead><tr style="background:var(--gray-100);position:sticky;top:0;z-index:1"><th style="padding:8px;text-align:left">Product</th><th style="padding:8px;text-align:left">Vendor</th><th style="padding:8px;text-align:left">Pkg Size</th><th style="padding:8px;text-align:center;width:80px">Current</th><th style="padding:8px;text-align:center;width:100px">Qty Received</th><th style="padding:8px;text-align:center;width:80px">New Stock</th></tr></thead>
+                    <thead><tr style="background:var(--gray-100);position:sticky;top:0;z-index:1"><th style="padding:8px;text-align:left">Product</th><th style="padding:8px;text-align:left">Vendor</th><th style="padding:8px;text-align:left">Pkg Size</th><th style="padding:8px;text-align:center;width:80px">Current</th><th style="padding:8px;text-align:center;width:100px">Qty Received</th><th style="padding:8px;text-align:center;width:110px">Unit Cost</th><th style="padding:8px;text-align:center;width:80px">New Stock</th></tr></thead>
                     <tbody id="rcvTableBody"></tbody>
                 </table>
             </div>
@@ -9531,7 +9546,47 @@ function openProductModal(idx) {
     onProductClassChange();
     var itemBtn = document.getElementById('emailItemCsvBtn');
     if (itemBtn) itemBtn.style.display = (idx >= 0 && DATA.products[idx] && DATA.products[idx].id) ? '' : 'none';
+    renderProductInventoryHistory(idx);
     openModal('productModal');
+}
+
+// Show all IN/OUT inventory transactions for the currently-edited product
+// inside the modal so admins can see stock movement without switching pages.
+function renderProductInventoryHistory(idx) {
+    var wrap = document.getElementById('pInventoryHistoryWrap');
+    var body = document.getElementById('pInventoryHistoryBody');
+    var countEl = document.getElementById('pInventoryHistoryCount');
+    if (!wrap || !body) return;
+    if (idx < 0 || !DATA.products[idx]) { wrap.style.display = 'none'; return; }
+    var p = DATA.products[idx];
+    var rows = (DATA.inventory || []).filter(function(r) {
+        return (p.sku && r.sku === p.sku) || (!r.sku && r.productName === p.name);
+    });
+    rows.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
+    wrap.style.display = 'block';
+    if (countEl) countEl.textContent = rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies');
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:20px">No inventory movement recorded yet.</td></tr>';
+        return;
+    }
+    body.innerHTML = rows.map(function(r) {
+        var typeBadge = r.type === 'IN'
+            ? '<span class="badge badge-success" style="font-size:10px">IN</span>'
+            : '<span class="badge badge-warning" style="font-size:10px">OUT</span>';
+        var cost = r.unitCost != null ? Number(r.unitCost) : (r.type === 'IN' ? Number(p.costPerUnit || 0) : 0);
+        var lineTotal = r.lineTotal != null ? Number(r.lineTotal) : (cost * (Number(r.qty) || 0));
+        var whoName = r.receivedBy || r.soldBy || r.customerName || '';
+        return '<tr>' +
+            '<td style="padding:6px 8px">' + esc(r.date || '') + '</td>' +
+            '<td style="padding:6px 8px;text-align:center">' + typeBadge + '</td>' +
+            '<td style="padding:6px 8px;text-align:center">' + (Number(r.qty) || 0) + '</td>' +
+            '<td style="padding:6px 8px;text-align:right">' + (cost > 0 ? '$' + cost.toFixed(2) : '--') + '</td>' +
+            '<td style="padding:6px 8px;text-align:right">' + (lineTotal > 0 ? '$' + lineTotal.toFixed(2) : '--') + '</td>' +
+            '<td style="padding:6px 8px">' + esc(r.reference || '--') + '</td>' +
+            '<td style="padding:6px 8px">' + esc(whoName || '--') + '</td>' +
+            '<td style="padding:6px 8px;color:var(--gray-600)">' + esc(r.notes || '') + '</td>' +
+        '</tr>';
+    }).join('');
 }
 
 // Generate a NetSuite Item CSV row from the current product using the
@@ -10187,11 +10242,17 @@ function deleteInventoryTxn(vi) {
 // ════════════════════════════════════════════════════
 var rcvQuantities = {};
 
+var rcvUnitCosts = {}; // keyed by product index; captures per-line cost override
 function openReceiveInventoryModal() {
     rcvQuantities = {};
+    rcvUnitCosts = {};
     document.getElementById('rcvDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('rcvRef').value = '';
     document.getElementById('rcvSearch').value = '';
+    // Auto-fill Received By from the signed-in admin session.
+    var session = (typeof loadSession === 'function') ? loadSession() : null;
+    var receivedByField = document.getElementById('rcvReceivedBy');
+    if (receivedByField) receivedByField.value = (session && (session.name || session.email)) || '';
     var vSel = document.getElementById('rcvVendor');
     vSel.innerHTML = '<option value="">All Vendors</option>' + DATA.vendors.map(function(v) { return '<option>' + esc(v.name) + '</option>'; }).join('');
     vSel.value = '';
@@ -10217,15 +10278,24 @@ function renderReceiveTable() {
         var qty = rcvQuantities[idx] || '';
         var newStock = (p.stock || 0) + (parseInt(qty) || 0);
         var highlight = qty && parseInt(qty) > 0 ? 'background:var(--success-bg)' : '';
+        var currentCost = rcvUnitCosts[idx] != null ? rcvUnitCosts[idx] : (p.costPerUnit != null ? Number(p.costPerUnit).toFixed(2) : '');
         return '<tr style="' + highlight + '">' +
             '<td style="padding:8px"><strong>' + esc(p.name) + '</strong></td>' +
             '<td style="padding:8px">' + esc(p.vendor || '--') + '</td>' +
             '<td style="padding:8px">' + esc(p.packageSize || '--') + '</td>' +
             '<td style="padding:8px;text-align:center">' + (p.stock || 0) + '</td>' +
             '<td style="padding:8px;text-align:center"><input type="number" min="0" class="form-control" style="width:80px;margin:0 auto;text-align:center" value="' + qty + '" data-pidx="' + idx + '" oninput="updateRcvQty(this)"></td>' +
+            '<td style="padding:8px;text-align:center"><input type="number" min="0" step="0.01" class="form-control" style="width:100px;margin:0 auto;text-align:right" value="' + currentCost + '" data-pidx="' + idx + '" oninput="updateRcvCost(this)"></td>' +
             '<td style="padding:8px;text-align:center;font-weight:600;color:' + (qty && parseInt(qty) > 0 ? 'var(--success)' : 'inherit') + '">' + newStock + '</td>' +
         '</tr>';
-    }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No products found</td></tr>';
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No products found</td></tr>';
+    updateRcvSummary();
+}
+function updateRcvCost(input) {
+    var idx = parseInt(input.dataset.pidx);
+    var val = parseFloat(input.value);
+    if (isFinite(val) && val >= 0) rcvUnitCosts[idx] = val;
+    else delete rcvUnitCosts[idx];
     updateRcvSummary();
 }
 
@@ -10250,6 +10320,12 @@ function updateRcvSummary() {
     var keys = Object.keys(rcvQuantities);
     var count = keys.length;
     var totalUnits = keys.reduce(function(s, k) { return s + rcvQuantities[k]; }, 0);
+    var totalValue = keys.reduce(function(s, k) {
+        var idx = parseInt(k);
+        var p = DATA.products[idx] || {};
+        var cost = rcvUnitCosts[idx] != null ? rcvUnitCosts[idx] : Number(p.costPerUnit || 0);
+        return s + (cost * rcvQuantities[k]);
+    }, 0);
     var el = document.getElementById('rcvSummary');
     var btn = document.getElementById('rcvSubmitBtn');
     if (count === 0) {
@@ -10257,32 +10333,74 @@ function updateRcvSummary() {
         btn.disabled = true;
     } else {
         el.style.display = 'block';
-        el.innerHTML = '<strong>' + count + '</strong> product' + (count > 1 ? 's' : '') + ' selected — <strong>' + totalUnits + '</strong> total units to receive';
+        el.innerHTML = '<strong>' + count + '</strong> product' + (count > 1 ? 's' : '') + ' selected — <strong>' + totalUnits + '</strong> total units · <strong>$' + totalValue.toFixed(2) + '</strong> total value';
         btn.disabled = false;
     }
 }
 
-function submitReceiveInventory() {
+async function submitReceiveInventory() {
     var keys = Object.keys(rcvQuantities);
     if (!keys.length) { showToast('Enter quantities for at least one product', 'error'); return; }
     var date = document.getElementById('rcvDate').value || new Date().toISOString().split('T')[0];
     var ref = document.getElementById('rcvRef').value.trim();
+    var receivedBy = (document.getElementById('rcvReceivedBy').value || '').trim();
+
+    // Find products whose captured cost differs from the current cost — offer
+    // to sync the product cost so future storefront prices use the latest.
+    var costChanges = [];
+    keys.forEach(function(k) {
+        var idx = parseInt(k);
+        var p = DATA.products[idx];
+        if (rcvUnitCosts[idx] == null) return;
+        var oldCost = Number(p.costPerUnit || 0);
+        var newCost = Number(rcvUnitCosts[idx]);
+        if (newCost !== oldCost && newCost > 0) costChanges.push({ idx: idx, name: p.name, oldCost: oldCost, newCost: newCost });
+    });
+
+    var updateProductCosts = false;
+    if (costChanges.length) {
+        var msg = costChanges.length + ' product cost(s) changed:\n\n';
+        costChanges.slice(0, 6).forEach(function(c) {
+            msg += '  · ' + c.name + ': $' + c.oldCost.toFixed(2) + ' → $' + c.newCost.toFixed(2) + '\n';
+        });
+        if (costChanges.length > 6) msg += '  · ...and ' + (costChanges.length - 6) + ' more\n';
+        msg += '\nUpdate the product cost so future prices use the new value?';
+        updateProductCosts = confirm(msg);
+    }
+
     keys.forEach(function(k) {
         var idx = parseInt(k);
         var p = DATA.products[idx];
         var qty = rcvQuantities[k];
-        // Record inventory transaction
+        var lineCost = rcvUnitCosts[idx] != null ? Number(rcvUnitCosts[idx]) : Number(p.costPerUnit || 0);
         DATA.inventory.push({
+            id: 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             date: date, type: 'IN', reference: ref,
             productName: p.name, sku: p.sku || '',
             vendor: p.vendor || '', qty: qty,
+            unitCost: lineCost,
+            lineTotal: lineCost * qty,
+            receivedBy: receivedBy,
             soldBy: '', customerId: '', customerName: '',
             notes: 'Quick receive from Products page'
         });
-        // Update stock
         p.stock = (p.stock || 0) + qty;
+        if (updateProductCosts && rcvUnitCosts[idx] != null && Number(rcvUnitCosts[idx]) > 0) {
+            p.costPerUnit = Number(rcvUnitCosts[idx]);
+        }
     });
+
     saveData();
+    // Push updated products (stock + optional cost) to Supabase so cross-device is in sync.
+    if (IS_SUPA_ADMIN) {
+        for (var i = 0; i < keys.length; i++) {
+            var idx = parseInt(keys[i]);
+            var p = DATA.products[idx];
+            if (!p || !p.id) continue;
+            try { await supaSaveProduct(p); }
+            catch (e) { console.warn('[receive-inventory supa]', p.sku, e); }
+        }
+    }
     closeModal('receiveInventoryModal');
     renderProductTable(); renderProductStats(); renderLowStockAlerts();
     showToast(keys.length + ' product' + (keys.length > 1 ? 's' : '') + ' updated — stock received');
