@@ -11556,6 +11556,8 @@ var CSV_SOURCE_OPTIONS = [
         ['item.category', 'Category'],
         ['item.cost_per_unit', 'Cost per Unit'],
         ['item.wholesale_price', 'Wholesale Price (standard tier)'],
+        ['item.insider_price', 'Insider Price (cost + insider margin, rounded up to $0.25)'],
+        ['item.standard_price', 'Standard Price (cost + standard margin, rounded up to $0.25)'],
         ['item.retail_price', 'Suggested Retail'],
         ['item.product_class', 'Product Class (private_label / manufactured)'],
         ['item.item_type', 'Item Type (Vitamin/Supplement, OTC, etc.)'],
@@ -11777,6 +11779,19 @@ function resolveCsvField(sourceKey, ctx) {
         case 'item.category': return item ? (item.category || '') : '';
         case 'item.cost_per_unit': return item ? _fmtMoney(item.cost_per_unit != null ? item.cost_per_unit : item.costPerUnit) : '';
         case 'item.wholesale_price': return item ? _fmtMoney(item.wholesale_price != null ? item.wholesale_price : item.wholesalePrice) : '';
+        case 'item.insider_price':
+        case 'item.standard_price':
+            if (!item) return '';
+            var _tier = sourceKey === 'item.insider_price' ? 'insider' : 'standard';
+            var _cost = Number(item.cost_per_unit != null ? item.cost_per_unit : item.costPerUnit);
+            if (!(_cost > 0)) return '';
+            var _override = _tier === 'insider'
+                ? (item.insider_markup != null ? Number(item.insider_markup) : (item.insiderMarkup != null ? Number(item.insiderMarkup) : null))
+                : (item.standard_markup != null ? Number(item.standard_markup) : (item.standardMarkup != null ? Number(item.standardMarkup) : null));
+            var _cls = item.product_class || item.productClass || 'private_label';
+            var _pct = (_override != null && !isNaN(_override)) ? _override : getClassDefaultPct(_tier, _cls);
+            if (_pct == null) _pct = _tier === 'insider' ? 10 : 20;
+            return _fmtMoney(Math.ceil(_cost * (1 + _pct / 100) * 4) / 4);
         case 'item.retail_price': return item ? _fmtMoney(item.retail_price != null ? item.retail_price : item.retailPrice) : '';
         case 'item.product_class': return item ? (item.product_class || item.productClass || 'private_label') : '';
         case 'item.item_type': return item ? (item.item_type || item.itemType || '') : '';
