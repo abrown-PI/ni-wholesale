@@ -2427,6 +2427,10 @@
                 <div class="form-group"><label>Wholesale Price ($)</label><input type="number" class="form-control" id="pWholesalePrice" step="0.01" min="0" oninput="calcMarginFromSell()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Legacy fallback — used only if Cost is empty.</div></div>
                 <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
             </div>
+            <div class="form-row">
+                <div class="form-group"><label>Insider Markup (multiplier)</label><input type="number" class="form-control" id="pInsiderMarkup" step="0.01" min="0" placeholder="1.10 = 10% over cost" oninput="renderTierPricePreview()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Blank = use tier default (currently 1.10). Overrides for this product only.</div></div>
+                <div class="form-group"><label>Standard Markup (multiplier)</label><input type="number" class="form-control" id="pStandardMarkup" step="0.01" min="0" placeholder="1.20 or 1.50" oninput="renderTierPricePreview()"><div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Blank = use tier default based on class. Overrides for this product only.</div></div>
+            </div>
             <div id="pTierPreview" style="display:none;padding:10px 14px;background:#eaf3fb;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px;font-family:var(--sans);font-size:13px"></div>
             <div class="form-row">
                 <div class="form-group"><label>Stock Qty</label><input type="number" class="form-control" id="pStock" min="0" value="0"></div>
@@ -2447,7 +2451,7 @@
                 <div style="margin-top:10px"><button type="button" class="btn btn-sm btn-outline" onclick="addVariantRow()">+ Add Variant</button></div>
             </div>
         </div>
-        <div class="modal-footer"><button class="btn btn-outline" onclick="closeProductModal()">Cancel</button><button class="btn btn-primary" onclick="saveProduct()">Save Product</button></div>
+        <div class="modal-footer"><button class="btn btn-outline" onclick="closeProductModal()">Cancel</button><button class="btn btn-outline" id="emailItemCsvBtn" style="display:none" onclick="emailItemCsvForCurrentProduct()" title="Email an Item CSV to Accounting so they can add this item in NetSuite">&#128231; Send Item CSV to Accounting</button><button class="btn btn-primary" onclick="saveProduct()">Save Product</button></div>
     </div>
 </div>
 
@@ -3060,6 +3064,8 @@ function supaProductToLocal(p) {
         retailPrice: p.retail_price != null ? parseFloat(p.retail_price) : null,
         profitMargin: p.profit_margin != null ? parseFloat(p.profit_margin) : null,
         productClass: p.product_class || 'private_label',
+        insiderMarkup: p.insider_markup != null ? parseFloat(p.insider_markup) : null,
+        standardMarkup: p.standard_markup != null ? parseFloat(p.standard_markup) : null,
         stock: p.stock || 0,
         testerStock: p.tester_stock || 0,
         lowStockThreshold: p.low_stock_threshold != null ? p.low_stock_threshold : 10,
@@ -3088,6 +3094,8 @@ function localProductToSupa(p) {
         retail_price: p.retailPrice,
         profit_margin: p.profitMargin,
         product_class: p.productClass || 'private_label',
+        insider_markup: (p.insiderMarkup != null && p.insiderMarkup !== '') ? Number(p.insiderMarkup) : null,
+        standard_markup: (p.standardMarkup != null && p.standardMarkup !== '') ? Number(p.standardMarkup) : null,
         stock: p.stock || 0,
         tester_stock: p.testerStock || 0,
         low_stock_threshold: p.lowStockThreshold != null ? p.lowStockThreshold : 10,
@@ -8433,6 +8441,8 @@ function openProductModal(idx) {
         document.getElementById('pCategory').value = p.category || '';
         document.getElementById('pCostPerUnit').value = p.costPerUnit != null ? p.costPerUnit : '';
         document.getElementById('pProductClass').value = p.productClass || 'private_label';
+        document.getElementById('pInsiderMarkup').value = p.insiderMarkup != null ? p.insiderMarkup : '';
+        document.getElementById('pStandardMarkup').value = p.standardMarkup != null ? p.standardMarkup : '';
         document.getElementById('pWholesalePrice').value = p.wholesalePrice != null ? p.wholesalePrice : '';
         document.getElementById('pRetailPrice').value = p.retailPrice != null ? p.retailPrice : '';
         // Calculate and show existing margin (prefer stored value, fall back to live calc)
@@ -8465,30 +8475,99 @@ function openProductModal(idx) {
         document.getElementById('pLowStockThreshold').value = 10;
         document.getElementById('pMinOrderQty').value = 1;
         document.getElementById('pProductClass').value = 'private_label';
+        document.getElementById('pInsiderMarkup').value = '';
+        document.getElementById('pStandardMarkup').value = '';
     }
     renderProductImagesGallery();
     renderVariantsSectionInModal();
     renderTierPricePreview();
+    var itemBtn = document.getElementById('emailItemCsvBtn');
+    if (itemBtn) itemBtn.style.display = (idx >= 0 && DATA.products[idx] && DATA.products[idx].id) ? '' : 'none';
     openModal('productModal');
 }
 
+// Generate a NetSuite Item CSV row from the current product using the
+// admin-configurable item mapping. Returns { csv, filename }.
+async function generateItemCsvForProduct(product) {
+    var mapping = await loadCsvMappingKind('item');
+    var cols = Array.isArray(mapping.columns) ? mapping.columns : [];
+    if (!cols.length) throw new Error('No columns configured on the Item CSV mapping. Set them under Admin → NetSuite CSV Mapping → Item CSV tab.');
+    var settings = await loadSiteSettings();
+    // Massage the local product shape into the snake_case flavor the
+    // resolver already understands, so item.* keys work.
+    var itemCtx = {
+        sku: product.sku, name: product.name, description: product.description,
+        upc: product.upc, manufacturer: product.manufacturer, vendor: product.vendor,
+        vendor_part_num: product.vendorPartNum, vendor_product_name: product.vendorProductName,
+        package_size: product.packageSize, category: product.category,
+        cost_per_unit: product.costPerUnit, wholesale_price: product.wholesalePrice,
+        retail_price: product.retailPrice, product_class: product.productClass || 'private_label',
+        taxable: product.taxable !== false, status: product.status || 'active',
+        min_order_qty: product.minOrderQty || 1
+    };
+    var ctxBase = { order: {}, customer: {}, location: {}, mapping: mapping, settings: settings, item: itemCtx, lineType: 'item' };
+    var row = cols.map(function(col) {
+        if (col.source === 'static') return col.value || '';
+        return resolveCsvField(col.source, ctxBase);
+    });
+    var csv = cols.map(function(c) { return _csvEscape(c.name); }).join(',') + '\r\n';
+    csv += row.map(_csvEscape).join(',') + '\r\n';
+    var safeSku = (product.sku || 'item').replace(/[^A-Za-z0-9_-]/g, '_');
+    return { csv: csv, filename: 'ni-item-' + safeSku + '.csv' };
+}
+
+// Send the Item CSV to accounting via the notify-new-item Edge Function.
+async function emailItemCsvForCurrentProduct() {
+    var idx = parseInt(document.getElementById('productEditIndex').value, 10);
+    if (isNaN(idx) || idx < 0 || !DATA.products[idx]) { showToast('Save the product first', 'error'); return; }
+    var p = DATA.products[idx];
+    if (!p.id || !/^[0-9a-f-]{36}$/i.test(p.id)) { showToast('Save the product first (needs a Supabase ID)', 'error'); return; }
+    if (!confirm('Send an Item CSV for "' + p.name + '" to Accounting?\n\nThey can then import it into NetSuite to add the item record.')) return;
+    var btn = document.getElementById('emailItemCsvBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+    try {
+        var { data: session } = await supa.auth.getSession();
+        if (!session || !session.session) throw new Error('Please sign in as admin first');
+        var res = await fetch(SUPABASE_URL + '/functions/v1/notify-new-item', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + session.session.access_token,
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_PUBLISHABLE_KEY
+            },
+            body: JSON.stringify({ productId: p.id })
+        });
+        var body = await res.json().catch(function() { return {}; });
+        if (!res.ok) throw new Error(body.error || ('HTTP ' + res.status));
+        showToast(body.emailSent ? ('Item CSV sent to ' + (body.recipient || 'Accounting')) : 'CSV built but email skipped: ' + (body.emailError || 'no reason'));
+    } catch (e) {
+        showToast('Send failed: ' + (e.message || 'Unknown error'), 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '&#128231; Send Item CSV to Accounting'; }
+    }
+}
+
 // Live preview of what customers on each tier will pay based on current
-// cost + class. Called from open + oninput on cost and class fields.
+// cost + class + per-product markup overrides. Called from open + oninput.
 function renderTierPricePreview() {
     var el = document.getElementById('pTierPreview');
     if (!el) return;
     var cost = Number(document.getElementById('pCostPerUnit').value);
     var cls = document.getElementById('pProductClass').value || 'private_label';
+    var insiderOverride = Number(document.getElementById('pInsiderMarkup').value);
+    var standardOverride = Number(document.getElementById('pStandardMarkup').value);
     if (!(cost > 0)) { el.style.display = 'none'; return; }
-    var insiderMult = (PRICING_TIER_RULES.insider || {})[cls] || 1.10;
-    var standardMult = (PRICING_TIER_RULES.standard || {})[cls] || (cls === 'manufactured' ? 1.50 : 1.20);
+    var insiderMult = (insiderOverride > 0) ? insiderOverride : ((PRICING_TIER_RULES.insider || {})[cls] || 1.10);
+    var standardMult = (standardOverride > 0) ? standardOverride : ((PRICING_TIER_RULES.standard || {})[cls] || (cls === 'manufactured' ? 1.50 : 1.20));
     var insiderPrice = (cost * insiderMult).toFixed(2);
     var standardPrice = (cost * standardMult).toFixed(2);
+    var insiderSrc = insiderOverride > 0 ? '<span style="color:#c97a1a">override</span>' : 'class default';
+    var standardSrc = standardOverride > 0 ? '<span style="color:#c97a1a">override</span>' : 'class default';
     el.style.display = 'block';
     el.innerHTML = '<strong>Auto-computed wholesale prices from this cost:</strong>' +
-        '<div style="display:flex;gap:24px;margin-top:6px">' +
-            '<span><span style="color:var(--gray-600)">Insider (PI):</span> <strong>$' + insiderPrice + '</strong> <span style="color:var(--gray-500)">(cost × ' + insiderMult + ')</span></span>' +
-            '<span><span style="color:var(--gray-600)">Standard:</span> <strong>$' + standardPrice + '</strong> <span style="color:var(--gray-500)">(cost × ' + standardMult + ')</span></span>' +
+        '<div style="display:flex;gap:24px;margin-top:6px;flex-wrap:wrap">' +
+            '<span><span style="color:var(--gray-600)">Insider (PI):</span> <strong>$' + insiderPrice + '</strong> <span style="color:var(--gray-500)">(cost × ' + insiderMult + ' · ' + insiderSrc + ')</span></span>' +
+            '<span><span style="color:var(--gray-600)">Standard:</span> <strong>$' + standardPrice + '</strong> <span style="color:var(--gray-500)">(cost × ' + standardMult + ' · ' + standardSrc + ')</span></span>' +
         '</div>';
 }
 function editProduct(idx) { openProductModal(idx); }
@@ -8650,6 +8729,8 @@ async function saveProduct() {
         costPerUnit: costPerUnit,
         wholesalePrice: wholesalePrice,
         productClass: document.getElementById('pProductClass').value || 'private_label',
+        insiderMarkup: document.getElementById('pInsiderMarkup').value !== '' ? parseFloat(document.getElementById('pInsiderMarkup').value) : null,
+        standardMarkup: document.getElementById('pStandardMarkup').value !== '' ? parseFloat(document.getElementById('pStandardMarkup').value) : null,
         retailPrice: document.getElementById('pRetailPrice').value ? parseFloat(document.getElementById('pRetailPrice').value) : null,
         profitMargin: profitMargin,
         stock: parseInt(document.getElementById('pStock').value) || 0,
@@ -8676,12 +8757,38 @@ async function saveProduct() {
         return;
     }
     var prevSku = existing ? existing.sku : null;
+    var isNewProduct = (idx < 0);
     if (idx >= 0) {
         DATA.products[idx] = saved;
         showToast('Product updated');
     } else {
         DATA.products.push(saved);
         showToast('Product added');
+    }
+    // On brand-new products, offer to notify Accounting so they can add
+    // the item to NetSuite. Never fires on edits.
+    if (isNewProduct && saved && saved.id) {
+        if (confirm('Product created. Email Item CSV to Accounting so they can add it to NetSuite?')) {
+            try {
+                var { data: sess } = await supa.auth.getSession();
+                if (sess && sess.session) {
+                    fetch(SUPABASE_URL + '/functions/v1/notify-new-item', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + sess.session.access_token,
+                            'Content-Type': 'application/json',
+                            'apikey': SUPABASE_PUBLISHABLE_KEY
+                        },
+                        body: JSON.stringify({ productId: saved.id })
+                    }).then(function(r) { return r.json().catch(function(){ return {}; }); })
+                      .then(function(b) {
+                          if (b && b.emailSent) showToast('Item CSV emailed to ' + (b.recipient || 'Accounting'));
+                          else showToast('CSV built but email failed: ' + (b && b.emailError || 'unknown'), 'error');
+                      })
+                      .catch(function(e) { showToast('Notify failed: ' + (e.message || e), 'error'); });
+                }
+            } catch (e) { console.warn('[notify-new-item]', e); }
+        }
     }
     // Overwrite `product` reference so variant logic below sees canonical DB row.
     product = saved;
@@ -10197,6 +10304,25 @@ var CSV_SOURCE_OPTIONS = [
         ['item.rate', 'Rate (unit price OR line rate for shipping/tax/discount)'],
         ['item.amount', 'Amount (line total OR shipping/tax/-discount amount)']
       ]},
+    { group: 'Item (New Product / Item CSV)',
+      items: [
+        ['item.name', 'Product Display Name'],
+        ['item.description', 'Product Description'],
+        ['item.upc', 'UPC'],
+        ['item.manufacturer', 'Manufacturer'],
+        ['item.vendor', 'Vendor'],
+        ['item.vendor_part_num', 'Vendor Part Number'],
+        ['item.vendor_product_name', 'Vendor Product Name'],
+        ['item.package_size', 'Package Size'],
+        ['item.category', 'Category'],
+        ['item.cost_per_unit', 'Cost per Unit'],
+        ['item.wholesale_price', 'Wholesale Price (standard tier)'],
+        ['item.retail_price', 'Suggested Retail'],
+        ['item.product_class', 'Product Class (private_label / manufactured)'],
+        ['item.taxable', 'Taxable (yes/no)'],
+        ['item.status', 'Status'],
+        ['item.min_order_qty', 'Min Order Qty']
+      ]},
     { group: 'Computed',
       items: [
         ['computed.external_id', 'External ID (prefix + padded order number)'],
@@ -10217,7 +10343,8 @@ var CSV_SOURCE_OPTIONS = [
 var CSV_MAPPING_KINDS = {
     invoice:  { settingsKey: 'netsuite_csv_mapping',           title: 'Invoice CSV',  description: 'Sent to Accounting when an order ships. Imported as a NetSuite Customer Invoice.' },
     bill:     { settingsKey: 'netsuite_bill_csv_mapping',      title: 'Bill CSV',     description: "Only attached for intercompany customers (like PI). Imported into PI's NetSuite as a Vendor Bill from NI." },
-    customer: { settingsKey: 'netsuite_customer_csv_mapping',  title: 'Customer CSV', description: 'Sent to Accounting when a new customer is created. Imported as a NetSuite Customer record.' }
+    customer: { settingsKey: 'netsuite_customer_csv_mapping',  title: 'Customer CSV', description: 'Sent to Accounting when a new customer is created. Imported as a NetSuite Customer record.' },
+    item:     { settingsKey: 'netsuite_item_csv_mapping',      title: 'Item CSV',     description: 'Sent to Accounting when a new product is created. Imported as a NetSuite Inventory Item record.' }
 };
 var CSV_MAPPING_CACHES = {}; // { invoice: {...}, bill: {...}, customer: {...} }
 var CURRENT_MAPPING_KIND = 'invoice'; // which tab is active
@@ -10396,6 +10523,27 @@ function resolveCsvField(sourceKey, ctx) {
             if (lineType === 'tax') return _fmtMoney(order.tax);
             if (lineType === 'discount') return _fmtMoney(-Number(order.discount_amount || 0));
             return '';
+        // Item / New Product fields (used by the Item CSV mapping).
+        // For the item CSV, `item` is the product row itself, not an order line.
+        case 'item.name': return item ? (item.name || item.product_name || '') : '';
+        case 'item.description': return item ? (item.description || '') : '';
+        case 'item.upc': return item ? (item.upc || '') : '';
+        case 'item.manufacturer': return item ? (item.manufacturer || '') : '';
+        case 'item.vendor': return item ? (item.vendor || '') : '';
+        case 'item.vendor_part_num': return item ? (item.vendor_part_num || item.vendorPartNum || '') : '';
+        case 'item.vendor_product_name': return item ? (item.vendor_product_name || item.vendorProductName || '') : '';
+        case 'item.package_size': return item ? (item.package_size || item.packageSize || '') : '';
+        case 'item.category': return item ? (item.category || '') : '';
+        case 'item.cost_per_unit': return item ? _fmtMoney(item.cost_per_unit != null ? item.cost_per_unit : item.costPerUnit) : '';
+        case 'item.wholesale_price': return item ? _fmtMoney(item.wholesale_price != null ? item.wholesale_price : item.wholesalePrice) : '';
+        case 'item.retail_price': return item ? _fmtMoney(item.retail_price != null ? item.retail_price : item.retailPrice) : '';
+        case 'item.product_class': return item ? (item.product_class || item.productClass || 'private_label') : '';
+        case 'item.taxable':
+            if (!item) return '';
+            var tx = item.taxable !== undefined ? item.taxable : true;
+            return tx ? 'Yes' : 'No';
+        case 'item.status': return item ? (item.status || 'active') : '';
+        case 'item.min_order_qty': return item ? String(item.min_order_qty != null ? item.min_order_qty : (item.minOrderQty || 1)) : '';
         default: return '';
     }
 }
@@ -10459,11 +10607,23 @@ function getEffectivePriceDetail(product, tier) {
     if (!product) return { price: null, source: 'none' };
     var t = tier || getCurrentPricingTier();
     var cls = product.productClass || 'private_label';
-    var rulesForTier = PRICING_TIER_RULES[t] || PRICING_TIER_RULES.standard || {};
-    var mult = rulesForTier[cls];
+    // Per-product override wins over the class rule when non-null.
+    var overrideKey = (t === 'insider') ? 'insiderMarkup' : 'standardMarkup';
+    var override = product[overrideKey];
+    var mult;
+    if (override != null && !isNaN(Number(override)) && Number(override) > 0) {
+        mult = Number(override);
+    } else {
+        var rulesForTier = PRICING_TIER_RULES[t] || PRICING_TIER_RULES.standard || {};
+        mult = rulesForTier[cls];
+    }
     var cost = Number(product.costPerUnit);
     if (cost > 0 && typeof mult === 'number' && mult > 0) {
-        return { price: Math.round(cost * mult * 100) / 100, source: 'tier', multiplier: mult, tier: t, class: cls };
+        return {
+            price: Math.round(cost * mult * 100) / 100,
+            source: override != null && Number(override) > 0 ? 'override' : 'tier',
+            multiplier: mult, tier: t, class: cls
+        };
     }
     if (product.wholesalePrice != null) {
         return { price: Number(product.wholesalePrice), source: 'flat' };
