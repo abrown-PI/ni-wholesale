@@ -4590,6 +4590,10 @@ async function submitAdminSignIn() {
         return;
     }
     IS_SUPA_ADMIN = true;
+    if (user) {
+        SUPA_ADMIN_EMAIL = user.email || '';
+        SUPA_ADMIN_NAME = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || '';
+    }
     closeModal('adminSignInModal');
     showToast('Signed in as admin');
     // If we were routed here from a /admin-* URL, drop the user there now.
@@ -7359,11 +7363,25 @@ var ADMIN_AUTH_READY = (async function checkAdminSessionOnBoot() {
         var { data: prof } = await supa.from('profiles').select('role').eq('id', session.user.id).single();
         if (prof && prof.role === 'admin') {
             IS_SUPA_ADMIN = true;
+            SUPA_ADMIN_EMAIL = session.user.email || '';
+            SUPA_ADMIN_NAME = (session.user.user_metadata && (session.user.user_metadata.full_name || session.user.user_metadata.name)) || '';
             return true;
         }
         return false;
     } catch (e) { return false; }
 })();
+// Cached admin identity — populated by boot check + sign-in flow. Used
+// anywhere we need to auto-fill the current admin's name (e.g. Received By).
+var SUPA_ADMIN_EMAIL = '';
+var SUPA_ADMIN_NAME = '';
+// Returns the best display name we have for the signed-in admin, or ''.
+function currentAdminDisplayName() {
+    if (SUPA_ADMIN_NAME) return SUPA_ADMIN_NAME;
+    if (SUPA_ADMIN_EMAIL) return SUPA_ADMIN_EMAIL;
+    var sess = (typeof loadSession === 'function') ? loadSession() : null;
+    if (sess && (sess.name || sess.email)) return sess.name || sess.email;
+    return '';
+}
 
 function navigate(pageId, opts) {
     opts = opts || {};
@@ -10249,10 +10267,9 @@ function openReceiveInventoryModal() {
     document.getElementById('rcvDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('rcvRef').value = '';
     document.getElementById('rcvSearch').value = '';
-    // Auto-fill Received By from the signed-in admin session.
-    var session = (typeof loadSession === 'function') ? loadSession() : null;
+    // Auto-fill Received By from the signed-in admin identity.
     var receivedByField = document.getElementById('rcvReceivedBy');
-    if (receivedByField) receivedByField.value = (session && (session.name || session.email)) || '';
+    if (receivedByField) receivedByField.value = currentAdminDisplayName();
     var vSel = document.getElementById('rcvVendor');
     vSel.innerHTML = '<option value="">All Vendors</option>' + DATA.vendors.map(function(v) { return '<option>' + esc(v.name) + '</option>'; }).join('');
     vSel.value = '';
