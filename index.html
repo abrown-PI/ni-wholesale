@@ -7069,7 +7069,20 @@ function navigate(pageId, opts) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.navbar-nav a').forEach(a => a.classList.remove('active'));
     document.querySelectorAll('.admin-nav-link').forEach(a => a.classList.remove('active'));
-    const page = document.getElementById('page-' + pageId);
+    let page = document.getElementById('page-' + pageId);
+    // Unknown URL/pageId — silently redirect instead of leaving a blank screen.
+    // Admin URLs fall back to /admin (dashboard); everything else falls back to /.
+    if (!page) {
+        var fallbackId = shouldBeAdmin ? 'admin-dashboard' : 'home';
+        page = document.getElementById('page-' + fallbackId);
+        pageId = fallbackId;
+        if (page) page.classList.add('active');
+        if (!opts.skipHistory) {
+            var fallbackPath = pageToPath(fallbackId);
+            history.replaceState({ pageId: fallbackId }, '', fallbackPath);
+        }
+        return;
+    }
     if (page) page.classList.add('active');
     // Update URL via History API (skip if we're just responding to popstate or initial load)
     if (!opts.skipHistory) {
