@@ -8349,12 +8349,18 @@ function renderCheckoutPage() {
         '<option value="__manual__">Enter shipping address manually</option>';
     locSel.innerHTML = locOpts;
 
-    // Pre-select primary location (first one)
+    // Pre-select the location the customer picked in the "Ordering for:"
+    // entity switcher (session.selectedLocationId). Falls back to the first
+    // location if none was picked or it's not in this customer's list.
     if (ctx.locations.length && !locSel.value) {
-        locSel.value = ctx.locations[0].id;
-        applyCheckoutLocation(ctx.locations[0]);
+        var s = (typeof loadSession === 'function') ? loadSession() : null;
+        var picked = s && s.selectedLocationId
+            ? ctx.locations.find(function(l) { return l.id === s.selectedLocationId; })
+            : null;
+        var chosen = picked || ctx.locations[0];
+        locSel.value = chosen.id;
+        applyCheckoutLocation(chosen);
     } else if (!ctx.locations.length) {
-        // No saved locations — leave ship-to blank for manual entry
         locSel.value = '__manual__';
     }
 
