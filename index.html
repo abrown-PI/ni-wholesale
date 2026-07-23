@@ -1965,7 +1965,7 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button type="button" class="btn btn-outline" onclick="parseQuickOrder()">Preview</button>
-            <button type="button" class="btn btn-primary" id="quickOrderAddBtn" onclick="addQuickOrderToCart()" disabled>Add to Cart</button>
+            <button type="button" class="btn btn-primary" id="quickOrderAddBtn" onclick="addQuickOrderToCart()">Add to Cart</button>
             <button type="button" class="btn btn-outline" onclick="document.getElementById('quickOrderInput').value='';document.getElementById('quickOrderPreview').innerHTML='';document.getElementById('quickOrderAddBtn').disabled=true;">Clear</button>
         </div>
         <div id="quickOrderPreview" style="margin-top:14px"></div>
@@ -9176,6 +9176,11 @@ function parseQuickOrder() {
 }
 
 function addQuickOrderToCart() {
+    // Auto-parse if the user skipped Preview.
+    var raw = (document.getElementById('quickOrderInput').value || '').trim();
+    if (!raw) { showToast('Enter at least one SKU line (e.g. ML002, 2)', 'error'); return; }
+    if (!QUICK_ORDER_PARSED.length) parseQuickOrder();
+
     // Check login
     var session = loadSession();
     if (!session) { showToast('Please log in to place orders', 'error'); openModal('loginModal'); return; }
@@ -9184,7 +9189,11 @@ function addQuickOrderToCart() {
     if (!acct || acct.status !== 'Approved') { showToast('Your account must be approved to place orders', 'error'); return; }
 
     var ok = QUICK_ORDER_PARSED.filter(function(e) { return e.status === 'ok'; });
-    if (!ok.length) { showToast('No valid lines to add', 'error'); return; }
+    if (!ok.length) {
+        var problems = QUICK_ORDER_PARSED.filter(function(e) { return e.status !== 'ok'; }).map(function(e) { return e.sku + ': ' + (e.message || ''); }).join(' · ');
+        showToast(problems ? ('No valid lines. ' + problems) : 'No valid lines to add', 'error');
+        return;
+    }
     ok.forEach(function(e) {
         var existing = DATA.cart.find(function(c) { return c.productIndex === e.productIndex; });
         if (existing) existing.qty += e.qty;
