@@ -4843,7 +4843,7 @@ async function submitAdminSignIn() {
         var active = document.querySelector('.page.active');
         var pageId = active ? active.id.replace(/^page-/, '') : '';
         if (pageId === 'admin-accounts') renderAccounts();
-        if (pageId === 'admin-orders') renderOrders();
+        if (pageId === 'admin-orders') { renderOrders(); maybeAutoOpenOrderFromUrl(); }
         if (pageId === 'admin-customers') renderCustomers();
         if (pageId === 'admin-vendors') { renderVendors(); refreshVendorsFromSupabase(); }
     if (pageId === 'admin-categories') { renderCategoriesTable(); refreshCategories(); }
@@ -10885,6 +10885,27 @@ function renderOrders() {
             '<td style="white-space:nowrap">' + actions + '</td>' +
         '</tr>';
     }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No orders yet</td></tr>';
+}
+
+// Auto-opens an order's detail modal when the URL has ?order=<supabaseOrderId>.
+// Used by the "Manage Order" button in new-order emails to jump straight to
+// the right order (otherwise admins would land on the orders list and have to
+// scroll). Consumes the param so refresh doesn't re-open the modal.
+function maybeAutoOpenOrderFromUrl() {
+    try {
+        var params = new URLSearchParams(window.location.search);
+        var target = params.get('order');
+        if (!target) return;
+        var idx = (DATA.orders || []).findIndex(function(o) {
+            return o && (o.supabaseOrderId === target || o.id === target);
+        });
+        if (idx < 0) return;
+        viewOrder(idx);
+        params.delete('order');
+        var qs = params.toString();
+        var newUrl = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+        history.replaceState(null, '', newUrl);
+    } catch (e) { console.warn('maybeAutoOpenOrderFromUrl:', e); }
 }
 
 function viewOrder(i) {
