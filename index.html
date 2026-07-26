@@ -1188,7 +1188,9 @@
             <h2 id="customerDetailPageTitle" style="margin:2px 0 0;font-family:var(--serif);color:var(--ni-navy);font-size:22px">New Customer</h2>
             <div id="customerDetailPageSub" style="margin-top:4px;font-size:13px;color:var(--gray-500);font-family:var(--sans);display:flex;align-items:center;gap:10px;flex-wrap:wrap"></div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-outline" id="downloadCustomerCsvBtn" style="display:none" title="Download this customer's NetSuite Customer CSV (billing row + one row per active shipping location, sharing External ID)" onclick="downloadCustomerCsvForCurrent()">&#128196; Download Customer CSV</button>
+            <button class="btn btn-outline" id="sendCustomerCsvBtn" style="display:none" title="Email the Customer CSV to accounting so they can import into NetSuite" onclick="sendCustomerCsvEmailForCurrent()">&#128231; Send to Accounting</button>
             <button class="btn btn-outline" id="resetCustomerPasswordBtn" style="display:none" title="Generate a new temporary password and email it to the customer" onclick="resetPasswordForCurrentCustomer()">&#128273; Reset Password</button>
             <button class="btn btn-outline" onclick="navigate('admin-customers')">Cancel</button>
             <button class="btn btn-primary" onclick="saveCustomer()">Save Customer</button>
@@ -4764,6 +4766,51 @@ async function resetPasswordForCurrentCustomer() {
     var c = DATA.customers[i];
     if (!c.id) { showToast('Save the customer first', 'error'); return; }
     await resendWelcomeForCustomer(c.id, c.companyName);
+}
+
+// Header-bar button handlers for the Customer CSV download + send-to-accounting
+// buttons. Both use the current customer being edited (from the hidden index
+// input) and no-op if the customer hasn't been saved yet.
+async function downloadCustomerCsvForCurrent() {
+    var i = parseInt(document.getElementById('customerEditIndex').value, 10);
+    if (isNaN(i) || i < 0 || !DATA.customers[i] || !DATA.customers[i].id) {
+        showToast('Save the customer first', 'error'); return;
+    }
+    await downloadCustomerCsvForId(DATA.customers[i].id);
+}
+async function sendCustomerCsvEmailForCurrent() {
+    var i = parseInt(document.getElementById('customerEditIndex').value, 10);
+    if (isNaN(i) || i < 0 || !DATA.customers[i] || !DATA.customers[i].id) {
+        showToast('Save the customer first', 'error'); return;
+    }
+    var c = DATA.customers[i];
+    if (!confirm('Send a Customer CSV email to accounting for ' + (c.companyName || 'this customer') + '?\n\nIncludes billing address + all active shipping locations as separate rows sharing the same External ID (NetSuite treats it as one customer with multiple addresses).')) return;
+    var r = await supaSendCustomerCsvEmail(c.id);
+    if (r && r.ok) showToast('Customer CSV email sent to accounting (' + (r.filename || 'ni-customer.csv') + ')');
+    else showToast('Send failed: ' + ((r && r.error) || 'unknown'), 'error');
+}
+
+// Thin wrapper around the notify-order Edge Function to fire the Customer CSV
+// email. The Edge Function receives customerId + action:'customer-csv' and
+// builds/attaches/sends the CSV via Resend server-side.
+async function supaSendCustomerCsvEmail(customerId) {
+    if (!customerId) return { ok: false, error: 'customerId required' };
+    try {
+        var res = await fetch(SUPABASE_URL + '/functions/v1/notify-order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_PUBLISHABLE_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_PUBLISHABLE_KEY
+            },
+            body: JSON.stringify({ customerId: customerId, action: 'customer-csv' })
+        });
+        var body = await res.json().catch(function () { return {}; });
+        if (!res.ok) return { ok: false, error: body.error || ('HTTP ' + res.status) };
+        return { ok: true, filename: body.filename };
+    } catch (e) {
+        return { ok: false, error: e && e.message ? e.message : String(e) };
+    }
 }
 
 function openChangePasswordModal(opts) {
@@ -11865,6 +11912,7 @@ var CSV_SOURCE_OPTIONS = [
         ['customer.billing_city', 'Billing City'],
         ['customer.billing_state', 'Billing State'],
         ['customer.billing_zip', 'Billing Zip'],
+        ['customer.billing_full_address', 'Billing Full Address (one-line)'],
         ['customer.payment_terms', 'Payment Terms'],
         ['customer.tax_id', 'Tax ID / EIN'],
         ['customer.netsuite_entity_id', 'NetSuite Entity ID'],
@@ -11877,6 +11925,7 @@ var CSV_SOURCE_OPTIONS = [
         ['location.city', 'Location City'],
         ['location.state', 'Location State'],
         ['location.zip', 'Location Zip'],
+        ['location.full_address', 'Location Full Address (one-line)'],
         ['location.contact_name', 'Location Contact'],
         ['location.phone', 'Location Phone'],
         ['location.billing_entity_name', 'Billing Entity Name (per location)'],
@@ -11944,11 +11993,23 @@ var CSV_SOURCE_OPTIONS = [
     { group: 'Computed',
       items: [
         ['computed.external_id', 'External ID (prefix + padded order number)'],
+        ['computed.external_customer_id', 'External Customer ID (prefix + padded customer ID)'],
         ['computed.invoice_date', 'Invoice Date (shipped_at or placed_at)'],
         ['computed.due_date', 'Due Date (invoice_date + payment terms days)'],
         ['computed.memo', 'Memo (order # + tracking)'],
         ['computed.billing_attention', 'Billing Attention (contact or company)'],
-        ['computed.shipping_attention', 'Shipping Attention (location contact or customer)']
+        ['computed.shipping_attention', 'Shipping Attention (location contact or customer)'],
+        ['computed.default_billing_yes_no', 'Default Billing? (Yes on billing row, No on ship-to rows)'],
+        ['computed.default_billing_bool',  'Default Billing? T/F (T on billing row, F on ship-to rows)']
+      ]},
+    { group: 'Address (Customer CSV rows)',
+      items: [
+        ['address.full_current',          'Full Address — auto (billing on billing row, location on ship-to rows)'],
+        ['address.line1_current',         'Address Line 1 — auto (billing/ship-to)'],
+        ['address.city_current',          'City — auto (billing/ship-to)'],
+        ['address.state_current',         'State — auto (billing/ship-to)'],
+        ['address.zip_current',           'Zip — auto (billing/ship-to)'],
+        ['address.location_name_current', 'Location Name — auto ("Billing" or location name)']
       ]},
     { group: 'Static',
       items: [
@@ -12094,6 +12155,55 @@ function resolveCsvField(sourceKey, ctx) {
         case 'location.zip_or_billing': return location.zip || customer.billing_zip || '';
         case 'location.netsuite_location_id': return location.netsuite_location_id || '';
         case 'location.netsuite_subsidiary_id': return location.netsuite_subsidiary_id || '';
+        // Customer CSV: one-line address helpers so mapping can produce a single
+        // "Address" column instead of five. Blanks are dropped so we never emit
+        // orphan commas like ", CA ".
+        case 'customer.billing_full_address': {
+            var _bl1 = customer.billing_address || '';
+            var _bcs = [customer.billing_city, customer.billing_state].filter(Boolean).join(', ');
+            var _btail = [_bcs, customer.billing_zip || ''].filter(Boolean).join(' ');
+            return [_bl1, _btail].filter(Boolean).join(', ');
+        }
+        case 'location.full_address': {
+            var _ll1 = location.address || '';
+            var _lcs = [location.city, location.state].filter(Boolean).join(', ');
+            var _ltail = [_lcs, location.zip || ''].filter(Boolean).join(' ');
+            return [_ll1, _ltail].filter(Boolean).join(', ');
+        }
+        // Row-aware helpers used by the multi-row Customer CSV: they auto-switch
+        // between customer.billing_* (billing row) and location.* (ship-to row)
+        // based on ctx.addressRowType set by the Customer CSV generator.
+        case 'address.full_current': {
+            if (ctx.addressRowType === 'billing') {
+                var _al1 = customer.billing_address || '';
+                var _acs = [customer.billing_city, customer.billing_state].filter(Boolean).join(', ');
+                var _atail = [_acs, customer.billing_zip || ''].filter(Boolean).join(' ');
+                return [_al1, _atail].filter(Boolean).join(', ');
+            }
+            var _sl1 = location.address || '';
+            var _scs = [location.city, location.state].filter(Boolean).join(', ');
+            var _stail = [_scs, location.zip || ''].filter(Boolean).join(' ');
+            return [_sl1, _stail].filter(Boolean).join(', ');
+        }
+        case 'address.line1_current':
+            return ctx.addressRowType === 'billing' ? (customer.billing_address || '') : (location.address || '');
+        case 'address.city_current':
+            return ctx.addressRowType === 'billing' ? (customer.billing_city || '') : (location.city || '');
+        case 'address.state_current':
+            return ctx.addressRowType === 'billing' ? (customer.billing_state || '') : (location.state || '');
+        case 'address.zip_current':
+            return ctx.addressRowType === 'billing' ? (customer.billing_zip || '') : (location.zip || '');
+        case 'address.location_name_current': {
+            var _isDefault = ctx.defaultBilling !== undefined ? ctx.defaultBilling : ctx.addressRowType === 'billing';
+            if (_isDefault) return 'Billing';
+            return location.location_name || 'Ship-To';
+        }
+        case 'computed.default_billing_yes_no':
+            return ((ctx.defaultBilling !== undefined ? ctx.defaultBilling : ctx.addressRowType === 'billing') ? 'Yes' : 'No');
+        case 'computed.default_billing_bool':
+            return ((ctx.defaultBilling !== undefined ? ctx.defaultBilling : ctx.addressRowType === 'billing') ? 'T' : 'F');
+        case 'computed.external_customer_id':
+            return ctx.externalCustomerId || ctx.externalId || '';
         // settings (looked up from ctx.settings — populated by generateCsvFromMapping)
         case 'settings.ni_vendor_id_in_pi': return (ctx.settings && ctx.settings.ni_vendor_id_in_pi) || '';
         case 'settings.default_expense_account_id': return (ctx.settings && ctx.settings.default_expense_account_id) || '';
@@ -12752,6 +12862,102 @@ async function csvMappingResetDefault() {
     window._csvMappingDraft = JSON.parse(JSON.stringify(mapping));
     renderCsvMappingPage('invoice');
     showToast('Reset to default — click Save to persist');
+}
+
+// ── NetSuite Customer CSV (client-side, multi-row per customer) ──
+// Emits one row per address: billing row (customer.billing_*) + one row per
+// active customer_location, all sharing the same External ID so NetSuite
+// imports as a single customer with multiple addresses attached. Locations
+// whose address duplicates the billing row are skipped. If the customer has
+// no billing address, the first location is promoted to be the billing row.
+async function generateCustomerCsvFromMapping(customer, locations) {
+    var mapping = await loadCsvMappingKind('customer');
+    if (!mapping || !mapping.columns || !mapping.columns.length) {
+        throw new Error('Customer CSV mapping not configured. Set it up under Admin → NetSuite CSV Mapping → Customer CSV.');
+    }
+    var settings = await loadSiteSettings();
+    var pad = Number(mapping.external_id_pad_digits) || 5;
+    var prefix = mapping.external_id_prefix || 'NI-CUST-';
+    var externalCustomerId = prefix + String(customer.id || '').slice(0, pad).padStart(pad, '0');
+
+    function normAddr(a, c, st, z) {
+        return ((a || '') + '|' + (c || '') + '|' + (st || '') + '|' + (z || ''))
+            .toLowerCase().replace(/[^a-z0-9|]+/g, '');
+    }
+    var hasBilling = !!(customer.billing_address || customer.billing_city || customer.billing_state || customer.billing_zip);
+    var billingKey = hasBilling
+        ? normAddr(customer.billing_address, customer.billing_city, customer.billing_state, customer.billing_zip)
+        : '';
+
+    function ctxFor(location, defaultBilling) {
+        return {
+            customer: customer,
+            location: location || {},
+            mapping: mapping,
+            settings: settings,
+            addressRowType: location ? 'shipping' : 'billing',
+            defaultBilling: defaultBilling,
+            externalId: externalCustomerId,
+            externalCustomerId: externalCustomerId
+        };
+    }
+    function renderRow(ctx) {
+        return (mapping.columns || []).map(function(c) {
+            return c.source === 'static' ? (c.value || '') : resolveCsvField(c.source, ctx);
+        });
+    }
+
+    var rows = [];
+    var locs = (locations || []).slice();
+    if (hasBilling) {
+        rows.push(renderRow(ctxFor(null, true)));
+        locs.forEach(function(loc) {
+            if (normAddr(loc.address, loc.city, loc.state, loc.zip) !== billingKey) {
+                rows.push(renderRow(ctxFor(loc, false)));
+            }
+        });
+    } else if (locs.length > 0) {
+        var first = locs[0];
+        rows.push(renderRow(ctxFor(first, true)));
+        var firstKey = normAddr(first.address, first.city, first.state, first.zip);
+        locs.slice(1).forEach(function(loc) {
+            if (normAddr(loc.address, loc.city, loc.state, loc.zip) !== firstKey) {
+                rows.push(renderRow(ctxFor(loc, false)));
+            }
+        });
+    } else {
+        rows.push(renderRow(ctxFor(null, true)));
+    }
+
+    var header = (mapping.columns || []).map(function(c) { return _csvEscape(c.name); }).join(',');
+    var body = rows.map(function(r) { return r.map(_csvEscape).join(','); }).join('\r\n');
+    var csv = header + '\r\n' + body + '\r\n';
+    var nameSlug = String(customer.company_name || 'customer')
+        .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'customer';
+    return { csv: csv, filename: 'ni-customer-' + nameSlug + '.csv' };
+}
+
+// Streams the Customer CSV as a download. Fetches customer + active locations
+// fresh from Supabase so we always emit the current data.
+async function downloadCustomerCsvForId(customerId) {
+    if (!customerId) { showToast('No customer selected', 'error'); return; }
+    try {
+        var cRes = await supa.from('customers').select('*').eq('id', customerId).single();
+        if (cRes.error || !cRes.data) throw new Error('Customer not found');
+        var lRes = await supa.from('customer_locations').select('*')
+            .eq('customer_id', customerId).eq('status', 'active').order('created_at', { ascending: true });
+        var built = await generateCustomerCsvFromMapping(cRes.data, lRes.data || []);
+        var blob = new Blob([built.csv], { type: 'text/csv;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = built.filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Downloaded ' + built.filename);
+    } catch (e) {
+        console.warn('Customer CSV download failed:', e);
+        showToast('Download failed: ' + (e.message || e), 'error');
+    }
 }
 
 // ── NetSuite invoice CSV (client-side, mirrors notify-order Edge Function) ──
@@ -13447,8 +13653,13 @@ function renderCustomerDetailPage() {
         if (titleEl) titleEl.textContent = 'New Customer';
         if (subEl) subEl.innerHTML = '<span style="color:var(--gray-400)">Fill in the form below and click Save Customer.</span>';
     }
+    var showAdminCustomerBtns = (i >= 0 && DATA.customers[i] && DATA.customers[i].id) ? '' : 'none';
     var resetBtn = document.getElementById('resetCustomerPasswordBtn');
-    if (resetBtn) resetBtn.style.display = (i >= 0 && DATA.customers[i] && DATA.customers[i].id) ? '' : 'none';
+    if (resetBtn) resetBtn.style.display = showAdminCustomerBtns;
+    var dlCsvBtn = document.getElementById('downloadCustomerCsvBtn');
+    if (dlCsvBtn) dlCsvBtn.style.display = showAdminCustomerBtns;
+    var sendCsvBtn = document.getElementById('sendCustomerCsvBtn');
+    if (sendCsvBtn) sendCsvBtn.style.display = showAdminCustomerBtns;
     Object.keys(fields).forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.value = fields[id];
