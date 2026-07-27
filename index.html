@@ -9132,17 +9132,16 @@ async function placeCheckoutOrder() {
             // payment_status stays 'Unpaid' — admin will mark paid via Payments page
         }
 
-        // Decrement stock + record OUT inventory transactions (mirror confirmOrder)
+        // Decrement stock locally so the UI reflects immediately. The
+        // authoritative decrement + inventory_transactions ledger row are
+        // handled by the trg_order_items_apply_stock trigger on order_items
+        // INSERT (SECURITY DEFINER, bypasses RLS, single source of truth).
+        // Do NOT call logInventory() here — that would create a duplicate
+        // ledger row for admin sessions.
         order.items.forEach(function(item) {
             var p = DATA.products[item.productIndex];
             if (p) {
                 if (p.stock > 0) p.stock = Math.max(0, p.stock - item.qty);
-                logInventory({
-                    date: now.slice(0, 10), type: 'OUT', reference: 'Order ' + orderNumber,
-                    productName: p.name, sku: p.sku || '', vendor: p.vendor || '',
-                    qty: item.qty, soldBy: '', customerId: customerId, customerLocationId: locId,
-                    customerName: customerName, notes: 'Storefront checkout'
-                });
             }
             DATA.orderItems.push({
                 id: 'oi_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
