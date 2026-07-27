@@ -11935,9 +11935,9 @@ var CSV_SOURCE_OPTIONS = [
         ['location.contact_name', 'Location Contact'],
         ['location.phone', 'Location Phone'],
         ['location.billing_entity_name', 'Billing Entity Name (per location)'],
-        ['location.netsuite_entity_id', 'NetSuite Entity ID (per location)'],
+        ['location.netsuite_entity_id', 'NetSuite Customer ID (per location)'],
         ['location.billing_entity_name_or_customer', 'Billing Entity Name (or Customer)'],
-        ['location.netsuite_entity_id_or_customer', 'NetSuite Entity ID (or Customer)'],
+        ['location.netsuite_entity_id_or_customer', 'NetSuite Customer ID (or fall back to Customer-level)'],
         ['location.license_number', 'State License #'],
         ['location.dea_number', 'DEA #'],
         ['location.npi_number', 'NPI #'],
@@ -13814,7 +13814,7 @@ function renderCustomerLocationsInModal() {
             '<div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 0.8fr;gap:10px;margin-top:10px">' +
                 '<div><label style="' + lbl + '">Email</label><input type="email" style="' + input + '" value="' + esc(l.email || '') + '" onchange="updateCustomerLocationField(' + i + ',\'email\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Legal Entity Name</label><input type="text" style="' + input + '" placeholder="e.g., Pharmacy Innovations LLC" value="' + esc(l.billingEntityName || '') + '" onchange="updateCustomerLocationField(' + i + ',\'billingEntityName\',this.value)"></div>' +
-                '<div><label style="' + lbl + '">NetSuite Entity ID</label><input type="text" style="' + input + '" placeholder="e.g., 1234" value="' + esc(l.netsuiteEntityId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteEntityId\',this.value)"></div>' +
+                '<div><label style="' + lbl + '">NetSuite Customer ID</label><input type="text" style="' + input + '" placeholder="e.g., 1132" title="Per-location NetSuite Customer Internal ID. Used on Bill CSV so each pharmacy bills the correct parent-company customer record in PI\'s NetSuite." value="' + esc(l.netsuiteEntityId || '') + '" onchange="updateCustomerLocationField(' + i + ',\'netsuiteEntityId\',this.value)"></div>' +
                 '<div><label style="' + lbl + '">Status</label><select style="' + input + '" onchange="updateCustomerLocationField(' + i + ',\'status\',this.value)">' + statusOptions + '</select></div>' +
             '</div>' +
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">' +
