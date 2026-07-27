@@ -9199,8 +9199,15 @@ async function placeCheckoutOrder() {
                 };
             });
             var saved = await supaCreateOrder(supaOrder, supaItems);
-            // Attach the DB uuid so admin dashboards can reconcile.
+            // Attach the DB uuid so admin dashboards can reconcile. The DB
+            // trigger overrides order_number with a fresh sequence value —
+            // sync the local order to match so the confirmation UI + local
+            // storage show the authoritative number instead of a stale guess.
             order.supabaseOrderId = saved.id;
+            if (saved.order_number) {
+                order.orderNumber = saved.order_number;
+                orderNumber = saved.order_number;
+            }
             saveData();
             // Kick off order notifications (customer confirmation + orders@ + accounting if invoice).
             // Fire-and-forget so the user isn't blocked; log any failure.
