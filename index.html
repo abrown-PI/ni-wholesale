@@ -7,6 +7,7 @@
     <link rel="icon" href="/ni-logo.png" type="image/png">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <style>
         :root {
             /* NI Brand Colors */
@@ -10926,43 +10927,88 @@ function _getVisibleOrderIds() {
         .map(function(el) { return el.getAttribute('data-order-id'); });
 }
 
-// Iterate selected orders and concatenate their NetSuite Invoice CSVs into
-// one file (single shared header + all data rows). Uses the same loader
-// path as downloadNetsuiteCsv so live Supabase data wins over local cache.
-async function exportSelectedNetsuiteCsv() {
-    if (bulkSelectedOrderIds.size === 0) { showToast('No orders selected', 'warn'); return; }
-    var ids = Array.from(bulkSelectedOrderIds);
-    showToast('Building CSV for ' + ids.length + ' order' + (ids.length === 1 ? '' : 's') + '...');
-    var csvs = [];
-    var skipped = 0;
-    for (var i = 0; i < ids.length; i++) {
-        var idx = DATA.orders.findIndex(function(o) { return o && o.id === ids[i]; });
-        if (idx < 0) { skipped++; continue; }
-        try {
-            var built = await _buildOrderNetsuiteCsv(idx);
-            if (built && built.csv) csvs.push(built.csv);
-            else skipped++;
-        } catch (e) { console.warn('bulk export skipped order', ids[i], e); skipped++; }
-    }
-    if (csvs.length === 0) { showToast('Nothing to export (all ' + skipped + ' skipped)', 'error'); return; }
-    // Merge: keep first CSV whole, strip header (first line) from the rest.
+// Iterate selected orders and concatenate their NetSuite CSVs. Invoice CSVs
+// go into one merged file; intercompany customers ALSO get a matching Bill
+// CSV row set so the parent subsidiary can book the vendor bill. When both
+// files have content, download as a zip; otherwise download the single
+// merged CSV directly.
+function _mergeCsvs(csvs) {
+    if (csvs.length === 0) return '';
     var merged = csvs[0];
     for (var j = 1; j < csvs.length; j++) {
         var body = csvs[j];
         var nl = body.indexOf('\n');
         merged += nl >= 0 ? body.substring(nl + 1) : '';
     }
+    return merged;
+}
+
+async function exportSelectedNetsuiteCsv() {
+    if (bulkSelectedOrderIds.size === 0) { showToast('No orders selected', 'warn'); return; }
+    var ids = Array.from(bulkSelectedOrderIds);
+    showToast('Building CSV for ' + ids.length + ' order' + (ids.length === 1 ? '' : 's') + '...');
+    var invoiceCsvs = [];
+    var billCsvs = [];
+    var skipped = 0;
+    var billSkipped = 0;
+    for (var i = 0; i < ids.length; i++) {
+        var idx = DATA.orders.findIndex(function(o) { return o && o.id === ids[i]; });
+        if (idx < 0) { skipped++; continue; }
+        try {
+            var built = await _buildOrderNetsuiteCsv(idx);
+            if (built && built.csv) invoiceCsvs.push(built.csv);
+            else { skipped++; continue; }
+            // Also emit a Bill CSV for intercompany customers so both sides
+            // of the transaction can be booked from one bulk pass.
+            if (built.isIntercompany && built.billCsv) billCsvs.push(built.billCsv);
+            else if (built.isIntercompany && !built.billCsv) billSkipped++;
+        } catch (e) { console.warn('bulk export skipped order', ids[i], e); skipped++; }
+    }
+    if (invoiceCsvs.length === 0) { showToast('Nothing to export (all ' + skipped + ' skipped)', 'error'); return; }
+
     var stamp = new Date().toISOString().slice(0, 10);
-    var filename = 'ni-invoices-' + stamp + '.csv';
-    var blob = new Blob([merged], { type: 'text/csv;charset=utf-8;' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-    var summary = csvs.length + ' order' + (csvs.length === 1 ? '' : 's');
-    if (skipped > 0) summary += ' (' + skipped + ' skipped)';
-    showToast('Downloaded ' + filename + ' — ' + summary);
+    var mergedInvoice = _mergeCsvs(invoiceCsvs);
+    var mergedBill = _mergeCsvs(billCsvs);
+
+    if (billCsvs.length === 0) {
+        // No intercompany orders — single CSV download (same as before).
+        var filename = 'ni-invoices-' + stamp + '.csv';
+        var blob = new Blob([mergedInvoice], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+        var summary = invoiceCsvs.length + ' invoice' + (invoiceCsvs.length === 1 ? '' : 's');
+        if (skipped > 0) summary += ' (' + skipped + ' skipped)';
+        showToast('Downloaded ' + filename + ' — ' + summary);
+    } else {
+        // Mixed / intercompany — zip both files together so accounting can
+        // import Invoices into the Reviv/NI subsidiary and Bills into the
+        // parent subsidiary in two NetSuite passes.
+        if (typeof JSZip === 'undefined') { showToast('JSZip failed to load — try refreshing', 'error'); return; }
+        var zip = new JSZip();
+        zip.file('ni-invoices-' + stamp + '.csv', mergedInvoice);
+        zip.file('ni-bills-' + stamp + '.csv', mergedBill);
+        if (skipped > 0 || billSkipped > 0) {
+            zip.file('skipped.txt',
+                'Bulk export summary:\n\n' +
+                'Invoices exported: ' + invoiceCsvs.length + '\n' +
+                'Bills exported: ' + billCsvs.length + '\n' +
+                'Orders skipped entirely: ' + skipped + '\n' +
+                'Bills skipped (intercompany without valid Bill CSV): ' + billSkipped + '\n');
+        }
+        var zipBlob = await zip.generateAsync({ type: 'blob' });
+        var zipUrl = URL.createObjectURL(zipBlob);
+        var zipA = document.createElement('a');
+        var zipName = 'ni-csv-export-' + stamp + '.zip';
+        zipA.href = zipUrl; zipA.download = zipName;
+        document.body.appendChild(zipA); zipA.click(); document.body.removeChild(zipA);
+        setTimeout(function() { URL.revokeObjectURL(zipUrl); }, 5000);
+        var summary2 = invoiceCsvs.length + ' invoice' + (invoiceCsvs.length === 1 ? '' : 's') + ' + ' + billCsvs.length + ' bill' + (billCsvs.length === 1 ? '' : 's');
+        if (skipped > 0 || billSkipped > 0) summary2 += ' (' + (skipped + billSkipped) + ' skipped)';
+        showToast('Downloaded ' + zipName + ' — ' + summary2);
+    }
     // Clear selection after successful export so the next click starts fresh.
     bulkSelectedOrderIds.clear();
     refreshBulkExportToolbar();
@@ -11017,7 +11063,19 @@ async function _buildOrderNetsuiteCsv(idx) {
         var l = (DATA.customerLocations || []).find(function(x) { return x.id === o.customerLocationId; });
         if (l) location = { location_name: l.locationName, address: l.address, city: l.city, state: l.state, zip: l.zip, contact_name: l.contactName };
     }
-    return await generateCsvFromMapping(order, customer, location || {}, items);
+    var invoiceBuilt = await generateCsvFromMapping(order, customer, location || {}, items);
+    // Also build the Bill CSV for intercompany customers so bulk export can
+    // package both files together and accounting doesn't have to re-run the
+    // exporter for the vendor bill leg.
+    var isIntercompany = !!(customer && customer.is_intercompany);
+    var billCsv = '';
+    if (isIntercompany) {
+        try {
+            var billBuilt = await generateBillCsvFromMapping(order, customer, location || {}, items);
+            if (billBuilt && billBuilt.csv) billCsv = billBuilt.csv;
+        } catch (e) { console.warn('bulk bill csv failed for order', o.id, e); }
+    }
+    return { csv: invoiceBuilt.csv, filename: invoiceBuilt.filename, isIntercompany: isIntercompany, billCsv: billCsv };
 }
 
 function renderOrders() {
