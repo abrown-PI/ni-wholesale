@@ -1118,6 +1118,7 @@
         <div class="card-header">
             <h2>Orders</h2>
             <div style="display:flex;gap:8px">
+                <button id="bulkExportNetsuiteBtn" class="btn btn-sm" style="display:none;background:var(--ni-navy);color:#fff" onclick="exportSelectedNetsuiteCsv()">Export Selected NetSuite CSV (<span id="bulkExportCount">0</span>)</button>
                 <button class="btn btn-sm btn-outline" onclick="exportOrdersCSV()">Export CSV</button>
                 <button class="btn btn-primary" onclick="openOrderEditModal()">+ New Order</button>
             </div>
@@ -1136,7 +1137,7 @@
         </div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th style="white-space:nowrap">Actions</th></tr></thead>
+                <thead><tr><th style="width:30px"><input type="checkbox" id="orderSelectAll" onchange="toggleAllOrderSelection(this.checked)" title="Select all visible" style="cursor:pointer"></th><th>Order #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th style="white-space:nowrap">Actions</th></tr></thead>
                 <tbody id="orderTableBody"></tbody>
             </table>
         </div>
@@ -10886,6 +10887,139 @@ function switchOrderTab(status) {
 
 function searchOrders() { renderOrders(); }
 
+// ── Bulk order selection (for NetSuite CSV bulk export) ──
+// A Set of order.id values currently ticked in the orders table. Lives
+// outside renderOrders() so re-renders (filter/search) don't drop the
+// selection. Sync the header checkbox + toolbar visibility whenever the
+// set changes so the UI reflects the true count.
+var bulkSelectedOrderIds = new Set();
+
+function refreshBulkExportToolbar() {
+    var btn = document.getElementById('bulkExportNetsuiteBtn');
+    var cnt = document.getElementById('bulkExportCount');
+    if (cnt) cnt.textContent = bulkSelectedOrderIds.size;
+    if (btn) btn.style.display = bulkSelectedOrderIds.size > 0 ? '' : 'none';
+}
+
+function toggleOrderSelection(orderId, checked) {
+    if (checked) bulkSelectedOrderIds.add(orderId); else bulkSelectedOrderIds.delete(orderId);
+    refreshBulkExportToolbar();
+    // Sync header select-all state to reflect true visible-vs-selected.
+    var visibleIds = _getVisibleOrderIds();
+    var allChecked = visibleIds.length > 0 && visibleIds.every(function(id) { return bulkSelectedOrderIds.has(id); });
+    var master = document.getElementById('orderSelectAll');
+    if (master) master.checked = allChecked;
+}
+
+function toggleAllOrderSelection(checked) {
+    var visibleIds = _getVisibleOrderIds();
+    visibleIds.forEach(function(id) {
+        if (checked) bulkSelectedOrderIds.add(id); else bulkSelectedOrderIds.delete(id);
+        var cb = document.getElementById('orderRowCb-' + id);
+        if (cb) cb.checked = checked;
+    });
+    refreshBulkExportToolbar();
+}
+
+function _getVisibleOrderIds() {
+    return Array.from(document.querySelectorAll('#orderTableBody input[type="checkbox"][data-order-id]'))
+        .map(function(el) { return el.getAttribute('data-order-id'); });
+}
+
+// Iterate selected orders and concatenate their NetSuite Invoice CSVs into
+// one file (single shared header + all data rows). Uses the same loader
+// path as downloadNetsuiteCsv so live Supabase data wins over local cache.
+async function exportSelectedNetsuiteCsv() {
+    if (bulkSelectedOrderIds.size === 0) { showToast('No orders selected', 'warn'); return; }
+    var ids = Array.from(bulkSelectedOrderIds);
+    showToast('Building CSV for ' + ids.length + ' order' + (ids.length === 1 ? '' : 's') + '...');
+    var csvs = [];
+    var skipped = 0;
+    for (var i = 0; i < ids.length; i++) {
+        var idx = DATA.orders.findIndex(function(o) { return o && o.id === ids[i]; });
+        if (idx < 0) { skipped++; continue; }
+        try {
+            var built = await _buildOrderNetsuiteCsv(idx);
+            if (built && built.csv) csvs.push(built.csv);
+            else skipped++;
+        } catch (e) { console.warn('bulk export skipped order', ids[i], e); skipped++; }
+    }
+    if (csvs.length === 0) { showToast('Nothing to export (all ' + skipped + ' skipped)', 'error'); return; }
+    // Merge: keep first CSV whole, strip header (first line) from the rest.
+    var merged = csvs[0];
+    for (var j = 1; j < csvs.length; j++) {
+        var body = csvs[j];
+        var nl = body.indexOf('\n');
+        merged += nl >= 0 ? body.substring(nl + 1) : '';
+    }
+    var stamp = new Date().toISOString().slice(0, 10);
+    var filename = 'ni-invoices-' + stamp + '.csv';
+    var blob = new Blob([merged], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+    var summary = csvs.length + ' order' + (csvs.length === 1 ? '' : 's');
+    if (skipped > 0) summary += ' (' + skipped + ' skipped)';
+    showToast('Downloaded ' + filename + ' — ' + summary);
+    // Clear selection after successful export so the next click starts fresh.
+    bulkSelectedOrderIds.clear();
+    refreshBulkExportToolbar();
+    renderOrders();
+}
+
+// Same loader path as downloadNetsuiteCsv but returns the built CSV instead
+// of triggering a download. Factored out so exportSelectedNetsuiteCsv can
+// stitch multiple orders into one file.
+async function _buildOrderNetsuiteCsv(idx) {
+    var o = DATA.orders[idx];
+    if (!o) return null;
+    var dbId = o.supabaseOrderId || o.id;
+    var order = null, items = [], customer = null, location = null;
+    if (dbId && /^[0-9a-f-]{36}$/i.test(dbId)) {
+        try {
+            var r1 = await supa.from('orders').select('*').eq('id', dbId).single();
+            if (r1.data) order = r1.data;
+            var r2 = await supa.from('order_items').select('*').eq('order_id', dbId);
+            if (r2.data) items = r2.data;
+            if (order && order.customer_id) {
+                var r3 = await supa.from('customers').select('*').eq('id', order.customer_id).single();
+                if (r3.data) customer = r3.data;
+            }
+            if (order && order.customer_location_id) {
+                var r4 = await supa.from('customer_locations').select('*').eq('id', order.customer_location_id).single();
+                if (r4.data) location = r4.data;
+            }
+        } catch (e) { console.warn('bulk csv fetch fell back to local:', e); }
+    }
+    if (!order) {
+        order = {
+            order_number: o.orderNumber, placed_at: o.date, shipped_at: o.shippedAt,
+            subtotal: o.subtotal, tax: o.tax, shipping: o.shipping, total: o.total,
+            discount_amount: o.discountAmount, tracking_number: o.trackingNumber, carrier: o.carrier
+        };
+    }
+    if (!items || !items.length) {
+        items = (o.items || []).map(function(it) {
+            return { sku: it.sku, product_name: it.productName || it.name, qty: it.qty, unit_price: it.unitPrice, line_total: (Number(it.qty) || 0) * (Number(it.unitPrice) || 0) };
+        });
+    }
+    if (!customer) {
+        var c = findCustomerById(o.customerId);
+        customer = c ? {
+            company_name: c.companyName || o.customerName, contact_name: c.contactName, email: c.email, phone: c.phone,
+            billing_address: c.billingAddress, billing_city: c.billingCity, billing_state: c.billingState, billing_zip: c.billingZip,
+            payment_terms: c.paymentTerms
+        } : { company_name: o.customerName || '' };
+    }
+    if (!location) {
+        var l = (DATA.customerLocations || []).find(function(x) { return x.id === o.customerLocationId; });
+        if (l) location = { location_name: l.locationName, address: l.address, city: l.city, state: l.state, zip: l.zip, contact_name: l.contactName };
+    }
+    return await generateCsvFromMapping(order, customer, location || {}, items);
+}
+
 function renderOrders() {
     renderOrderStats();
     // Update tab counts
@@ -10927,7 +11061,9 @@ function renderOrders() {
             actions += ' <button class="btn btn-sm btn-success" onclick="markDelivered(' + i + ')">Delivered</button>';
         }
         var dateStr = o.date ? new Date(o.date).toLocaleDateString() : '';
+        var checked = bulkSelectedOrderIds.has(o.id) ? ' checked' : '';
         return '<tr>' +
+            '<td><input type="checkbox" id="orderRowCb-' + esc(o.id) + '" data-order-id="' + esc(o.id) + '" onchange="toggleOrderSelection(\'' + esc(o.id) + '\', this.checked)" style="cursor:pointer"' + checked + '></td>' +
             '<td><strong>' + orderNumberDisplay(o) + '</strong></td>' +
             '<td>' + dateStr + '</td>' +
             '<td>' + esc(o.customerName || '--') + (o.email ? '<br><span style="font-size:11px;color:var(--gray-500)">' + esc(o.email) + '</span>' : '') + '</td>' +
@@ -10937,7 +11073,14 @@ function renderOrders() {
             '<td>' + orderStatusBadge(o.status) + '</td>' +
             '<td style="white-space:nowrap">' + actions + '</td>' +
         '</tr>';
-    }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No orders yet</td></tr>';
+    }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No orders yet</td></tr>';
+    refreshBulkExportToolbar();
+    // Sync header select-all after re-render.
+    var master = document.getElementById('orderSelectAll');
+    if (master) {
+        var visibleIds = _getVisibleOrderIds();
+        master.checked = visibleIds.length > 0 && visibleIds.every(function(id) { return bulkSelectedOrderIds.has(id); });
+    }
 }
 
 // Auto-opens an order's detail modal when the URL has ?order=<supabaseOrderId>.
