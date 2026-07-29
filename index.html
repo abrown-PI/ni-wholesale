@@ -12834,7 +12834,14 @@ async function generateBillCsvFromMapping(order, customer, location, items) {
     var mapping = await loadCsvMappingKind('bill');
     var settings = await loadSiteSettings();
     var invoiceDate = _fmtDateUS(order.shipped_at || order.placed_at);
-    var externalId = order.invoice_number || ('NI-' + String(order.order_number || '').padStart(5, '0'));
+    // External ID MUST match the invoice's External ID so NetSuite links the
+    // intercompany pair — always read the invoice mapping's prefix + pad
+    // instead of hardcoding, so a prefix change (NI- → NIINV) applies to
+    // both sides.
+    var invoiceMapping = await loadCsvMappingKind('invoice');
+    var pad = Number(invoiceMapping.external_id_pad_digits) || 5;
+    var prefix = invoiceMapping.external_id_prefix || 'NI-';
+    var externalId = order.invoice_number || (prefix + String(order.order_number || '').padStart(pad, '0'));
     var memo = 'Intercompany bill from NI Invoice ' + externalId;
     // First-item expense account for the shipping row on the bill CSV.
     // Product override wins; else class default.
