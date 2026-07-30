@@ -12315,7 +12315,7 @@ function resolveCsvField(sourceKey, ctx) {
     switch (sourceKey) {
         // order fields
         case 'order.order_number': return String(order.order_number || '');
-        case 'order.invoice_number': return order.invoice_number || ('NI-' + String(order.order_number || '').padStart(5, '0'));
+        case 'order.invoice_number': return order.invoice_number || (ctx.externalId || '');
         case 'order.po_number': return order.po_number || '';
         case 'order.placed_at': return order.placed_at || '';
         case 'order.shipped_at': return order.shipped_at || '';
@@ -12835,13 +12835,15 @@ async function generateBillCsvFromMapping(order, customer, location, items) {
     var settings = await loadSiteSettings();
     var invoiceDate = _fmtDateUS(order.shipped_at || order.placed_at);
     // External ID MUST match the invoice's External ID so NetSuite links the
-    // intercompany pair — always read the invoice mapping's prefix + pad
-    // instead of hardcoding, so a prefix change (NI- → NIINV) applies to
-    // both sides.
+    // intercompany pair. Compute it exactly the same way the invoice CSV does
+    // (prefix + padded order#) — don't fall back to order.invoice_number,
+    // because a stale value there (e.g. "NI-00002" saved before the prefix
+    // was renamed to "NIINV") would silently diverge from the freshly-
+    // computed invoice External ID.
     var invoiceMapping = await loadCsvMappingKind('invoice');
     var pad = Number(invoiceMapping.external_id_pad_digits) || 5;
     var prefix = invoiceMapping.external_id_prefix || 'NI-';
-    var externalId = order.invoice_number || (prefix + String(order.order_number || '').padStart(pad, '0'));
+    var externalId = prefix + String(order.order_number || '').padStart(pad, '0');
     var memo = 'Intercompany bill from NI Invoice ' + externalId;
     // First-item expense account for the shipping row on the bill CSV.
     // Product override wins; else class default.
@@ -15879,7 +15881,12 @@ function supaOrderToLocal(o) {
 async function editOrderInvoiceNumber(idx) {
     var o = DATA.orders[idx];
     if (!o) return;
-    var defaultVal = o.invoiceNumber || ('NI-' + String(o.orderNumber || 0).padStart(5, '0'));
+    // Use the current invoice mapping's prefix + pad so the suggested value
+    // reflects whatever format we're on today (NIINV etc.), not a stale 'NI-'.
+    var _invMap = await loadCsvMappingKind('invoice').catch(function() { return {}; });
+    var _prefix = (_invMap && _invMap.external_id_prefix) || 'NIINV';
+    var _pad = Number(_invMap && _invMap.external_id_pad_digits) || 5;
+    var defaultVal = o.invoiceNumber || (_prefix + String(o.orderNumber || 0).padStart(_pad, '0'));
     var next = prompt('NetSuite Invoice # for order ' + orderNumberDisplay(o) + ':', defaultVal);
     if (next === null) return;
     next = String(next).trim();
