@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Convert PRODUCT_REFERENCE.md into a styled HTML, then let Chrome print it to PDF."""
+"""Convert the NI product markdown docs into styled HTML + PDF via headless Chrome."""
 import subprocess
+import sys
 from pathlib import Path
 
 import markdown
 
 HERE = Path(__file__).parent
-MD = HERE / "PRODUCT_REFERENCE.md"
-HTML = HERE / "PRODUCT_REFERENCE.html"
-PDF = HERE / "PRODUCT_REFERENCE.pdf"
 CHROME = "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"
+
+# Each entry: (markdown filename, page header shown at top)
+DOCS = [
+    ("PRODUCT_REFERENCE.md", "NUTRITIONAL INNOVATIONS &mdash; PRODUCT REFERENCE"),
+    ("PRODUCT_GUIDE.md",     "NUTRITIONAL INNOVATIONS &mdash; PRODUCT GUIDE"),
+]
 
 CSS = """
 @page { size: Letter; margin: 0.6in 0.7in; }
@@ -77,41 +81,52 @@ h1:first-of-type { margin-top: 0; }
 h2 { page-break-inside: avoid; }
 """
 
-md_text = MD.read_text(encoding="utf-8")
-html_body = markdown.markdown(md_text, extensions=["extra", "toc", "sane_lists"])
-
-full_html = f"""<!doctype html>
-<html><head>
-<meta charset="utf-8">
-<title>NI Wholesale — Product Reference</title>
-<style>{CSS}</style>
-</head><body>
-<div class="header">NUTRITIONAL INNOVATIONS &mdash; WHOLESALE</div>
-{html_body}
-</body></html>
-"""
-HTML.write_text(full_html, encoding="utf-8")
-
-if PDF.exists():
-    PDF.unlink()
-
 # Chrome is a Windows binary — it can't read Linux paths. Translate both
 # the input HTML and output PDF to Windows-style paths via wslpath.
 def to_win(p: Path) -> str:
     return subprocess.check_output(["wslpath", "-w", str(p)], text=True).strip()
 
-html_win = to_win(HTML)
-pdf_win = to_win(PDF)
-html_url = "file:///" + html_win.replace("\\", "/")
 
-subprocess.run([
-    CHROME,
-    "--headless=new",
-    "--disable-gpu",
-    f"--print-to-pdf={pdf_win}",
-    "--no-pdf-header-footer",
-    html_url,
-], check=True)
+def build(md_name: str, header: str) -> None:
+    md_path = HERE / md_name
+    html_path = md_path.with_suffix(".html")
+    pdf_path = md_path.with_suffix(".pdf")
 
-print(f"HTML: {HTML}")
-print(f"PDF:  {PDF}")
+    md_text = md_path.read_text(encoding="utf-8")
+    html_body = markdown.markdown(md_text, extensions=["extra", "toc", "sane_lists", "tables"])
+
+    full_html = f"""<!doctype html>
+<html><head>
+<meta charset=\"utf-8\">
+<title>{md_path.stem}</title>
+<style>{CSS}</style>
+</head><body>
+<div class=\"header\">{header}</div>
+{html_body}
+</body></html>
+"""
+    html_path.write_text(full_html, encoding="utf-8")
+
+    if pdf_path.exists():
+        pdf_path.unlink()
+
+    html_win = to_win(html_path)
+    pdf_win = to_win(pdf_path)
+    html_url = "file:///" + html_win.replace("\\", "/")
+
+    subprocess.run([
+        CHROME,
+        "--headless=new",
+        "--disable-gpu",
+        f"--print-to-pdf={pdf_win}",
+        "--no-pdf-header-footer",
+        html_url,
+    ], check=True)
+
+    print(f"Built {pdf_path.name} ({pdf_path.stat().st_size // 1024} KB)")
+
+
+targets = sys.argv[1:] if len(sys.argv) > 1 else [name for name, _ in DOCS]
+for md_name, header in DOCS:
+    if md_name in targets or md_name.split(".")[0] in [t.split(".")[0] for t in targets]:
+        build(md_name, header)
