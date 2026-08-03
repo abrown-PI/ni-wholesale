@@ -970,7 +970,8 @@
                 <h3>Quick Links</h3>
                 <p><a href="#" onclick="navigate('storefront');return false">Shop Products</a><br>
                 <a href="#" onclick="navigate('home');return false">About Us</a><br>
-                <a href="#" onclick="openModal('registerModal');return false">Apply for Account</a></p>
+                <a href="#" onclick="openModal('registerModal');return false">Apply for Account</a><br>
+                <a href="https://pharmacyinnovationsstore.net" target="_blank" rel="noopener">Retail store (personal use)</a></p>
             </div>
             <div class="footer-col">
                 <h3>Customer Care</h3>
@@ -998,6 +999,10 @@
         <h2 style="font-family:var(--serif);font-size:24px;color:var(--ni-navy)">Product Catalog</h2>
         <p style="font-family:var(--sans);font-size:14px;color:var(--gray-500);margin-top:4px">Browse and order wholesale supplements for your pharmacy</p>
     </div>
+    <!-- Retail redirect: pharmacies see wholesale pricing after signing in;
+         personal-use buyers should be pointed at the retail store. Rendered
+         only for anonymous visitors by renderStorefrontRetailBanner(). -->
+    <div id="storefrontRetailBanner"></div>
     <div class="filter-bar">
         <input type="text" class="search-input" id="storeSearch" placeholder="Search by name, category, or UPC..." oninput="renderStorefront()">
         <select class="form-control" id="storeCategoryFilter" style="width:auto" onchange="renderStorefront()">
@@ -5725,6 +5730,10 @@ async function doLogin() {
     document.getElementById('loginPassword').value = '';
     updateLoginUI();
     renderEntitySwitcher();
+    // Re-render any shopping views so wholesale prices appear immediately
+    // (without needing to nav away and back).
+    if (typeof renderFeatured === 'function' && document.getElementById('featuredGrid')) renderFeatured();
+    if (typeof renderStorefront === 'function' && document.getElementById('storefrontGrid')) renderStorefront();
     showToast('Welcome, ' + accountObj.pharmacyName + '!');
 
     // If the auth user still has must_change_password=true, force-prompt now.
@@ -5745,6 +5754,9 @@ async function logoutAccount() {
     }
     updateLoginUI();
     renderEntitySwitcher();
+    // Re-render shopping views so wholesale prices disappear immediately.
+    if (typeof renderFeatured === 'function' && document.getElementById('featuredGrid')) renderFeatured();
+    if (typeof renderStorefront === 'function' && document.getElementById('storefrontGrid')) renderStorefront();
     showToast('Logged out');
 }
 
@@ -7979,7 +7991,7 @@ function renderFeatured() {
                 '<div class="product-category">' + esc(p.category || 'Supplement') + '</div>' +
                 '<div class="product-name">' + esc(p.name) + '</div>' +
                 '<div class="product-size">' + esc(p.packageSize || '') + '</div>' +
-                '<div><span class="product-price">' + (function(){ var ep = getEffectivePrice(p); return ep != null ? '$' + Number(ep).toFixed(2) : 'Contact for pricing'; })() + '</span></div>' +
+                '<div>' + priceCellHtml(p) + '</div>' +
             '</div></div>';
     }).join('');
 }
@@ -7987,6 +7999,22 @@ function renderFeatured() {
 // ════════════════════════════════════════════════════
 // STOREFRONT
 // ════════════════════════════════════════════════════
+
+// Wholesale pricing is only for approved pharmacy accounts. Anonymous
+// visitors see "Sign in for pricing" + a retail store pointer instead.
+function isCustomerLoggedIn() { return !!loadSession(); }
+
+// Returns HTML for the price cell on a product card / featured tile.
+// When signed in: shows the effective wholesale price.
+// When not: shows a "Sign in for pricing" link that opens the login modal.
+function priceCellHtml(p) {
+    if (isCustomerLoggedIn()) {
+        var ep = getEffectivePrice(p);
+        return '<span class="product-price">' + (ep != null ? '$' + Number(ep).toFixed(2) : 'Contact for pricing') + '</span>';
+    }
+    return '<a href="#" onclick="event.preventDefault();event.stopPropagation();openModal(\'loginModal\')" style="color:var(--ni-deep-blue);text-decoration:underline;font-family:var(--sans);font-size:13px;font-weight:600">Sign in for pricing</a>';
+}
+
 function getStockBadge(p) {
     if (!p.stock && p.stock !== 0) return '';
     if (p.stock <= 0) return '<span class="stock-badge stock-out">Out of Stock</span>';
@@ -7994,7 +8022,26 @@ function getStockBadge(p) {
     return '<span class="stock-badge stock-in">In Stock</span>';
 }
 
+function renderStorefrontRetailBanner() {
+    var el = document.getElementById('storefrontRetailBanner');
+    if (!el) return;
+    if (isCustomerLoggedIn()) { el.innerHTML = ''; return; }
+    el.innerHTML =
+        '<div style="margin-bottom:20px;padding:14px 18px;background:linear-gradient(90deg,var(--ni-cream),#fff);border:1px solid var(--gray-200);border-left:4px solid var(--ni-deep-blue);border-radius:6px;font-family:var(--sans);font-size:13px;color:var(--gray-700);line-height:1.5;display:flex;flex-wrap:wrap;align-items:center;gap:16px;justify-content:space-between">' +
+            '<div style="flex:1;min-width:240px">' +
+                '<strong style="color:var(--ni-navy)">Wholesale pricing is for approved pharmacy accounts.</strong> ' +
+                '<span>Buying for personal use? Shop retail at ' +
+                '<a href="https://pharmacyinnovationsstore.net" target="_blank" rel="noopener" style="color:var(--ni-deep-blue);text-decoration:underline;font-weight:600">pharmacyinnovationsstore.net</a>.</span>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px">' +
+                '<button class="btn btn-outline btn-sm" onclick="openModal(\'loginModal\')">Sign in</button>' +
+                '<button class="btn btn-primary btn-sm" onclick="openApplyModal()">Apply</button>' +
+            '</div>' +
+        '</div>';
+}
+
 function renderStorefront() {
+    renderStorefrontRetailBanner();
     var search = document.getElementById('storeSearch').value.toLowerCase();
     var cat = document.getElementById('storeCategoryFilter').value;
     var grid = document.getElementById('storefrontGrid');
@@ -8012,16 +8059,25 @@ function renderStorefront() {
         return true;
     });
     if (!products.length) { grid.innerHTML = '<div class="empty-state"><p>No products found</p></div>'; return; }
+    var loggedIn = isCustomerLoggedIn();
     grid.innerHTML = products.map(function(p) {
         var idx = DATA.products.indexOf(p);
-        var ep = getEffectivePrice(p);
-        var price = ep != null ? '$' + Number(ep).toFixed(2) : 'Contact for pricing';
+        // MSRP is public info (patients see it on the retail store) so we can
+        // show it either way — it's the wholesale price that's account-gated.
         var retail = p.retailPrice ? '<span class="product-retail">MSRP $' + Number(p.retailPrice).toFixed(2) + '</span>' : '';
         var newBadge = isNewProduct(p) ? '<span class="badge-new">New</span>' : '';
         var minQty = p.minOrderQty || 1;
         var hasVariants = productHasVariants(p.sku);
         var actionsHtml;
-        if (hasVariants) {
+        if (!loggedIn) {
+            // Anonymous visitors can't order or see wholesale prices. Instead
+            // of qty/add-to-cart, show a Sign In CTA. Prevents accidentally
+            // "adding to cart" as an anonymous session (which would appear to
+            // succeed but then fail at checkout).
+            actionsHtml = '<div class="product-actions" onclick="event.stopPropagation()">' +
+                '<button class="btn btn-outline btn-sm" style="width:100%" onclick="openModal(\'loginModal\')">Sign in to order</button>' +
+            '</div>';
+        } else if (hasVariants) {
             actionsHtml = '<div class="product-actions" onclick="event.stopPropagation()">' +
                 '<button class="btn btn-outline btn-sm" style="width:100%" onclick="openProductDetail(' + idx + ')">Multiple options — view</button>' +
             '</div>';
@@ -8037,7 +8093,7 @@ function renderStorefront() {
                 '<div class="product-category">' + esc(p.category || 'Supplement') + '</div>' +
                 '<div class="product-name">' + esc(p.name) + '</div>' +
                 '<div class="product-size">' + esc(p.packageSize || 'Size TBD') + '</div>' +
-                '<div><span class="product-price">' + price + '</span>' + retail + '</div>' +
+                '<div>' + priceCellHtml(p) + retail + '</div>' +
                 actionsHtml +
             '</div></div>';
     }).join('');
@@ -8069,9 +8125,24 @@ function openProductDetail(idx) {
     var minQty = p.minOrderQty || 1;
     var hasVariants = productHasVariants(p.sku);
     var variants = hasVariants ? getVariantsForProduct(p.sku).filter(function(v) { return v.status !== 'inactive'; }) : [];
+    var loggedIn = isCustomerLoggedIn();
     var variantsHtml = '';
     var addRowHtml;
-    if (hasVariants && variants.length) {
+    if (!loggedIn) {
+        // Anonymous view: hide qty/add-to-cart and variant price table.
+        // Show a single Sign In CTA plus a pointer to the retail store for
+        // consumers who landed here looking to buy for personal use.
+        addRowHtml = '<div style="padding:14px 16px;background:var(--ni-cream);border-left:3px solid var(--ni-deep-blue);border-radius:4px;font-family:var(--sans);font-size:13px;line-height:1.6">' +
+            '<div style="margin-bottom:10px;color:var(--ni-navy);font-weight:600">Wholesale pricing is available to approved pharmacy accounts.</div>' +
+            '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+                '<button class="btn btn-primary btn-sm" onclick="closeModal(\'productDetailModal\');openModal(\'loginModal\')">Sign in</button>' +
+                '<button class="btn btn-outline btn-sm" onclick="closeModal(\'productDetailModal\');openApplyModal()">Apply for account</button>' +
+            '</div>' +
+            '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--gray-200);font-size:12px;color:var(--gray-600)">' +
+                'Buying for personal use? Shop retail at <a href="https://pharmacyinnovationsstore.net" target="_blank" rel="noopener" style="color:var(--ni-deep-blue);text-decoration:underline">pharmacyinnovationsstore.net</a>.' +
+            '</div>' +
+        '</div>';
+    } else if (hasVariants && variants.length) {
         variantsHtml = '<div style="margin:12px 0 8px;padding:10px;background:var(--gray-100);border-radius:6px;font-family:var(--sans)">' +
             '<div style="font-size:12px;font-weight:600;color:var(--ni-navy);margin-bottom:6px">Available variants</div>' +
             '<table style="width:100%;font-size:12px;border-collapse:collapse">' +
@@ -8106,7 +8177,10 @@ function openProductDetail(idx) {
             '<div class="product-detail-info">' +
                 '<div class="detail-category">' + esc(p.category || 'Supplement') + '</div>' +
                 '<h2>' + esc(p.name) + '</h2>' +
-                '<div class="detail-price">' + (function(){ var ep = getEffectivePrice(p); return ep != null ? '$' + Number(ep).toFixed(2) : 'Contact for pricing'; })() + '</div>' +
+                (loggedIn
+                    ? '<div class="detail-price">' + (function(){ var ep = getEffectivePrice(p); return ep != null ? '$' + Number(ep).toFixed(2) : 'Contact for pricing'; })() + '</div>'
+                    : '<div class="detail-price" style="font-size:16px;color:var(--ni-deep-blue)"><a href="#" onclick="event.preventDefault();closeModal(\'productDetailModal\');openModal(\'loginModal\')" style="color:inherit;text-decoration:underline">Sign in for wholesale pricing</a></div>'
+                ) +
                 (p.retailPrice ? '<div class="detail-retail">Suggested Retail: $' + Number(p.retailPrice).toFixed(2) + '</div>' : '') +
                 (p.description ? '<div style="font-size:14px;color:var(--gray-700);margin-bottom:16px;font-family:var(--sans);line-height:1.5">' + esc(p.description) + '</div>' : '') +
                 '<div class="detail-meta">' +
