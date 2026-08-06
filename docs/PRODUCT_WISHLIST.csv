@@ -1,0 +1,131 @@
+Category,Product,Currently Carry,SKU/Note,Suggested Manufacturer,Priority,Zoom Recommended,Notes
+Foundational,B-Balanced (activated B-complex),Yes,PINM236,NuMedica,,,Have
+Foundational,Vit A 25000 IU,Yes,PINM586,NuMedica,,,Have
+Foundational,D3K25000 (5000 IU D3 + K2),Yes,PINM980,NuMedica,,,Have
+Foundational,E-Balanced (tocopherol blend),Yes,PINM112,NuMedica,,,Have
+Foundational,Max Multi (herb-free iron-free),Yes,PINM250,NuMedica,,,Have
+Foundational,Absorbable Zinc 30mg,Yes,PINM148,NuMedica,,,Have
+Foundational,Magnesium Glycinate 600mg,Yes,MAGGLYCNI,All-In Nutritionals,,,Have
+Foundational,Organic Iodine drops,Yes,PINM185,NuMedica,,,Have
+Foundational,Vitamin C 500-1000mg,No,,NuMedica,High,,Glaring hole - pharmacy staple
+Foundational,D3/K2 10000 IU,No,,NuMedica or Metagenics,High,Yes,Zoom protocol: 10K first month then 5K maintenance
+Foundational,Vitamin D3 5000 IU standalone (no K2),No,,NuMedica,High,,For patients on warfarin or K2 sensitive
+Foundational,Vitamin B12 sublingual methylcobalamin,No,,NuMedica,High,,1000 or 5000 mcg
+Foundational,Vitamin K2 standalone MK-7,No,,NuMedica,Med,,100-200 mcg for bone/cardio
+Foundational,Selenium 200mcg,No,,NuMedica,High,,Thyroid antioxidant
+Foundational,Iron bisglycinate,No,,NuMedica,Med,,Gentle chelated form for anemia
+Foundational,Calcium standalone (citrate or malate),No,,NuMedica,Med,,For patients not needing full OsteoPlus
+Foundational,Magnesium citrate,No,,NuMedica or All-In,Med,,Different form - often for constipation
+Foundational,Magnesium threonate (Magtein),No,,Life Extension or Thorne,Med,,Cognitive/brain
+Life-Stage Multi,Max Multi (current),Yes,PINM250,NuMedica,,,Have - men + post-menopausal women
+Life-Stage Multi,Prenatal multivitamin,No,,Metagenics or Nordic,High,,Pharmacy staple
+Life-Stage Multi,Kids gummy multivitamin,No,,Metagenics or Nordic Berries,High,,
+Life-Stage Multi,Senior 50+ multi,No,,Metagenics or Thorne,High,,Elevated B12 D3 no iron
+Life-Stage Multi,Women's multi with iron,No,,NuMedica or Metagenics,Med,,Pre-menopausal
+Life-Stage Multi,Men's multi,No,,NuMedica,Med,,With saw palmetto or lycopene
+Probiotics/Digestive,FemFlora Balance,Yes,ML001,Microbiome Labs,,,Have - vaginal/UTI
+Probiotics/Digestive,FloraRestore,Yes,ML003,Microbiome Labs,,,Have - during antibiotics
+Probiotics/Digestive,Ultra Spore Biotic,Yes,ML002,Microbiome Labs,,,Have - shelf-stable daily
+Probiotics/Digestive,Ultra Flora 50B,Yes,PINM555,NuMedica,,,Have - high potency
+Probiotics/Digestive,Ultra Pre Powder,Yes,ML004,Microbiome Labs,,,Have - prebiotic
+Probiotics/Digestive,GastroGuard,Yes,ML005,Microbiome Labs,,,Have - reflux/H. pylori
+Probiotics/Digestive,Strengtia 100B hypoallergenic,No,,Apex Energetics,High,Yes,Zoom ask - dairy-free hypoallergenic
+Probiotics/Digestive,Kids chewable probiotic,No,,Klaire Labs or Metagenics,High,,
+Probiotics/Digestive,Broad-spectrum digestive enzymes,No,,NuMedica or Enzymedica,Med,,
+Probiotics/Digestive,Betaine HCl,No,,NuMedica or Designs for Health,Med,,For low stomach acid
+Probiotics/Digestive,L-glutamine powder,No,,NuMedica or Thorne,Med,,Gut lining repair - also sports
+Probiotics/Digestive,Slippery elm / Marshmallow root,No,,NuMedica,Low,,GI soothing
+Probiotics/Digestive,S. boulardii standalone,No,,Klaire Labs,Low,,Yeast probiotic
+Cardiovascular,EPADHA950 (Omega-3),Yes,PINM035,NuMedica,,,Have - 430 EPA + 390 DHA
+Cardiovascular,Red Yeast Rice,Yes,PINM052,NuMedica,,,Have - 905mg citrinin-free
+Cardiovascular,Ubiquinol 100mg,Yes,PINM234,NuMedica,,,Have
+Cardiovascular,Berkeley Life Nitric Oxide,No,,Berkeley Life,High,Yes,Zoom ask - lozenges + capsules
+Cardiovascular,Nattokinase 2000 FU,No,,NuMedica or Doctor's Best,Med,,Clotting/circulation
+Cardiovascular,Vegan/Algal Omega-3,No,,Nordic Naturals or Ovega-3,Low,,For vegetarian patients
+Cardiovascular,CoQ10 ubiquinone standalone,No,,NuMedica,Med,,Cheaper alternative to Ubiquinol
+Immune,Vitamin C 1000mg,No,,NuMedica,High,,Cross-listed foundational
+Immune,Elderberry syrup + capsules,No,,NuMedica or Gaia Herbs,High,,Adult + kids strengths
+Immune,Elderberry gummies (kids/adult),No,,NuMedica or Sambucol,High,,
+Immune,Quercetin + Bromelain 500mg,No,,NuMedica or Thorne,High,,
+Immune,NAC (N-Acetyl Cysteine) 600mg,No,,NuMedica or Thorne,High,,Respiratory + antioxidant
+Immune,Zinc lozenges,No,,NuMedica or Life Extension,Med,,Different from daily zinc
+Immune,Astragalus,No,,NuMedica,Low,,Immune adaptogen
+Immune,Beta-glucan,No,,NuMedica,Low,,Immune modulator
+Immune,Monolaurin,No,,Designs for Health,Low,,Antimicrobial
+Women's Hormone,DIM 150mg,Yes,PINM025,NuMedica,,,Have (with curcumin)
+Women's Hormone,DHEA 5mg,Yes,PINM331,NuMedica,,,Have
+Women's Hormone,DHEA 25mg,Yes,PINM074,NuMedica,,,Have
+Women's Hormone,Progesterone cream 20mg/pump,No,,NuMedica or ProgestaCare,Med,,Bioidentical topical
+Women's Hormone,Vitex (chasteberry),No,,NuMedica or Gaia,Med,,Cycle regulation PMS
+Women's Hormone,Black cohosh,No,,NuMedica or Gaia,Med,,Menopausal
+Women's Hormone,Evening primrose oil,No,,NuMedica or Nordic,Med,,PMS skin
+Women's Hormone,Maca root,No,,NuMedica or Gaia,Med,,Libido energy
+Women's Hormone,Wild yam,No,,NuMedica,Low,,Hormone precursor
+Men's Hormone,Saw palmetto 320mg,No,,NuMedica or Metagenics,High,,Prostate BPH
+Men's Hormone,Tongkat ali (Longjack),No,,NuMedica or Thorne,Med,,Testosterone support
+Men's Hormone,Fenugreek,No,,NuMedica,Low,,Testosterone libido
+Men's Hormone,Lycopene,No,,NuMedica,Low,,Prostate antioxidant
+Men's Hormone,Beta-sitosterol,No,,NuMedica,Low,,Prostate
+Thyroid,Organic Iodine,Yes,PINM185,NuMedica,,,Have
+Thyroid,Selenium 200mcg,No,,NuMedica,High,,Cross-listed foundational
+Thyroid,L-tyrosine 500mg,No,,NuMedica or Thorne,Med,,T4 precursor
+Thyroid,Ashwagandha KSM-66,No,,NuMedica or Jarrow,High,,Cross-listed sleep
+Thyroid,Iodoral high-dose,No,,Optimox,Low,,High-dose iodine tablet
+Sleep/Stress,Melatonin 1mg,No,,NuMedica,High,,Pharmacy staple
+Sleep/Stress,Melatonin 3mg,No,,NuMedica,High,,
+Sleep/Stress,Melatonin 5mg,No,,NuMedica,High,,
+Sleep/Stress,Melatonin 10mg,No,,NuMedica,Med,,
+Sleep/Stress,Melatonin liquid drops,No,,Natrol or NuMedica,Med,,Kids + adults
+Sleep/Stress,L-theanine 200mg,No,,NuMedica or Suntheanine,High,,Calm without drowsy
+Sleep/Stress,Ashwagandha KSM-66 600mg,No,,Jarrow or Nutricost,High,,Adrenal/cortisol
+Sleep/Stress,Rhodiola 500mg,No,,NuMedica or Gaia,Med,,Energy + stress
+Sleep/Stress,5-HTP 100mg,No,,NuMedica,Med,,Mood/sleep precursor
+Sleep/Stress,GABA 500mg,No,,NuMedica or Now,Med,,Sleep/anxiety
+Sleep/Stress,Passionflower,No,,NuMedica or Gaia,Low,,Anxiety
+Sleep/Stress,SAMe 400mg,No,,Jarrow or NuMedica,Med,,Mood
+Cognitive,Lion's mane 500-1000mg,No,,Host Defense or NuMedica,High,,Nerve/cognitive
+Cognitive,Bacopa (BacoMind) 300mg,No,,NuMedica or Jarrow,Med,,Memory
+Cognitive,Phosphatidylserine 100mg,No,,NuMedica or Jarrow,Med,,Memory
+Cognitive,Alpha-GPC 300mg,No,,NuMedica or Life Extension,Med,,Acetylcholine
+Cognitive,CDP-choline (Citicoline),No,,NuMedica or Jarrow,Med,,Alternative choline
+Cognitive,Ginkgo biloba 120mg,No,,NuMedica or Nature's Way,Low,,Brain circulation
+Cognitive,Magnesium threonate,No,,Life Extension or Thorne,Med,,Cross-listed foundational
+Joint/Bone,OsteoPlus,Yes,PINM061,NuMedica,,,Have - MCHC bone builder
+Joint/Bone,Glucosamine + Chondroitin + MSM,No,,NuMedica or Move Free,High,,Joint staple
+Joint/Bone,Turmeric/Curcumin standalone,No,,NuMedica (Meriva) or Thorne,High,,95% curcuminoids
+Joint/Bone,Boswellia extract,No,,NuMedica or Life Extension,Med,,Anti-inflammatory
+Joint/Bone,Collagen Type II (UC-II 40mg),No,,NuMedica or Move Free,Med,,Joint-specific
+Joint/Bone,Hyaluronic acid oral,No,,NuMedica,Low,,Joint/skin
+Joint/Bone,Bromelain,No,,NuMedica or Now,Low,,Inflammation
+Antioxidants,Glutathione liposomal,No,,Quicksilver or NuMedica,High,,High demand hard to source
+Antioxidants,NAC 600mg,No,,NuMedica or Thorne,High,,Cross-listed immune
+Antioxidants,Alpha-lipoic acid 300-600mg,No,,NuMedica or Jarrow,Med,,Glucose + nerve
+Antioxidants,Milk thistle (silymarin) 250mg,No,,NuMedica or Gaia,Med,,Liver support
+Antioxidants,Resveratrol 250mg,No,,NuMedica or Reserveage,Med,,
+Antioxidants,Astaxanthin 12mg,No,,NuMedica or Nordic,Low,,Eye + skin
+Metabolic/Blood Sugar,Berberine 500mg,No,,NuMedica or Thorne,High,,Cholesterol + blood sugar
+Metabolic/Blood Sugar,Chromium picolinate 200mcg,No,,NuMedica,Med,,
+Metabolic/Blood Sugar,Cinnamon extract 500mg,No,,NuMedica or Now,Med,,
+Metabolic/Blood Sugar,Alpha-lipoic acid,No,,,,,Cross-listed antioxidants
+Metabolic/Blood Sugar,Bitter melon,No,,NuMedica or Gaia,Low,,
+Weight Management,Green tea extract EGCG 500mg,No,,NuMedica,Med,,
+Weight Management,L-carnitine 500mg,No,,NuMedica or Jarrow,Low,,
+Weight Management,CLA 1000mg,No,,NuMedica,Low,,Dying category
+Weight Management,Berberine,No,,,,,Cross-listed metabolic
+Sports/Recovery,Creatine monohydrate 5g,No,,Creapure micronized (any),Low,,
+Sports/Recovery,BCAAs 2:1:1 powder,No,,NuMedica or Klean,Low,,
+Sports/Recovery,L-glutamine 5g,No,,,,,Cross-listed digestive
+Sports/Recovery,Electrolyte powder,No,,LMNT-style,Med,,No sugar
+Sports/Recovery,Whey protein isolate,No,,,Low,,Commodity low margin
+Skin/Hair/Nails,RECODE GLOW CREAM,Yes,RECODE,Iconic Beauty Labs,,,Have - topical
+Skin/Hair/Nails,Collagen peptides powder Type I+III,No,,Vital Proteins or NuMedica,Med,,Unflavored or vanilla
+Skin/Hair/Nails,Biotin 10000mcg,No,,NuMedica,Med,,
+Skin/Hair/Nails,Hair Skin Nails multi,No,,NuMedica or Metagenics,Med,,Biotin + silica + zinc + C
+Skin/Hair/Nails,Silica,No,,BioSil,Low,,Hair/nail strength
+Skin/Hair/Nails,Marine collagen,No,,NuMedica or Vital Proteins,Low,,Anti-aging alternative
+Kids,Kids multivitamin gummy,No,,Nordic Berries or Metagenics,High,,
+Kids,Kids vitamin D3,No,,Nordic Naturals or Metagenics,High,,Drops or gummies
+Kids,Kids probiotic,No,,Klaire Labs or Nordic,High,,Chewable or powder
+Kids,Kids elderberry,No,,Sambucol or Nordic,High,,Syrup or gummies
+Kids,Kids omega-3,No,,Nordic Kids DHA,High,,Chewable or liquid
+Kids,Kids melatonin 1mg gummy,No,,Natrol Kids,Med,,

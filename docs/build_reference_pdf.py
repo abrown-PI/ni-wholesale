@@ -13,6 +13,7 @@ CHROME = "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"
 DOCS = [
     ("PRODUCT_REFERENCE.md", "NUTRITIONAL INNOVATIONS &mdash; PRODUCT REFERENCE"),
     ("PRODUCT_GUIDE.md",     "NUTRITIONAL INNOVATIONS &mdash; PRODUCT GUIDE"),
+    ("PRODUCT_WISHLIST.md",  "NUTRITIONAL INNOVATIONS &mdash; PRODUCT WISHLIST"),
 ]
 
 CSS = """
