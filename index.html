@@ -9802,6 +9802,7 @@ async function buildSelectedItemsCsv() {
     var settings = await loadSiteSettings();
     var selected = DATA.products.filter(function(p) { return p.id && SELECTED_PRODUCT_IDS.has(p.id); });
     if (!selected.length) throw new Error('No products selected');
+    var itemPrefix = mapping.external_id_prefix || '';
     var csv = cols.map(function(c) { return _csvEscape(c.name); }).join(',') + '\r\n';
     selected.forEach(function(product) {
         var itemCtx = {
@@ -9816,7 +9817,8 @@ async function buildSelectedItemsCsv() {
             taxable: product.taxable !== false, status: product.status || 'active',
             min_order_qty: product.minOrderQty || 1
         };
-        var ctxBase = { order: {}, customer: {}, location: {}, mapping: mapping, settings: settings, item: itemCtx, lineType: 'item' };
+        var externalId = itemPrefix + String(product.sku || '');
+        var ctxBase = { order: {}, customer: {}, location: {}, mapping: mapping, settings: settings, item: itemCtx, lineType: 'item', externalId: externalId };
         var row = cols.map(function(col) {
             if (col.source === 'static') return col.value || '';
             return resolveCsvField(col.source, ctxBase);
@@ -10062,7 +10064,8 @@ async function generateItemCsvForProduct(product) {
         taxable: product.taxable !== false, status: product.status || 'active',
         min_order_qty: product.minOrderQty || 1
     };
-    var ctxBase = { order: {}, customer: {}, location: {}, mapping: mapping, settings: settings, item: itemCtx, lineType: 'item' };
+    var externalId = (mapping.external_id_prefix || '') + String(product.sku || '');
+    var ctxBase = { order: {}, customer: {}, location: {}, mapping: mapping, settings: settings, item: itemCtx, lineType: 'item', externalId: externalId };
     var row = cols.map(function(col) {
         if (col.source === 'static') return col.value || '';
         return resolveCsvField(col.source, ctxBase);
@@ -12908,15 +12911,15 @@ async function generateBillCsvFromMapping(order, customer, location, items) {
     var mapping = await loadCsvMappingKind('bill');
     var settings = await loadSiteSettings();
     var invoiceDate = _fmtDateUS(order.shipped_at || order.placed_at);
-    // External ID MUST match the invoice's External ID so NetSuite links the
-    // intercompany pair. Compute it exactly the same way the invoice CSV does
-    // (prefix + padded order#) — don't fall back to order.invoice_number,
-    // because a stale value there (e.g. "NI-00002" saved before the prefix
-    // was renamed to "NIINV") would silently diverge from the freshly-
-    // computed invoice External ID.
+    // External ID: prefer the BILL mapping's own prefix+pad if the admin set
+    // them (e.g. to a distinct NIBILL so PI's NetSuite can tell NI vendor
+    // bills apart from Reviv's). If blank, fall back to the invoice mapping's
+    // prefix+pad so today's intercompany-pair convention still holds. Never
+    // fall back to a stale order.invoice_number — a value like "NI-00002"
+    // saved before the prefix was renamed would silently diverge.
     var invoiceMapping = await loadCsvMappingKind('invoice');
-    var pad = Number(invoiceMapping.external_id_pad_digits) || 5;
-    var prefix = invoiceMapping.external_id_prefix || 'NI-';
+    var pad = Number(mapping.external_id_pad_digits || invoiceMapping.external_id_pad_digits) || 5;
+    var prefix = mapping.external_id_prefix || invoiceMapping.external_id_prefix || 'NI-';
     var externalId = prefix + String(order.order_number || '').padStart(pad, '0');
     var memo = 'Intercompany bill from NI Invoice ' + externalId;
     // First-item expense account for the shipping row on the bill CSV.
@@ -12952,7 +12955,7 @@ async function generateBillCsvFromMapping(order, customer, location, items) {
 
     var csv = cols.map(function(c) { return _csvEscape(c.name); }).join(',') + '\r\n';
     rows.forEach(function(r) { csv += r.map(_csvEscape).join(',') + '\r\n'; });
-    return { csv: csv, filename: 'ni-bill-' + String(order.order_number || '').padStart(5, '0') + '.csv' };
+    return { csv: csv, filename: 'ni-bill-' + String(order.order_number || '').padStart(pad, '0') + '.csv' };
 }
 
 // ── Admin: CSV Mapping page ──
@@ -13004,11 +13007,21 @@ async function renderCsvMappingPage(kind) {
             '</div>' +
             '<div style="padding:0 20px 16px"><button class="btn btn-sm btn-outline" onclick="saveNetsuiteDeliveryForKind(\'' + activeKind + '\')">Save Delivery Settings</button></div>' +
         '</div>' +
-        (isInvoice ? '<div class="card"><div class="card-header"><h2>Global Settings (Invoice only)</h2></div>' +
+        // External ID settings — shown on every tab so each record type
+        // (invoice/bill/customer/item) has its own prefix + pad, avoiding
+        // collisions when the same External ID string lands in the same
+        // NetSuite tenant from multiple record types or multiple sites
+        // (e.g. NI + Reviv both pushing intercompany vendor bills to PI).
+        // Bill leaves the prefix blank by default → falls back to invoice's
+        // prefix so today's "intercompany pair" convention still works.
+        '<div class="card"><div class="card-header"><h2>External ID Settings</h2></div>' +
+            '<div style="font-size:12px;color:var(--gray-500);font-family:var(--sans);padding:0 20px 8px">' + esc(_extIdSettingsHelp(activeKind)) + '</div>' +
             '<div class="form-row">' +
-                '<div class="form-group"><label>External ID prefix</label><input type="text" class="form-control" id="csvExtPrefix" value="' + esc(mapping.external_id_prefix || 'NI-') + '"></div>' +
+                '<div class="form-group"><label>External ID prefix</label><input type="text" class="form-control" id="csvExtPrefix" placeholder="' + esc(_extIdPrefixPlaceholder(activeKind)) + '" value="' + esc(mapping.external_id_prefix || '') + '"></div>' +
                 '<div class="form-group"><label>External ID pad digits</label><input type="number" class="form-control" id="csvExtPad" min="1" max="10" value="' + Number(mapping.external_id_pad_digits || 5) + '"></div>' +
             '</div>' +
+        '</div>' +
+        (isInvoice ? '<div class="card"><div class="card-header"><h2>Line Item Labels (Invoice only)</h2></div>' +
             '<div class="form-row">' +
                 '<div class="form-group"><label>Shipping line label</label><input type="text" class="form-control" id="csvLblShip" value="' + esc((mapping.line_labels && mapping.line_labels.shipping) || 'Shipping & handling') + '"></div>' +
                 '<div class="form-group"><label>Tax line label</label><input type="text" class="form-control" id="csvLblTax" value="' + esc((mapping.line_labels && mapping.line_labels.tax) || 'Sales tax') + '"></div>' +
@@ -13099,13 +13112,29 @@ function csvMappingMove(idx, delta) {
     var t = mapping.columns[idx]; mapping.columns[idx] = mapping.columns[newIdx]; mapping.columns[newIdx] = t;
     csvMappingRenderColumns();
 }
+// Help text + placeholder for the External ID card, per record kind.
+function _extIdSettingsHelp(kind) {
+    if (kind === 'invoice')  return 'Prefix + zero-padded order number becomes the invoice External ID (e.g. NIINV00007).';
+    if (kind === 'bill')     return 'Prefix + zero-padded order number becomes the vendor bill External ID. Leave blank to inherit the invoice prefix (keeps today’s intercompany-pair convention). Set to something distinct (e.g. NIBILL) if PI’s NetSuite is also receiving bills from Reviv and you need the two sites’ External IDs to stay separate.';
+    if (kind === 'customer') return 'Prefix + first-N chars of the customer UUID becomes the customer External ID (e.g. NI-CUST-abc12).';
+    if (kind === 'item')     return 'Prefix + SKU becomes the item External ID when the mapping includes a computed.external_id column (e.g. NI-ITEM-ML001). Leave blank to skip prefixing.';
+    return '';
+}
+function _extIdPrefixPlaceholder(kind) {
+    if (kind === 'invoice')  return 'e.g. NIINV';
+    if (kind === 'bill')     return 'e.g. NIBILL (blank inherits from invoice)';
+    if (kind === 'customer') return 'e.g. NI-CUST-';
+    if (kind === 'item')     return 'e.g. NI-ITEM-';
+    return '';
+}
 async function csvMappingSave() {
     var mapping = window._csvMappingDraft;
     if (!mapping) return;
     var kind = CURRENT_MAPPING_KIND || 'invoice';
+    // External ID prefix + pad live on every kind now (used to be invoice-only).
+    mapping.external_id_prefix = (document.getElementById('csvExtPrefix') || {}).value || '';
+    mapping.external_id_pad_digits = Number((document.getElementById('csvExtPad') || {}).value) || 5;
     if (kind === 'invoice') {
-        mapping.external_id_prefix = (document.getElementById('csvExtPrefix') || {}).value || 'NI-';
-        mapping.external_id_pad_digits = Number((document.getElementById('csvExtPad') || {}).value) || 5;
         mapping.line_labels = mapping.line_labels || {};
         mapping.line_labels.shipping = (document.getElementById('csvLblShip') || {}).value || 'Shipping & handling';
         mapping.line_labels.tax      = (document.getElementById('csvLblTax')  || {}).value || 'Sales tax';
