@@ -1139,6 +1139,22 @@
         </div>
         <div style="padding:0 0 12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-family:var(--sans);font-size:13px">
             <input type="text" class="form-control" id="orderSearch" placeholder="Search by order #, customer, email..." style="flex:1;min-width:240px" oninput="renderOrders()">
+            <select class="form-control" id="orderDateRange" style="width:auto" onchange="onOrderDateRangeChange()" title="Filter orders by placed date">
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="90d">Last 90 Days</option>
+                <option value="thisMonth">This Month</option>
+                <option value="lastMonth">Last Month</option>
+                <option value="ytd">Year to Date</option>
+                <option value="custom">Custom Range&hellip;</option>
+            </select>
+            <span id="orderDateCustomWrap" style="display:none;gap:6px;align-items:center">
+                <input type="date" id="orderDateFrom" class="form-control" style="width:auto" onchange="renderOrders()" title="From date (inclusive)">
+                <span style="color:var(--gray-500)">to</span>
+                <input type="date" id="orderDateTo" class="form-control" style="width:auto" onchange="renderOrders()" title="To date (inclusive)">
+            </span>
             <div id="orderCountLabel" style="color:var(--gray-500)"></div>
         </div>
         <div class="table-wrap">
@@ -11155,6 +11171,52 @@ async function _buildOrderNetsuiteCsv(idx) {
     return { csv: invoiceBuilt.csv, filename: invoiceBuilt.filename, isIntercompany: isIntercompany, billCsv: billCsv };
 }
 
+// Date range presets for the orders page filter. Returns {from, to} Date
+// objects (inclusive) or null for "All Time" / unbounded custom.
+function _getOrderDateRange() {
+    var sel = document.getElementById('orderDateRange');
+    if (!sel) return null;
+    var v = sel.value;
+    if (!v || v === 'all') return null;
+    var now = new Date();
+    function startOfDay(d) { var x = new Date(d); x.setHours(0,0,0,0); return x; }
+    function endOfDay(d)   { var x = new Date(d); x.setHours(23,59,59,999); return x; }
+    function daysAgo(n)    { var d = new Date(now); d.setDate(d.getDate() - n); return startOfDay(d); }
+    if (v === 'today')     return { from: startOfDay(now), to: endOfDay(now) };
+    if (v === '7d')        return { from: daysAgo(6),  to: endOfDay(now) };
+    if (v === '30d')       return { from: daysAgo(29), to: endOfDay(now) };
+    if (v === '90d')       return { from: daysAgo(89), to: endOfDay(now) };
+    if (v === 'thisMonth') return { from: startOfDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: endOfDay(now) };
+    if (v === 'lastMonth') return { from: startOfDay(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: endOfDay(new Date(now.getFullYear(), now.getMonth(), 0)) };
+    if (v === 'ytd')       return { from: startOfDay(new Date(now.getFullYear(), 0, 1)), to: endOfDay(now) };
+    if (v === 'custom') {
+        var f = document.getElementById('orderDateFrom');
+        var t = document.getElementById('orderDateTo');
+        var fromV = f && f.value ? startOfDay(new Date(f.value + 'T00:00:00')) : null;
+        var toV   = t && t.value ? endOfDay(new Date(t.value + 'T00:00:00'))   : null;
+        if (!fromV && !toV) return null;
+        return { from: fromV, to: toV };
+    }
+    return null;
+}
+function onOrderDateRangeChange() {
+    var v = (document.getElementById('orderDateRange') || {}).value;
+    var wrap = document.getElementById('orderDateCustomWrap');
+    if (wrap) wrap.style.display = v === 'custom' ? 'inline-flex' : 'none';
+    renderOrders();
+}
+// True if the order's placed date falls inside {from, to} (inclusive).
+// Missing dates on either side are treated as unbounded.
+function _orderMatchesDateRange(o, range) {
+    if (!range) return true;
+    if (!o.date) return false;
+    var d = new Date(o.date);
+    if (isNaN(d.getTime())) return false;
+    if (range.from && d < range.from) return false;
+    if (range.to && d > range.to) return false;
+    return true;
+}
+
 function renderOrders() {
     renderOrderStats();
     // Update tab counts
@@ -11169,9 +11231,11 @@ function renderOrders() {
 
     var searchEl = document.getElementById('orderSearch');
     var q = searchEl ? searchEl.value.toLowerCase().trim() : '';
+    var dateRange = _getOrderDateRange();
     var rows = DATA.orders.map(function(o, i) { return { o: o, i: i }; }).filter(function(row) {
         var o = row.o;
         if (currentOrderStatusFilter !== 'all' && o.status !== currentOrderStatusFilter) return false;
+        if (!_orderMatchesDateRange(o, dateRange)) return false;
         if (q) {
             var num = (typeof o.orderNumber === 'number') ? String(o.orderNumber).padStart(5,'0') : (o.id || '');
             var hay = (num + ' ' + (o.customerName || '') + ' ' + (o.email || '') + ' ' + (o.id || '')).toLowerCase();
@@ -14948,8 +15012,23 @@ function exportInventoryCSV() {
     downloadCSV('ni_inventory.csv', rows); showToast('Inventory exported');
 }
 function exportOrdersCSV() {
+    // Honor the same filters as the visible table so "Export CSV" always
+    // matches what the admin sees: status tab, search, and date range.
+    var searchEl = document.getElementById('orderSearch');
+    var q = searchEl ? searchEl.value.toLowerCase().trim() : '';
+    var dateRange = _getOrderDateRange();
+    var filtered = DATA.orders.filter(function(o) {
+        if (currentOrderStatusFilter !== 'all' && o.status !== currentOrderStatusFilter) return false;
+        if (!_orderMatchesDateRange(o, dateRange)) return false;
+        if (q) {
+            var num = (typeof o.orderNumber === 'number') ? String(o.orderNumber).padStart(5,'0') : (o.id || '');
+            var hay = (num + ' ' + (o.customerName || '') + ' ' + (o.email || '') + ' ' + (o.id || '')).toLowerCase();
+            if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+    });
     var rows = [['Order #', 'Date', 'Customer', 'Email', 'Payment', 'Items', 'Subtotal', 'Tax', 'Shipping', 'Total', 'Status', 'Carrier', 'Tracking', 'Shipped At', 'Delivered At']];
-    DATA.orders.forEach(function(o) {
+    filtered.forEach(function(o) {
         var items = getOrderItems(o.id);
         var sub = items.reduce(function(s, x) { return s + (Number(x.unitPrice)||0) * (Number(x.qty)||0); }, 0);
         var num = (typeof o.orderNumber === 'number') ? ('#' + String(o.orderNumber).padStart(5,'0')) : (o.id || '');
@@ -14971,7 +15050,8 @@ function exportOrdersCSV() {
             o.deliveredAt || ''
         ]);
     });
-    downloadCSV('ni_orders.csv', rows); showToast('Orders exported');
+    downloadCSV('ni_orders.csv', rows);
+    showToast(filtered.length + ' order' + (filtered.length === 1 ? '' : 's') + ' exported');
 }
 
 // ════════════════════════════════════════════════════
