@@ -15475,15 +15475,15 @@ function exportPaladinFile() {
     var rows = items.map(function(p) {
         var upc = (p.upc || '').toString().trim();
         var sku = (p.sku || '').toString().trim();
-        var partNumber = truncUpper(upc || sku, 14);
-        var altPartNumber = upc ? truncUpper(sku, 14) : '';
+        var partNumber = upc || truncUpper(sku, 14);
+        var altPartNumber = upc.length > 1 ? upc.slice(0, -1) : '';
         var desc1 = truncUpper(p.name, 29);
         var brand = catBrand(p);
         var desc2Raw = (p.name || '') + ' - ' + (brand || '');
         desc2Raw = desc2Raw.replace(/\s+-\s*$/, '');
         var desc2 = truncUpper(desc2Raw, 29);
         var mfgPart = truncUpper([p.packageSize, brand, p.vendorPartNum].filter(Boolean).join(' - '), 24);
-        var unitCost = (p.costPerUnit != null && p.costPerUnit !== '' && !isNaN(parseFloat(p.costPerUnit))) ? parseFloat(p.costPerUnit).toFixed(2) : '';
+        var unitCost = (p.wholesalePrice != null && p.wholesalePrice !== '' && !isNaN(parseFloat(p.wholesalePrice))) ? parseFloat(p.wholesalePrice).toFixed(2) : '';
         var mktCost = (p.wholesalePrice != null && p.wholesalePrice !== '' && !isNaN(parseFloat(p.wholesalePrice))) ? parseFloat(p.wholesalePrice).toFixed(2) : '';
         var plvlPrice = (p.retailPrice != null && p.retailPrice !== '' && !isNaN(parseFloat(p.retailPrice))) ? parseFloat(p.retailPrice).toFixed(2) : '';
         return [partNumber, altPartNumber, desc1, desc2,
