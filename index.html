@@ -12341,6 +12341,7 @@ var CSV_SOURCE_OPTIONS = [
     { group: 'Computed',
       items: [
         ['computed.external_id', 'External ID (prefix + padded order number)'],
+        ['computed.invoice_external_id', 'Invoice External ID (always uses INVOICE prefix — for Bill CSV Invoice # column)'],
         ['computed.external_customer_id', 'External Customer ID (prefix + padded customer ID)'],
         ['computed.invoice_date', 'Invoice Date (shipped_at or placed_at)'],
         ['computed.due_date', 'Due Date (invoice_date + payment terms days)'],
@@ -12559,6 +12560,7 @@ function resolveCsvField(sourceKey, ctx) {
         case 'settings.accounting_email': return (ctx.settings && ctx.settings.accounting_notify_email) || '';
         // computed
         case 'computed.external_id': return ctx.externalId || '';
+        case 'computed.invoice_external_id': return ctx.invoiceExternalId || ctx.externalId || '';
         case 'computed.invoice_date': return ctx.invoiceDate || '';
         case 'computed.due_date': return ctx.dueDate || '';
         case 'computed.memo': return ctx.memo || '';
@@ -12985,7 +12987,10 @@ async function generateBillCsvFromMapping(order, customer, location, items) {
     var pad = Number(mapping.external_id_pad_digits || invoiceMapping.external_id_pad_digits) || 5;
     var prefix = mapping.external_id_prefix || invoiceMapping.external_id_prefix || 'NI-';
     var externalId = prefix + String(order.order_number || '').padStart(pad, '0');
-    var memo = 'Intercompany bill from NI Invoice ' + externalId;
+    var invoicePad = Number(invoiceMapping.external_id_pad_digits) || 5;
+    var invoicePrefix = invoiceMapping.external_id_prefix || 'NI-';
+    var invoiceExternalId = invoicePrefix + String(order.order_number || '').padStart(invoicePad, '0');
+    var memo = 'Intercompany bill from NI Invoice ' + invoiceExternalId;
     // First-item expense account for the shipping row on the bill CSV.
     // Product override wins; else class default.
     var firstItem = (items || [])[0];
@@ -13000,7 +13005,7 @@ async function generateBillCsvFromMapping(order, customer, location, items) {
             if (cls && cls.expenseAccount) firstItemExpenseAccount = cls.expenseAccount;
         }
     }
-    var ctxBase = { order: order, customer: customer, location: location, mapping: mapping, settings: settings, externalId: externalId, invoiceDate: invoiceDate, dueDate: invoiceDate, memo: memo, firstItemExpenseAccount: firstItemExpenseAccount };
+    var ctxBase = { order: order, customer: customer, location: location, mapping: mapping, settings: settings, externalId: externalId, invoiceExternalId: invoiceExternalId, invoiceDate: invoiceDate, dueDate: invoiceDate, memo: memo, firstItemExpenseAccount: firstItemExpenseAccount };
     var cols = Array.isArray(mapping.columns) ? mapping.columns : [];
     if (!cols.length) throw new Error('Bill CSV mapping has no columns. Set it up under Admin → NetSuite CSV Mapping → Bill CSV tab.');
 
