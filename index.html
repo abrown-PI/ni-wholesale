@@ -3088,10 +3088,18 @@
             <div style="background:#f5f7fa;padding:12px 14px;border-radius:6px;margin-bottom:12px;border-left:3px solid var(--ni-blue)">
                 <div style="font-family:var(--sans);font-size:12px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Website portal login</div>
                 <div class="form-row">
-                    <div class="form-group"><label>Portal URL</label><input type="url" class="form-control" id="vPortalUrl" placeholder="https://vendor-portal.example.com/login"></div>
-                    <div class="form-group"><label>Portal Username</label><input type="text" class="form-control" id="vPortalUsername" autocomplete="off"></div>
-                    <div class="form-group"><label>Portal Password</label><input type="password" class="form-control" id="vPortalPassword" autocomplete="new-password"></div>
+                    <div class="form-group" style="flex:1"><label>Portal URL</label><input type="url" class="form-control" id="vPortalUrl" placeholder="https://vendor-portal.example.com/login"></div>
+                    <div class="form-group" style="flex:1"><label>Password Manager Link</label><input type="url" class="form-control" id="vPortalPasswordManagerUrl" placeholder="1Password / Bitwarden / Notion link"></div>
                 </div>
+                <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:4px;line-height:1.4">Paste a link to wherever the login credentials are stored. Credentials never touch NI's database.</div>
+                <details style="margin-top:10px">
+                    <summary style="cursor:pointer;font-size:11px;color:var(--gray-500);font-family:var(--sans)">Show legacy username/password fields</summary>
+                    <div class="form-row" style="margin-top:8px">
+                        <div class="form-group"><label>Portal Username <span style="color:var(--gray-400);font-weight:400">(deprecated)</span></label><input type="text" class="form-control" id="vPortalUsername" autocomplete="off"></div>
+                        <div class="form-group"><label>Portal Password <span style="color:var(--gray-400);font-weight:400">(deprecated)</span></label><input type="password" class="form-control" id="vPortalPassword" autocomplete="new-password"></div>
+                    </div>
+                    <div style="font-size:11px;color:#b53f3f;font-family:var(--sans);margin-top:4px">Stored in Supabase in cleartext. Migrate to Password Manager Link above when convenient.</div>
+                </details>
             </div>
 
             <div style="background:#f5f7fa;padding:12px 14px;border-radius:6px;margin-bottom:12px;border-left:3px solid var(--ni-blue)">
@@ -4232,6 +4240,7 @@ function supaVendorToLocal(v) {
         reorderMethod: v.reorder_method || '', orderCutoff: v.order_cutoff || '',
         portalUrl: v.portal_url || '', portalUsername: v.portal_username || '',
         portalPassword: v.portal_password || '',
+        portalPasswordManagerUrl: v.portal_password_manager_url || '',
         repName: v.rep_name || '', repEmail: v.rep_email || '', repPhone: v.rep_phone || '',
         orderEmail: v.order_email || '', orderPhone: v.order_phone || '', orderFax: v.order_fax || '',
         orderingInstructions: v.ordering_instructions || '',
@@ -4259,6 +4268,7 @@ function localVendorToSupa(v) {
         portal_url: v.portalUrl || null,
         portal_username: v.portalUsername || null,
         portal_password: v.portalPassword || null,
+        portal_password_manager_url: v.portalPasswordManagerUrl || null,
         rep_name: v.repName || null,
         rep_email: v.repEmail || null,
         rep_phone: v.repPhone || null,
@@ -13635,7 +13645,7 @@ function openVendorModal(i) {
     document.getElementById('vendorEditIndex').value = i;
     document.getElementById('vendorModalTitle').textContent = i >= 0 ? 'Edit Vendor' : 'Add Vendor';
     var fields = ['vName','vAccountNumber','vContactName','vEmail','vPhone','vWebsite','vAddress','vCity','vState','vZip','vMinOrder','vNotes',
-        'vReorderMethod','vOrderCutoff','vPortalUrl','vPortalUsername','vPortalPassword','vRepName','vRepEmail','vRepPhone','vOrderEmail','vOrderPhone','vOrderFax','vOrderingInstructions'];
+        'vReorderMethod','vOrderCutoff','vPortalUrl','vPortalPasswordManagerUrl','vPortalUsername','vPortalPassword','vRepName','vRepEmail','vRepPhone','vOrderEmail','vOrderPhone','vOrderFax','vOrderingInstructions'];
     if (i >= 0) {
         var v = DATA.vendors[i];
         document.getElementById('vName').value = v.name || '';
@@ -13655,6 +13665,7 @@ function openVendorModal(i) {
         document.getElementById('vReorderMethod').value = v.reorderMethod || '';
         document.getElementById('vOrderCutoff').value = v.orderCutoff || '';
         document.getElementById('vPortalUrl').value = v.portalUrl || '';
+        document.getElementById('vPortalPasswordManagerUrl').value = v.portalPasswordManagerUrl || '';
         document.getElementById('vPortalUsername').value = v.portalUsername || '';
         document.getElementById('vPortalPassword').value = v.portalPassword || '';
         document.getElementById('vRepName').value = v.repName || '';
@@ -13698,6 +13709,7 @@ async function saveVendor() {
         reorderMethod: document.getElementById('vReorderMethod').value,
         orderCutoff: document.getElementById('vOrderCutoff').value.trim(),
         portalUrl: document.getElementById('vPortalUrl').value.trim(),
+        portalPasswordManagerUrl: document.getElementById('vPortalPasswordManagerUrl').value.trim(),
         portalUsername: document.getElementById('vPortalUsername').value.trim(),
         portalPassword: document.getElementById('vPortalPassword').value,
         repName: document.getElementById('vRepName').value.trim(),
@@ -13827,7 +13839,7 @@ function showVendorDetail(i) {
 function buildVendorReorderPanel(v, i) {
     var reorderMethodLabels = { website: 'Website portal', email: 'Email order', phone: 'Phone', fax: 'Fax', rep: 'Sales rep', edi: 'EDI / integration', other: 'Other' };
     var methodLabel = reorderMethodLabels[v.reorderMethod] || '';
-    var hasAnything = !!(v.reorderMethod || v.orderCutoff || v.portalUrl || v.portalUsername || v.portalPassword || v.repName || v.repEmail || v.repPhone || v.orderEmail || v.orderPhone || v.orderFax || v.orderingInstructions);
+    var hasAnything = !!(v.reorderMethod || v.orderCutoff || v.portalUrl || v.portalUsername || v.portalPassword || v.portalPasswordManagerUrl || v.repName || v.repEmail || v.repPhone || v.orderEmail || v.orderPhone || v.orderFax || v.orderingInstructions);
     if (!hasAnything) {
         return '<div style="margin-top:24px;padding:16px;background:var(--gray-100);border-radius:6px;font-family:var(--sans);font-size:13px;color:var(--gray-600);text-align:center">' +
             'No reorder instructions on file yet. ' +
@@ -13840,10 +13852,13 @@ function buildVendorReorderPanel(v, i) {
     if (v.orderCutoff) headerBits.push('<span style="color:var(--gray-600);font-size:13px">&#128337; ' + esc(v.orderCutoff) + '</span>');
 
     var portalBlock = '';
-    if (v.portalUrl || v.portalUsername || v.portalPassword) {
+    if (v.portalUrl || v.portalPasswordManagerUrl || v.portalUsername || v.portalPassword) {
         var portalRows = [];
         if (v.portalUrl) {
             portalRows.push('<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span><strong>Portal:</strong> <a href="' + esc(v.portalUrl) + '" target="_blank" rel="noopener" style="color:var(--ni-deep-blue);word-break:break-all">' + esc(v.portalUrl) + '</a></span><a href="' + esc(v.portalUrl) + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline" style="flex-shrink:0;margin-left:8px">Open &#8599;</a></div>');
+        }
+        if (v.portalPasswordManagerUrl) {
+            portalRows.push('<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span><strong>Credentials:</strong> <span style="color:var(--gray-600);font-size:12px">stored in password manager (not in NI)</span></span><a href="' + esc(v.portalPasswordManagerUrl) + '" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="flex-shrink:0;margin-left:8px">&#128273; Open in Password Manager</a></div>');
         }
         if (v.portalUsername) {
             portalRows.push('<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span><strong>Username:</strong> <code style="background:var(--gray-100);padding:2px 6px;border-radius:3px">' + esc(v.portalUsername) + '</code></span><button class="btn btn-sm btn-outline" onclick="copyVendorField(' + i + ', \'portalUsername\', this)" style="flex-shrink:0;margin-left:8px">Copy</button></div>');
