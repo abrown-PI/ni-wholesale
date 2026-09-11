@@ -8,6 +8,7 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <style>
         :root {
             /* NI Brand Colors */
@@ -2678,7 +2679,7 @@
                     </select>
                     <div style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px">Changing this auto-fills the margin fields with the class default. <a href="#" onclick="event.preventDefault();navigate('admin-pricing-defaults')" style="color:var(--ni-blue)">Manage classes &rarr;</a></div>
                 </div>
-                <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCostPerUnit" step="0.01" min="0" oninput="renderTierPricePreview()"></div>
+                <div class="form-group"><label>Cost Per Unit ($)</label><input type="number" class="form-control" id="pCostPerUnit" step="0.01" min="0" oninput="renderTierPricePreview()"><div id="pCostUpdatedAt" style="font-size:11px;color:var(--gray-500);font-family:var(--sans);margin-top:2px"></div></div>
                 <div class="form-group"><label>Sugg. Retail ($)</label><input type="number" class="form-control" id="pRetailPrice" step="0.01" min="0"></div>
             </div>
             <div class="form-row">
@@ -3201,6 +3202,7 @@
             <button class="btn btn-outline" onclick="closeModal('poModal')">Cancel</button>
             <button class="btn btn-primary" onclick="savePO(false)">Save as Draft</button>
             <button class="btn btn-accent" onclick="savePO(true)">Save &amp; Submit</button>
+            <button class="btn btn-success" id="poSendToVendorBtn" onclick="sendPOToVendor()" style="display:none">Send to Vendor</button>
         </div>
     </div>
 </div>
@@ -9978,6 +9980,16 @@ function openProductModal(idx) {
         document.getElementById('pCategory').value = p.category || '';
         setSelectedProductCategories(Array.isArray(p.categories) && p.categories.length ? p.categories : (p.category ? [p.category] : []));
         document.getElementById('pCostPerUnit').value = p.costPerUnit != null ? p.costPerUnit : '';
+        (function() {
+            var el = document.getElementById('pCostUpdatedAt');
+            if (!el) return;
+            if (p.costUpdatedAt) {
+                var d = new Date(p.costUpdatedAt);
+                el.textContent = 'Cost last updated ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' (from a receive).';
+            } else {
+                el.textContent = '';
+            }
+        })();
         document.getElementById('pProductClass').value = p.productClass || 'private_label';
         document.getElementById('pInsiderMarkup').value = p.insiderMarkup != null ? p.insiderMarkup : '';
         document.getElementById('pStandardMarkup').value = p.standardMarkup != null ? p.standardMarkup : '';
@@ -10006,6 +10018,7 @@ function openProductModal(idx) {
     } else {
         ['pSku', 'pName', 'pDescription', 'pVendorProductName', 'pManufacturer', 'pVendorPartNum', 'pUpc', 'pPackageSize', 'pCostPerUnit', 'pWholesalePrice', 'pRetailPrice', 'pPaidFrom', 'pImageUrl', 'pInternalNotes', 'pProfitMargin'].forEach(function(f) { document.getElementById(f).value = ''; });
         document.getElementById('pMarginHint').textContent = '';
+        var _cu = document.getElementById('pCostUpdatedAt'); if (_cu) _cu.textContent = '';
         document.getElementById('pVendor').selectedIndex = 0;
         document.getElementById('pCategory').selectedIndex = 0;
         setSelectedProductCategories([]);
@@ -14556,12 +14569,152 @@ function openPOModal(idx) {
             if (p) ln.stock = p.stock || 0;
         });
         renderPOLines();
+        document.getElementById('poSendToVendorBtn').style.display = '';
     } else {
         document.getElementById('poModalTitle').textContent = 'New Purchase Order';
         document.getElementById('poNumberDisplay').value = 'PO-' + nextPONumber();
         renderPOLines();
+        document.getElementById('poSendToVendorBtn').style.display = 'none';
     }
     openModal('poModal');
+}
+
+// Build a PO PDF using pdf-lib (loaded from CDN as global `PDFLib`).
+async function buildPOPdfBytes(po, vendor, items) {
+    var lib = window.PDFLib;
+    var doc = await lib.PDFDocument.create();
+    var page = doc.addPage([612, 792]);
+    var font = await doc.embedFont(lib.StandardFonts.Helvetica);
+    var bold = await doc.embedFont(lib.StandardFonts.HelveticaBold);
+    var serif = await doc.embedFont(lib.StandardFonts.TimesRoman);
+    var navy = lib.rgb(45/255, 63/255, 130/255);
+    var cream = lib.rgb(245/255, 242/255, 234/255);
+    var gold = lib.rgb(201/255, 169/255, 97/255);
+    var gray700 = lib.rgb(66/255, 66/255, 66/255);
+    var gray500 = lib.rgb(120/255, 120/255, 120/255);
+    var white = lib.rgb(1, 1, 1);
+    var M = 40;
+    page.drawRectangle({ x: 0, y: 720, width: 612, height: 72, color: navy });
+    page.drawText('NUTRITIONAL INNOVATIONS', { x: M, y: 758, size: 12, font: bold, color: gold });
+    page.drawText('PURCHASE ORDER', { x: M, y: 734, size: 22, font: serif, color: cream });
+    var poNumStr = 'PO-' + po.poNumber;
+    var poW = bold.widthOfTextAtSize(poNumStr, 14);
+    page.drawText(poNumStr, { x: 612 - M - poW, y: 758, size: 14, font: bold, color: cream });
+    var poDate = new Date(po.createdAt || Date.now()).toLocaleDateString('en-US');
+    page.drawText(poDate, { x: 612 - M - font.widthOfTextAtSize(poDate, 10), y: 738, size: 10, font: font, color: gold });
+    var y = 692;
+    var boxW = (612 - M * 2 - 20) / 2;
+    // Vendor box
+    page.drawRectangle({ x: M, y: y - 100, width: boxW, height: 100, color: cream });
+    page.drawRectangle({ x: M, y: y - 4, width: boxW, height: 3, color: navy });
+    page.drawText('VENDOR', { x: M + 12, y: y - 22, size: 9, font: bold, color: navy });
+    page.drawText(vendor.name || po.vendorName || '', { x: M + 12, y: y - 40, size: 11, font: bold, color: gray700 });
+    var vy = y - 56;
+    if (vendor.address) { page.drawText(vendor.address, { x: M + 12, y: vy, size: 10, font: font, color: gray700 }); vy -= 14; }
+    var vLoc = [vendor.city, vendor.state].filter(Boolean).join(', ') + ' ' + (vendor.zip || '');
+    if (vLoc.trim()) { page.drawText(vLoc.trim(), { x: M + 12, y: vy, size: 10, font: font, color: gray700 }); vy -= 14; }
+    if (vendor.email) { page.drawText(vendor.email, { x: M + 12, y: vy, size: 10, font: font, color: gray700 }); vy -= 14; }
+    if (vendor.phone) page.drawText(vendor.phone, { x: M + 12, y: vy, size: 10, font: font, color: gray700 });
+    // Ship-to box
+    var shipX = M + boxW + 20;
+    page.drawRectangle({ x: shipX, y: y - 100, width: boxW, height: 100, color: cream });
+    page.drawRectangle({ x: shipX, y: y - 4, width: boxW, height: 3, color: navy });
+    page.drawText('SHIP TO', { x: shipX + 12, y: y - 22, size: 9, font: bold, color: navy });
+    page.drawText('Nutritional Innovations', { x: shipX + 12, y: y - 40, size: 11, font: bold, color: gray700 });
+    page.drawText('863 Fairmount Ave', { x: shipX + 12, y: y - 56, size: 10, font: font, color: gray700 });
+    page.drawText('Jamestown, NY 14701', { x: shipX + 12, y: y - 70, size: 10, font: font, color: gray700 });
+    // Items table
+    y -= 130;
+    page.drawRectangle({ x: M, y: y - 22, width: 612 - M * 2, height: 22, color: navy });
+    page.drawText('SKU', { x: M + 10, y: y - 15, size: 9, font: bold, color: white });
+    page.drawText('ITEM', { x: M + 100, y: y - 15, size: 9, font: bold, color: white });
+    page.drawText('QTY', { x: 612 - M - 170, y: y - 15, size: 9, font: bold, color: white });
+    page.drawText('UNIT $', { x: 612 - M - 110, y: y - 15, size: 9, font: bold, color: white });
+    page.drawText('LINE $', { x: 612 - M - 50, y: y - 15, size: 9, font: bold, color: white });
+    y -= 26;
+    var totalUnits = 0, totalLines = 0;
+    for (var i = 0; i < items.length; i++) {
+        if (y < 140) break;
+        var it = items[i];
+        var qty = Number(it.quantity) || 0;
+        var uc = Number(it.unitCost) || 0;
+        var lt = qty * uc;
+        if (i % 2 === 1) page.drawRectangle({ x: M, y: y - 4, width: 612 - M * 2, height: 18, color: cream });
+        page.drawText(String(it.sku || '').slice(0, 18), { x: M + 10, y: y, size: 9, font: font, color: gray700 });
+        page.drawText(String(it.productName || '').slice(0, 48), { x: M + 100, y: y, size: 10, font: font, color: gray700 });
+        page.drawText(String(qty), { x: 612 - M - 170, y: y, size: 10, font: bold, color: navy });
+        page.drawText('$' + uc.toFixed(2), { x: 612 - M - 110, y: y, size: 10, font: font, color: gray700 });
+        page.drawText('$' + lt.toFixed(2), { x: 612 - M - 50, y: y, size: 10, font: font, color: gray700 });
+        totalUnits += qty;
+        totalLines += lt;
+        y -= 18;
+    }
+    y -= 12;
+    page.drawText('Total Units', { x: 612 - M - 200, y: y, size: 10, font: bold, color: gray700 });
+    page.drawText(String(totalUnits), { x: 612 - M - 40, y: y, size: 10, font: bold, color: gray700 });
+    y -= 14;
+    page.drawText('Subtotal', { x: 612 - M - 200, y: y, size: 10, font: font, color: gray700 });
+    page.drawText('$' + totalLines.toFixed(2), { x: 612 - M - 70, y: y, size: 10, font: font, color: gray700 });
+    y -= 6;
+    page.drawRectangle({ x: 612 - M - 210, y: y - 24, width: 210, height: 26, color: navy });
+    page.drawText('TOTAL DUE', { x: 612 - M - 200, y: y - 16, size: 12, font: bold, color: white });
+    page.drawText('$' + totalLines.toFixed(2), { x: 612 - M - 80, y: y - 16, size: 12, font: bold, color: white });
+    if (po.notes) {
+        y -= 60;
+        page.drawText('Notes', { x: M, y: y, size: 9, font: bold, color: navy });
+        y -= 14;
+        var noteLines = String(po.notes).match(/.{1,90}/g) || [];
+        for (var n = 0; n < Math.min(noteLines.length, 5); n++) {
+            page.drawText(noteLines[n], { x: M, y: y, size: 9, font: font, color: gray700 });
+            y -= 12;
+        }
+    }
+    page.drawText('Nutritional Innovations · nutritionalinnovations.net', { x: M, y: 40, size: 8, font: font, color: gray500 });
+    page.drawText('Please confirm receipt of this PO', { x: 612 - M - 160, y: 40, size: 8, font: font, color: gray500 });
+    return await doc.save();
+}
+
+async function sendPOToVendor() {
+    var idx = parseInt(document.getElementById('poEditIndex').value);
+    if (isNaN(idx) || idx < 0) { showToast('Save the PO first before sending', 'error'); return; }
+    var po = DATA.purchaseOrders[idx];
+    if (!po) { showToast('PO not found', 'error'); return; }
+    var vendor = (DATA.vendors || []).find(function(v) { return v.name === po.vendorName; }) || { name: po.vendorName };
+    if (!vendor.email) { showToast('No vendor email on file for ' + po.vendorName + ' — add it under Vendors first', 'error'); return; }
+    var items = getPOItems(po.id);
+    if (!window.PDFLib) { showToast('PDF library not loaded', 'error'); return; }
+    var btn = document.getElementById('poSendToVendorBtn');
+    var prevText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Generating PDF...';
+    try {
+        var bytes = await buildPOPdfBytes(po, vendor, items);
+        var blob = new Blob([bytes], { type: 'application/pdf' });
+        var url = URL.createObjectURL(blob);
+        var filename = 'PO-' + po.poNumber + '.pdf';
+        var a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        po.sentToVendorAt = new Date().toISOString();
+        if (po.status === 'draft') po.status = 'submitted';
+        saveData();
+        if (IS_SUPA_ADMIN) {
+            try {
+                await supa.from('purchase_orders').update({ sent_to_vendor_at: po.sentToVendorAt, status: po.status }).eq('id', po.id);
+            } catch (e) { console.warn('[po send supa]', e); }
+        }
+        var poNumStr = 'PO-' + po.poNumber;
+        var subject = 'Purchase Order ' + poNumStr + ' — Nutritional Innovations';
+        var subtotal = items.reduce(function(s, it) { return s + (Number(it.quantity) || 0) * (Number(it.unitCost) || 0); }, 0);
+        var body = 'Hello,\n\nPlease find our purchase order attached (' + poNumStr + ', total $' + subtotal.toFixed(2) + ').\n\nIMPORTANT: The PDF has just been downloaded to your Downloads folder — please attach ' + filename + ' to this email before sending.\n\nThank you,\nNutritional Innovations';
+        window.location.href = 'mailto:' + encodeURIComponent(vendor.email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+        showToast('PDF downloaded — attach in email, then send');
+    } catch (err) {
+        console.error('sendPOToVendor', err);
+        showToast('Send failed: ' + (err && err.message ? err.message : err), 'error');
+    } finally {
+        btn.disabled = false; btn.textContent = prevText;
+    }
 }
 
 function loadProductsForPO(vendorName) {
