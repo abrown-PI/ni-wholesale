@@ -14569,7 +14569,15 @@ function openPOModal(idx) {
             if (p) ln.stock = p.stock || 0;
         });
         renderPOLines();
-        document.getElementById('poSendToVendorBtn').style.display = '';
+        var sendBtn = document.getElementById('poSendToVendorBtn');
+        sendBtn.style.display = '';
+        // Set button text based on the vendor's reorder method (smart routing).
+        var v = (DATA.vendors || []).find(function(vv) { return vv.name === po.vendorName; });
+        var t = resolvePOSendTarget(v);
+        var labels = { email: 'Send via Email', url: 'Open Ordering Portal', phone: 'Get Order Phone Info', fax: 'Get Fax Info', none: 'Send to Vendor' };
+        sendBtn.textContent = labels[t.kind] || 'Send to Vendor';
+        sendBtn.disabled = (t.kind === 'none');
+        sendBtn.title = v && v.reorderMethod ? ('Order method: ' + v.reorderMethod) : 'No order method set on vendor';
     } else {
         document.getElementById('poModalTitle').textContent = 'New Purchase Order';
         document.getElementById('poNumberDisplay').value = 'PO-' + nextPONumber();
@@ -14674,13 +14682,35 @@ async function buildPOPdfBytes(po, vendor, items) {
     return await doc.save();
 }
 
+// Picks the vendor destination for the Send button based on reorderMethod.
+// Falls back through a sensible ladder when the specific target is empty so
+// legacy vendors (no method set) still work off the general contact fields.
+function resolvePOSendTarget(v) {
+    v = v || {};
+    var m = (v.reorderMethod || '').toLowerCase();
+    if (m === 'website' && v.portalUrl) return { kind: 'url', value: v.portalUrl };
+    if (m === 'email' && v.orderEmail) return { kind: 'email', value: v.orderEmail };
+    if (m === 'phone' && v.orderPhone) return { kind: 'phone', value: v.orderPhone };
+    if (m === 'fax' && v.orderFax) return { kind: 'fax', value: v.orderFax };
+    if (m === 'rep' && v.repEmail) return { kind: 'email', value: v.repEmail };
+    // Fallback ladder for vendors with method blank or missing target field
+    if (v.orderEmail) return { kind: 'email', value: v.orderEmail };
+    if (v.email) return { kind: 'email', value: v.email };
+    if (v.portalUrl) return { kind: 'url', value: v.portalUrl };
+    if (v.repEmail) return { kind: 'email', value: v.repEmail };
+    if (v.orderPhone) return { kind: 'phone', value: v.orderPhone };
+    if (v.orderFax) return { kind: 'fax', value: v.orderFax };
+    return { kind: 'none', value: '' };
+}
+
 async function sendPOToVendor() {
     var idx = parseInt(document.getElementById('poEditIndex').value);
     if (isNaN(idx) || idx < 0) { showToast('Save the PO first before sending', 'error'); return; }
     var po = DATA.purchaseOrders[idx];
     if (!po) { showToast('PO not found', 'error'); return; }
     var vendor = (DATA.vendors || []).find(function(v) { return v.name === po.vendorName; }) || { name: po.vendorName };
-    if (!vendor.email) { showToast('No vendor email on file for ' + po.vendorName + ' — add it under Vendors first', 'error'); return; }
+    var target = resolvePOSendTarget(vendor);
+    if (target.kind === 'none') { showToast('No order method / contact info on file for ' + po.vendorName + ' — set it under Vendors first', 'error'); return; }
     var items = getPOItems(po.id);
     if (!window.PDFLib) { showToast('PDF library not loaded', 'error'); return; }
     var btn = document.getElementById('poSendToVendorBtn');
@@ -14707,8 +14737,17 @@ async function sendPOToVendor() {
         var subject = 'Purchase Order ' + poNumStr + ' — Nutritional Innovations';
         var subtotal = items.reduce(function(s, it) { return s + (Number(it.quantity) || 0) * (Number(it.unitCost) || 0); }, 0);
         var body = 'Hello,\n\nPlease find our purchase order attached (' + poNumStr + ', total $' + subtotal.toFixed(2) + ').\n\nIMPORTANT: The PDF has just been downloaded to your Downloads folder — please attach ' + filename + ' to this email before sending.\n\nThank you,\nNutritional Innovations';
-        window.location.href = 'mailto:' + encodeURIComponent(vendor.email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-        showToast('PDF downloaded — attach in email, then send');
+        if (target.kind === 'email') {
+            window.location.href = 'mailto:' + encodeURIComponent(target.value) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+            showToast('PDF downloaded — attach in email, then send');
+        } else if (target.kind === 'url') {
+            window.open(target.value, '_blank', 'noopener,noreferrer');
+            showToast('PDF downloaded. Opened ' + vendor.name + ' portal in a new tab — place the order there.');
+        } else if (target.kind === 'phone') {
+            showToast('PDF downloaded. Call ' + vendor.name + ' at ' + target.value + ' to place the order.');
+        } else if (target.kind === 'fax') {
+            showToast('PDF downloaded. Fax to ' + target.value + ' — the file is in your Downloads folder.');
+        }
     } catch (err) {
         console.error('sendPOToVendor', err);
         showToast('Send failed: ' + (err && err.message ? err.message : err), 'error');
