@@ -2800,6 +2800,12 @@
                 <div class="form-group"><label>Reference / Invoice #</label><input type="text" class="form-control" id="rcvRef" placeholder="Optional"></div>
                 <div class="form-group"><label>Received By</label><input type="text" class="form-control" id="rcvReceivedBy" placeholder="Auto-filled from signed-in admin"></div>
             </div>
+            <div style="margin-bottom:8px;padding:10px;background:var(--gray-100);border-radius:var(--radius);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <label style="font-family:var(--sans);font-size:12px;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin:0">Invoice / Bill (optional)</label>
+                <input type="file" id="rcvInvoiceFile" accept=".pdf,.jpg,.jpeg,.png" style="font-family:var(--sans);font-size:12px" onchange="onReceiveInvoiceSelected(event)">
+                <span id="rcvInvoiceFileLabel" style="font-family:var(--sans);font-size:12px;color:var(--gray-500)"></span>
+                <button type="button" id="rcvInvoiceFileClear" style="display:none;background:none;border:none;color:var(--red-600,#dc2626);font-family:var(--sans);font-size:11px;cursor:pointer;text-transform:uppercase;letter-spacing:.5px" onclick="clearReceiveInvoice()">Remove</button>
+            </div>
             <div style="margin-bottom:8px"><input type="text" class="search-input" id="rcvSearch" placeholder="Search products..." oninput="renderReceiveTable()" style="width:100%"></div>
             <div style="max-height:400px;overflow-y:auto">
                 <table style="width:100%;font-family:var(--sans);font-size:13px">
@@ -3353,6 +3359,7 @@ function supaProductToLocal(p) {
         category: p.category || '',
         categories: Array.isArray(p.categories) ? p.categories.slice() : (p.category ? [p.category] : []),
         costPerUnit: p.cost_per_unit != null ? parseFloat(p.cost_per_unit) : null,
+        costUpdatedAt: p.cost_updated_at || null,
         wholesalePrice: p.wholesale_price != null ? parseFloat(p.wholesale_price) : null,
         retailPrice: p.retail_price != null ? parseFloat(p.retail_price) : null,
         profitMargin: p.profit_margin != null ? parseFloat(p.profit_margin) : null,
@@ -3386,6 +3393,7 @@ function localProductToSupa(p) {
         category: (Array.isArray(p.categories) && p.categories.length ? p.categories[0] : (p.category || null)),
         categories: Array.isArray(p.categories) ? p.categories : (p.category ? [p.category] : []),
         cost_per_unit: p.costPerUnit,
+        cost_updated_at: p.costUpdatedAt || null,
         wholesale_price: p.wholesalePrice,
         retail_price: p.retailPrice,
         profit_margin: p.profitMargin,
@@ -3663,6 +3671,7 @@ function localInventoryRowToSupa(row) {
         customer_id: (row.customerId && /^[0-9a-f-]{36}$/i.test(row.customerId)) ? row.customerId : null,
         customer_location_id: (row.customerLocationId && /^[0-9a-f-]{36}$/i.test(row.customerLocationId)) ? row.customerLocationId : null,
         customer_name: row.customerName || null,
+        invoice_url: row.invoiceUrl || null,
         notes: row.notes || null
     };
 }
@@ -10828,6 +10837,26 @@ function updateRcvSummary() {
     }
 }
 
+// Selected invoice file for the current receive session
+var rcvInvoiceFile = null;
+function onReceiveInvoiceSelected(e) {
+    var f = e && e.target && e.target.files && e.target.files[0];
+    if (!f) return;
+    var validTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!validTypes.includes(f.type)) { showToast('Please attach a PDF, JPG, or PNG', 'error'); e.target.value = ''; return; }
+    if (f.size > 10 * 1024 * 1024) { showToast('File must be under 10MB', 'error'); e.target.value = ''; return; }
+    rcvInvoiceFile = f;
+    document.getElementById('rcvInvoiceFileLabel').textContent = f.name + ' · ' + Math.round(f.size / 1024) + ' KB';
+    document.getElementById('rcvInvoiceFileClear').style.display = '';
+}
+function clearReceiveInvoice() {
+    rcvInvoiceFile = null;
+    var input = document.getElementById('rcvInvoiceFile');
+    if (input) input.value = '';
+    document.getElementById('rcvInvoiceFileLabel').textContent = '';
+    document.getElementById('rcvInvoiceFileClear').style.display = 'none';
+}
+
 async function submitReceiveInventory() {
     var keys = Object.keys(rcvQuantities);
     if (!keys.length) { showToast('Enter quantities for at least one product', 'error'); return; }
@@ -10835,33 +10864,27 @@ async function submitReceiveInventory() {
     var ref = document.getElementById('rcvRef').value.trim();
     var receivedBy = (document.getElementById('rcvReceivedBy').value || '').trim();
 
-    // Find products whose captured cost differs from the current cost — offer
-    // to sync the product cost so future storefront prices use the latest.
-    var costChanges = [];
-    keys.forEach(function(k) {
-        var idx = parseInt(k);
-        var p = DATA.products[idx];
-        if (rcvUnitCosts[idx] == null) return;
-        var oldCost = Number(p.costPerUnit || 0);
-        var newCost = Number(rcvUnitCosts[idx]);
-        if (newCost !== oldCost && newCost > 0) costChanges.push({ idx: idx, name: p.name, oldCost: oldCost, newCost: newCost });
-    });
-
-    var updateProductCosts = false;
-    if (costChanges.length) {
-        var msg = costChanges.length + ' product cost(s) changed:\n\n';
-        costChanges.slice(0, 6).forEach(function(c) {
-            msg += '  · ' + c.name + ': $' + c.oldCost.toFixed(2) + ' → $' + c.newCost.toFixed(2) + '\n';
-        });
-        if (costChanges.length > 6) msg += '  · ...and ' + (costChanges.length - 6) + ' more\n';
-        msg += '\nUpdate the product cost so future prices use the new value?';
-        updateProductCosts = confirm(msg);
+    // Upload invoice attachment first (if present) so we have its storage path
+    // to stamp on every transaction row from this receive session.
+    var invoiceUrl = null;
+    if (rcvInvoiceFile) {
+        try {
+            var ext = rcvInvoiceFile.name.split('.').pop() || 'bin';
+            var path = new Date().getFullYear() + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+            var upRes = await supa.storage.from('receive-invoices').upload(path, rcvInvoiceFile, { contentType: rcvInvoiceFile.type });
+            if (upRes.error) throw upRes.error;
+            invoiceUrl = path;
+        } catch (upErr) {
+            showToast('Invoice upload failed: ' + (upErr && upErr.message ? upErr.message : upErr), 'error');
+            return;
+        }
     }
 
-    keys.forEach(function(k) {
-        var idx = parseInt(k);
+    var nowIso = new Date().toISOString();
+    for (var i = 0; i < keys.length; i++) {
+        var idx = parseInt(keys[i]);
         var p = DATA.products[idx];
-        var qty = rcvQuantities[k];
+        var qty = rcvQuantities[keys[i]];
         var lineCost = rcvUnitCosts[idx] != null ? Number(rcvUnitCosts[idx]) : Number(p.costPerUnit || 0);
         logInventory({
             id: 'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
@@ -10872,25 +10895,36 @@ async function submitReceiveInventory() {
             lineTotal: lineCost * qty,
             receivedBy: receivedBy,
             soldBy: '', customerId: '', customerName: '',
+            invoiceUrl: invoiceUrl,
             notes: 'Quick receive from Products page'
         });
         p.stock = (p.stock || 0) + qty;
-        if (updateProductCosts && rcvUnitCosts[idx] != null && Number(rcvUnitCosts[idx]) > 0) {
-            p.costPerUnit = Number(rcvUnitCosts[idx]);
+        // Cost sync — silently update cost + margin + timestamp when the entered
+        // cost differs. Wholesale price is never touched.
+        if (rcvUnitCosts[idx] != null) {
+            var newCost = Number(rcvUnitCosts[idx]);
+            var oldCost = Number(p.costPerUnit || 0);
+            if (newCost > 0 && Math.abs(newCost - oldCost) >= 0.005) {
+                p.costPerUnit = newCost;
+                p.costUpdatedAt = nowIso;
+                var wholesale = Number(p.wholesalePrice || 0);
+                if (wholesale > 0) p.profitMargin = Math.round(((wholesale - newCost) / newCost) * 100 * 100) / 100;
+            }
         }
-    });
+    }
 
     saveData();
     // Push updated products (stock + optional cost) to Supabase so cross-device is in sync.
     if (IS_SUPA_ADMIN) {
-        for (var i = 0; i < keys.length; i++) {
-            var idx = parseInt(keys[i]);
-            var p = DATA.products[idx];
-            if (!p || !p.id) continue;
-            try { await supaSaveProduct(p); }
-            catch (e) { console.warn('[receive-inventory supa]', p.sku, e); }
+        for (var i2 = 0; i2 < keys.length; i2++) {
+            var idx2 = parseInt(keys[i2]);
+            var p2 = DATA.products[idx2];
+            if (!p2 || !p2.id) continue;
+            try { await supaSaveProduct(p2); }
+            catch (e) { console.warn('[receive-inventory supa]', p2.sku, e); }
         }
     }
+    clearReceiveInvoice();
     closeModal('receiveInventoryModal');
     renderProductTable(); renderProductStats(); renderLowStockAlerts();
     showToast(keys.length + ' product' + (keys.length > 1 ? 's' : '') + ' updated — stock received');
