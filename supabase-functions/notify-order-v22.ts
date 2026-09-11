@@ -1,4 +1,4 @@
-// NI Wholesale — Notify Order Edge Function (v23, bill uses own prefix + computed.invoice_external_id source; weekly-digest mode + skip Customer CSV when netsuite_entity_id set + action=digest)
+// NI Wholesale — Notify Order Edge Function (v24, adds PDF packing slip to accounting email attachments on ship)
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
@@ -39,6 +39,150 @@ function manageOrderCta(orderNum: string, orderId: string): string {
 
 function packingSlipDoc(orderNum: string, o: Record<string, unknown>, cust: Record<string, unknown>, loc: Record<string, unknown> | null, items: Record<string, unknown>[]): string { const bill = { name: o.bill_to_name || o.ship_to_name || cust.company_name || '', address: o.bill_to_address || o.ship_to_address || '', city: o.bill_to_city || o.ship_to_city || '', state: o.bill_to_state || o.ship_to_state || '', zip: o.bill_to_zip || o.ship_to_zip || '' }; const ship = { name: o.ship_to_name || cust.company_name || '', address: o.ship_to_address || '', city: o.ship_to_city || '', state: o.ship_to_state || '', zip: o.ship_to_zip || '', phone: o.ship_to_phone || '' }; const logoSrc = LOGO_DATA_URI || LOGO_URL; const rows = items.map((it) => `<tr><td class="qty">${Number(it.qty || 0)}</td><td class="sku">${esc(it.sku || '')}</td><td class="name">${esc(it.product_name || it.sku || '')}</td><td class="check">&#9744;</td></tr>`).join(''); const totalUnits = items.reduce((s, it) => s + Number(it.qty || 0), 0); return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Packing Slip &mdash; Order #${esc(orderNum)}</title><style>@page{size:letter;margin:0.5in;}*{box-sizing:border-box;}body{font-family:Georgia,'Times New Roman',serif;color:#2b2b2b;margin:0;padding:32px;background:#fff;}.brandbar{background:${BRAND_BLUE};color:#fff;padding:20px 24px;border-radius:4px 4px 0 0;display:flex;justify-content:space-between;align-items:center;}.brandbar img{height:44px;filter:brightness(0) invert(1);}.brandbar .doctitle{font-family:Georgia,serif;font-size:22px;letter-spacing:2px;}.subbar{background:${BRAND_CREAM};padding:14px 24px;border-left:4px solid ${BRAND_GOLD};display:flex;justify-content:space-between;font-size:12px;}.subbar strong{color:${BRAND_BLUE};font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:1px;font-size:11px;display:block;margin-bottom:2px;}.addresses{display:flex;gap:24px;padding:24px;font-size:13px;line-height:1.5;}.addresses .col{flex:1;padding:16px;background:${BRAND_CREAM};border-top:3px solid ${BRAND_BLUE};}.addresses h3{margin:0 0 8px;font-family:Arial,sans-serif;font-size:11px;color:${BRAND_BLUE};text-transform:uppercase;letter-spacing:2px;}table.items{width:100%;border-collapse:collapse;margin:0 0 24px;font-family:Arial,sans-serif;font-size:13px;}table.items thead th{background:${BRAND_BLUE};color:#fff;text-align:left;padding:10px 12px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1px;}table.items tbody td{padding:10px 12px;border-bottom:1px solid #e5e0d5;vertical-align:middle;}table.items tbody tr:nth-child(even) td{background:#faf8f4;}table.items td.qty{text-align:center;font-weight:700;font-size:16px;color:${BRAND_BLUE};width:60px;}table.items td.sku{font-family:'Courier New',monospace;font-size:12px;color:#666;width:130px;}table.items td.check{text-align:center;color:#ccc;font-size:20px;width:70px;}table.items th.qty,table.items th.check{text-align:center;}.totalbar{background:${BRAND_BLUE};color:#fff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;font-family:Arial,sans-serif;font-size:13px;text-transform:uppercase;letter-spacing:1px;}.totalbar .n{background:${BRAND_GOLD};color:#fff;padding:4px 12px;border-radius:3px;font-size:16px;font-weight:700;}.note{margin:20px 0;padding:14px 18px;background:#fef9e7;border-left:4px solid ${BRAND_GOLD};font-size:13px;}.note strong{color:${BRAND_BLUE};}.footer{margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-family:Arial,sans-serif;font-size:11px;color:#999;display:flex;justify-content:space-between;}.signoff{margin-top:24px;padding-top:16px;font-family:Arial,sans-serif;font-size:12px;color:#666;display:flex;gap:40px;}.signoff .line{flex:1;}.signoff .line span{display:block;border-bottom:1px solid #999;height:24px;}@media print{body{padding:0;}}</style></head><body><div class="brandbar"><img src="${esc(logoSrc)}" alt="Nutritional Innovations"><div class="doctitle">PACKING SLIP</div></div><div class="subbar"><div><strong>Order #</strong>${esc(orderNum)}</div>${o.po_number ? `<div><strong>Customer PO #</strong>${esc(o.po_number)}</div>` : ''}<div><strong>Date</strong>${esc(fmtDateUS(String(o.placed_at || o.shipped_at || '')))}</div>${o.tracking_number ? `<div><strong>Tracking</strong>${esc(o.tracking_number)}</div>` : ''}<div><strong>Location</strong>${esc((loc?.location_name as string) || '')}</div></div><div class="addresses"><div class="col"><h3>Ship To</h3>${esc(ship.name)}<br>${esc(ship.address)}<br>${esc([ship.city, ship.state].filter(Boolean).join(', '))} ${esc(ship.zip)}${ship.phone ? `<br>${esc(ship.phone)}` : ''}</div><div class="col"><h3>Bill To</h3>${esc(bill.name)}<br>${esc(bill.address)}<br>${esc([bill.city, bill.state].filter(Boolean).join(', '))} ${esc(bill.zip)}</div></div><table class="items"><thead><tr><th class="qty">Qty</th><th style="width:130px">SKU</th><th>Item</th><th class="check">Pack&nbsp;&#9744;</th></tr></thead><tbody>${rows}</tbody></table><div class="totalbar"><div>Total Units</div><div class="n">${totalUnits}</div></div>${o.notes ? `<div class="note"><strong>Customer note:</strong><br>${esc(o.notes)}</div>` : ''}<div class="signoff"><div class="line"><span></span>Packed by</div><div class="line"><span></span>Date</div><div class="line"><span></span>Verified by</div></div><div class="footer"><div>Nutritional Innovations &middot; ${esc(SITE_URL.replace('https://', ''))}</div><div>Print &amp; include with shipment</div></div></body></html>`; }
 function packingSlipAttachment(orderNum: string, o: Record<string, unknown>, cust: Record<string, unknown>, loc: Record<string, unknown> | null, items: Record<string, unknown>[]): Record<string, unknown> { const html = packingSlipDoc(orderNum, o, cust, loc, items); return { filename: `packing-slip-${orderNum}.html`, content: b64Utf8(html), content_type: 'text/html' }; }
+
+// PDF packing slip for the accounting email — separate from the HTML slip that
+// goes to the orders team + customer. Uses pdf-lib via ESM. Non-fatal: if
+// generation throws (e.g., pdf-lib fetch fails), returns null and the email
+// still sends with just the CSVs.
+async function packingSlipPdfAttachment(orderNum: string, o: Record<string, unknown>, cust: Record<string, unknown>, loc: Record<string, unknown> | null, items: Record<string, unknown>[]): Promise<Record<string, unknown> | null> {
+  try {
+    const pdfLib = await import('https://esm.sh/pdf-lib@1.17.1');
+    const { PDFDocument, StandardFonts, rgb } = pdfLib;
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([612, 792]);
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const serif = await doc.embedFont(StandardFonts.TimesRoman);
+
+    const brandBlue = rgb(45 / 255, 63 / 255, 130 / 255);
+    const cream = rgb(245 / 255, 242 / 255, 234 / 255);
+    const gray700 = rgb(66 / 255, 66 / 255, 66 / 255);
+    const gray500 = rgb(120 / 255, 120 / 255, 120 / 255);
+    const white = rgb(1, 1, 1);
+
+    const M = 36;
+
+    // Brand bar
+    page.drawRectangle({ x: 0, y: 730, width: 612, height: 62, color: brandBlue });
+    page.drawText('NUTRITIONAL INNOVATIONS', { x: M, y: 762, size: 14, font: bold, color: white });
+    page.drawText('PACKING SLIP', { x: M, y: 740, size: 22, font: serif, color: cream });
+    const orderLabel = `Order #${orderNum}`;
+    const orderLabelWidth = bold.widthOfTextAtSize(orderLabel, 12);
+    page.drawText(orderLabel, { x: 612 - M - orderLabelWidth, y: 758, size: 12, font: bold, color: white });
+
+    // Sub bar with meta
+    page.drawRectangle({ x: 0, y: 700, width: 612, height: 30, color: cream });
+    const subInfo: [string, string][] = [];
+    if (o.po_number) subInfo.push(['PO #', String(o.po_number)]);
+    subInfo.push(['Date', new Date(String(o.placed_at || o.shipped_at || Date.now())).toLocaleDateString('en-US')]);
+    if (o.tracking_number) subInfo.push(['Tracking', String(o.tracking_number)]);
+    if (loc?.location_name) subInfo.push(['Location', String(loc.location_name)]);
+    let subX = M;
+    for (const [label, val] of subInfo) {
+      page.drawText(label.toUpperCase(), { x: subX, y: 718, size: 7, font: bold, color: brandBlue });
+      page.drawText(val, { x: subX, y: 706, size: 10, font: font, color: gray700 });
+      subX += Math.max(100, bold.widthOfTextAtSize(label, 7) + font.widthOfTextAtSize(val, 10) + 24);
+    }
+
+    // Addresses
+    let y = 680;
+    const ship = { name: String(o.ship_to_name || cust.company_name || ''), address: String(o.ship_to_address || ''), city: String(o.ship_to_city || ''), state: String(o.ship_to_state || ''), zip: String(o.ship_to_zip || ''), phone: String(o.ship_to_phone || '') };
+    const bill = { name: String(o.bill_to_name || o.ship_to_name || cust.company_name || ''), address: String(o.bill_to_address || o.ship_to_address || ''), city: String(o.bill_to_city || o.ship_to_city || ''), state: String(o.bill_to_state || o.ship_to_state || ''), zip: String(o.bill_to_zip || o.ship_to_zip || '') };
+
+    page.drawRectangle({ x: M, y: y - 92, width: 260, height: 92, color: cream });
+    page.drawRectangle({ x: M, y: y - 4, width: 260, height: 3, color: brandBlue });
+    page.drawText('SHIP TO', { x: M + 10, y: y - 20, size: 9, font: bold, color: brandBlue });
+    page.drawText(ship.name, { x: M + 10, y: y - 36, size: 10, font: bold, color: gray700 });
+    if (ship.address) page.drawText(ship.address, { x: M + 10, y: y - 50, size: 10, font: font, color: gray700 });
+    page.drawText(`${[ship.city, ship.state].filter(Boolean).join(', ')} ${ship.zip}`.trim(), { x: M + 10, y: y - 64, size: 10, font: font, color: gray700 });
+    if (ship.phone) page.drawText(ship.phone, { x: M + 10, y: y - 78, size: 10, font: font, color: gray700 });
+
+    page.drawRectangle({ x: 316, y: y - 92, width: 260, height: 92, color: cream });
+    page.drawRectangle({ x: 316, y: y - 4, width: 260, height: 3, color: brandBlue });
+    page.drawText('BILL TO', { x: 326, y: y - 20, size: 9, font: bold, color: brandBlue });
+    page.drawText(bill.name, { x: 326, y: y - 36, size: 10, font: bold, color: gray700 });
+    if (bill.address) page.drawText(bill.address, { x: 326, y: y - 50, size: 10, font: font, color: gray700 });
+    page.drawText(`${[bill.city, bill.state].filter(Boolean).join(', ')} ${bill.zip}`.trim(), { x: 326, y: y - 64, size: 10, font: font, color: gray700 });
+
+    // Items table
+    y = 570;
+    page.drawRectangle({ x: M, y: y - 22, width: 540, height: 22, color: brandBlue });
+    page.drawText('QTY', { x: M + 10, y: y - 15, size: 9, font: bold, color: white });
+    page.drawText('SKU', { x: M + 60, y: y - 15, size: 9, font: bold, color: white });
+    page.drawText('ITEM', { x: M + 180, y: y - 15, size: 9, font: bold, color: white });
+    page.drawText('UNIT', { x: 440, y: y - 15, size: 9, font: bold, color: white });
+    page.drawText('LINE', { x: 500, y: y - 15, size: 9, font: bold, color: white });
+    y -= 26;
+
+    let totalUnits = 0;
+    let subtotal = 0;
+    let rowIdx = 0;
+    for (const it of items) {
+      if (y < 140) break;
+      const qty = Number(it.qty || 0);
+      const unitPrice = Number(it.unit_price || 0);
+      const lineTotal = Number(it.line_total || qty * unitPrice);
+      totalUnits += qty;
+      subtotal += lineTotal;
+      if (rowIdx % 2 === 1) page.drawRectangle({ x: M, y: y - 4, width: 540, height: 18, color: cream });
+      page.drawText(String(qty), { x: M + 10, y: y, size: 10, font: bold, color: brandBlue });
+      page.drawText(String(it.sku || '').slice(0, 20), { x: M + 60, y: y, size: 9, font: font, color: gray700 });
+      const name = String(it.product_name || it.sku || '').slice(0, 42);
+      page.drawText(name, { x: M + 180, y: y, size: 10, font: font, color: gray700 });
+      page.drawText(`$${unitPrice.toFixed(2)}`, { x: 440, y: y, size: 10, font: font, color: gray700 });
+      page.drawText(`$${lineTotal.toFixed(2)}`, { x: 500, y: y, size: 10, font: font, color: gray700 });
+      y -= 18;
+      rowIdx++;
+    }
+
+    // Totals block
+    const shipping = Number(o.shipping || 0);
+    const tax = Number(o.tax || 0);
+    const grand = Number(o.total || subtotal + shipping + tax);
+    y -= 14;
+    page.drawText('Total Units', { x: 380, y: y, size: 10, font: bold, color: gray700 });
+    page.drawText(String(totalUnits), { x: 540, y: y, size: 10, font: bold, color: gray700 });
+    y -= 14;
+    page.drawText('Subtotal', { x: 380, y: y, size: 10, font: font, color: gray700 });
+    page.drawText(`$${subtotal.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: gray700 });
+    y -= 14;
+    if (shipping > 0) {
+      page.drawText('Shipping', { x: 380, y: y, size: 10, font: font, color: gray700 });
+      page.drawText(`$${shipping.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: gray700 });
+      y -= 14;
+    }
+    if (tax > 0) {
+      page.drawText('Tax', { x: 380, y: y, size: 10, font: font, color: gray700 });
+      page.drawText(`$${tax.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: gray700 });
+      y -= 14;
+    }
+    y -= 4;
+    page.drawRectangle({ x: 370, y: y - 6, width: 206, height: 24, color: brandBlue });
+    page.drawText('TOTAL', { x: 380, y: y + 2, size: 12, font: bold, color: white });
+    page.drawText(`$${grand.toFixed(2)}`, { x: 510, y: y + 2, size: 12, font: bold, color: white });
+
+    // Customer note (truncated to first 4 lines of 80 chars)
+    if (o.notes) {
+      y -= 42;
+      page.drawText('Customer Note', { x: M, y: y, size: 9, font: bold, color: brandBlue });
+      y -= 14;
+      const notesLines = String(o.notes).match(/.{1,80}/g) || [];
+      for (const line of notesLines.slice(0, 4)) {
+        page.drawText(line, { x: M, y: y, size: 9, font: font, color: gray700 });
+        y -= 12;
+      }
+    }
+
+    page.drawText('Nutritional Innovations · nutritionalinnovations.net', { x: M, y: 40, size: 8, font: font, color: gray500 });
+    page.drawText('Attached to Accounting email · print with shipment', { x: 340, y: 40, size: 8, font: font, color: gray500 });
+
+    const bytes = await doc.save();
+    return { filename: `packing-slip-${orderNum}.pdf`, content: bytesToB64(bytes), content_type: 'application/pdf' };
+  } catch (e) {
+    console.error('Packing slip PDF gen failed (non-fatal):', e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
 
 type LineType = 'item' | 'shipping' | 'tax' | 'discount';
 interface CsvMapping { external_id_prefix?: string; external_id_pad_digits?: number; line_labels?: { shipping?: string; tax?: string; discount?: string }; line_skus?: { shipping?: string; tax?: string; discount?: string }; columns: { name: string; source: string; value?: string }[]; }
@@ -498,11 +642,13 @@ serve(async (req: Request) => {
               customerCsvBuilt = await generateCustomerCsv(supa, cust, (lRes.data || []) as Record<string, unknown>[], settings);
             } catch (ce) { console.warn('First-order Customer CSV attach failed:', ce); }
           }
-          // Attach in order: Customer CSV (if first order) -> Invoice -> Bill.
+          // Attach in order: Customer CSV (if first order) -> Invoice -> Bill -> Packing slip PDF.
           const finalAttachments: Record<string, unknown>[] = [];
           if (customerCsvBuilt) finalAttachments.push({ filename: customerCsvBuilt.filename, content: b64Utf8(customerCsvBuilt.csv) });
           finalAttachments.push({ filename: invoiceBuilt.filename, content: b64Utf8(invoiceBuilt.csv) });
           for (const a of attachments) finalAttachments.push(a);
+          const pdfSlip = await packingSlipPdfAttachment(orderNum, o, cust, loc, its);
+          if (pdfSlip) finalAttachments.push(pdfSlip);
 
           const newCustBlock = customerCsvBuilt ? newCustomerBanner(String(cust.company_name), customerCsvBuilt.filename, isIntercompany) : '';
           const invoiceStep = `${stepHeader('1', 'Create NI Customer Invoice', BRAND_BLUE)}<p style="font-size:13px;line-height:1.6;margin:0 0 12px">Please create a Customer Invoice for the following order in <strong>NI's</strong> NetSuite books. Payment method is <strong>Invoice</strong>.</p>${itemsHtml}${totalsHtml}${shipToBlock}<p style="font-size:13px;line-height:1.6;background:${BRAND_CREAM};padding:10px 14px;border-left:3px solid ${BRAND_BLUE};margin:12px 0">&#128206; Attached: <strong>${esc(invoiceBuilt.filename)}</strong> — ready for NetSuite CSV Import (Transactions → Invoices).</p>${importLinkBlock(invoiceImportUrl, 'Open NetSuite Invoice Import screen')}`;
