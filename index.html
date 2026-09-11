@@ -469,12 +469,15 @@
             .no-print, .navbar, .site-footer, .toast-container, .cart-sidebar, .cart-overlay { display: none !important; }
             .page { max-width: none !important; padding: 0 !important; margin: 0 !important; }
             #page-admin-catalog .card { border: none; padding: 0; margin: 0; box-shadow: none; }
-            .print-page { page-break-after: always; page-break-inside: avoid; margin: 0; height: 100vh; box-sizing: border-box; }
-            .print-page:last-child { page-break-after: auto; }
-            .cat-card, .cat-row { page-break-inside: avoid; }
-            .cover-page { padding: 0; min-height: 0; height: 100vh; box-sizing: border-box; }
-            .cover-inner { height: 100%; min-height: auto; border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .cover-page-num { display: block; }
+            .print-page { margin: 0; box-sizing: border-box; }
+            .print-page.cover-page { page-break-after: always; page-break-inside: avoid; min-height: 10in; height: auto; padding: 0; }
+            .print-page.back-cover-page { page-break-before: always; page-break-after: auto; page-break-inside: avoid; min-height: 10in; height: auto; padding: 0; }
+            .print-page.cat-page { page-break-after: always; page-break-inside: auto; }
+            .print-page.cat-page:last-of-type { page-break-after: auto; }
+            .print-page.cat-list-page { page-break-after: auto; page-break-inside: auto; }
+            .cat-card, .cat-row { page-break-inside: avoid; break-inside: avoid; }
+            .cover-inner { height: 100%; min-height: 10in; border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .cover-page-num { display: none; }
             .cat-page-num { display: block !important; text-align: center; font-family: var(--sans); font-size: 9px; color: var(--gray-500); margin-top: auto; padding-top: 8px; }
             .cat-desc { font-size: 8px !important; line-height: 1.35 !important; }
             .cat-grid.density-12 .cat-desc { font-size: 7px !important; }
@@ -15264,7 +15267,6 @@ function renderCatalog() {
         + '</div>';
 
     // ── Cover page ──
-    var totalPagesCount = pages.length + 2;
     var dateLabel = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     var chipsHtml = '';
     if (catalogState.filterBrand !== 'All') chipsHtml += '<p class="cover-chip">' + esc(catalogState.filterBrand) + '</p>';
@@ -15282,7 +15284,6 @@ function renderCatalog() {
         +       chipsHtml
         +       '<p class="cover-contact">info@nutritionalinnovations.net | www.nutritionalinnovations.net</p>'
         +     '</div>'
-        +     '<p class="cover-page-num">Page 1 of ' + totalPagesCount + '</p>'
         +   '</div>'
         + '</div>';
 
@@ -15293,7 +15294,7 @@ function renderCatalog() {
             contentHtml = '<div class="empty-state">No products match the selected filters.</div>';
         } else {
             pages.forEach(function(page, pageIdx) {
-                contentHtml += '<div class="print-page cat-page" style="min-height: calc(100vh - 200px);">';
+                contentHtml += '<div class="print-page cat-page">';
                 if (page.isGroupStart) {
                     contentHtml += '<div class="cat-group-header"><h2>' + esc(page.groupLabel) + '</h2></div>';
                 }
@@ -15302,16 +15303,16 @@ function renderCatalog() {
                     contentHtml += catRenderCard(p);
                 });
                 contentHtml += '</div>';
-                contentHtml += '<p class="cat-page-num">Page ' + (pageIdx + 2) + ' of ' + totalPagesCount + '</p>';
                 contentHtml += '</div>';
             });
         }
     } else {
-        // List layout
+        // List layout — one continuous flow (no forced page height); back cover
+        // starts on its own page via its page-break-before rule.
         if (filtered.length === 0) {
             contentHtml = '<div class="empty-state">No products match the selected filters.</div>';
         } else {
-            contentHtml += '<div class="print-page">';
+            contentHtml += '<div class="print-page cat-list-page">';
             groups.forEach(function(g) {
                 if (g.label) {
                     contentHtml += '<div class="cat-group-header" style="margin-top:18px;">' +
@@ -15329,7 +15330,7 @@ function renderCatalog() {
 
     // ── Back cover ──
     var backCoverHtml = ''
-        + '<div class="print-page cover-page">'
+        + '<div class="print-page cover-page back-cover-page">'
         +   '<div class="cover-inner">'
         +     '<div class="cover-content">'
         +       '<img src="/ni-logo.png" alt="Nutritional Innovations" class="cover-logo-sm">'
@@ -15341,7 +15342,6 @@ function renderCatalog() {
         +       '<p class="cover-web">www.nutritionalinnovations.net</p>'
         +       '<p class="cover-email">info@nutritionalinnovations.net</p>'
         +     '</div>'
-        +     '<p class="cover-page-num">Page ' + totalPagesCount + ' of ' + totalPagesCount + '</p>'
         +   '</div>'
         + '</div>';
 
