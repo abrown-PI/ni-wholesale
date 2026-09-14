@@ -4762,9 +4762,10 @@ async function resendWelcomeForCustomer(customerId, customerName) {
     catch (e) { showToast(e.message || 'Resend failed', 'error'); return; }
     if (r.emailSent) {
         showToast('Welcome email resent to ' + r.email);
-    } else if (r.tempPassword) {
-        try { navigator.clipboard.writeText(r.tempPassword); } catch (e) { /* ignore */ }
-        alert('Password reset, but the email could not be sent.\n\nEmail: ' + r.email + '\nTemp password: ' + r.tempPassword + '\n\n(Copied to clipboard.) Please deliver manually.');
+    } else if (r.emailError) {
+        alert('Welcome email failed to send (' + r.emailError + '). Customer can visit the sign-in page and click "Forgot password" for a fresh link.');
+    } else if (r.userPreexisted) {
+        showToast('User already existed — no email sent. Use the reset-password action instead.');
     }
 }
 
@@ -6037,21 +6038,14 @@ async function confirmApproveApplication() {
         showToast('Approve failed: ' + (e.message || 'Edge Function error'), 'error');
         return;
     }
-    // Handle approval result — email delivery is now handled server-side via Resend.
+    // Handle approval result. Welcome email now includes a set-password link
+    // (customer picks their own password) — no temp password is ever exposed.
     if (approveResult && approveResult.emailSent) {
-        showToast('Approved — welcome email sent to ' + approveResult.email);
-    } else if (approveResult && approveResult.tempPassword) {
-        // Email failed or was skipped — fall back to showing the admin the temp password so they can email it manually.
-        try { navigator.clipboard.writeText(approveResult.tempPassword); } catch (e) { /* ignore */ }
-        alert(
-            'Approved, but the welcome email could not be sent'
-            + (approveResult.emailError ? ' (' + approveResult.emailError + ')' : '')
-            + '.\n\nEmail: ' + approveResult.email
-            + '\nTemp password: ' + approveResult.tempPassword
-            + '\n\n(Copied to clipboard.) Please email this to ' + (approveResult.contactName || 'the customer') + ' manually.'
-        );
+        showToast('Approved — welcome email sent to ' + approveResult.email + ' with a set-password link');
     } else if (approveResult && approveResult.userPreexisted) {
-        showToast('Approved — user already existed, no email sent');
+        showToast('Approved — user already existed, no welcome email sent');
+    } else if (approveResult && approveResult.emailError) {
+        alert('Approved, but the welcome email could not be sent (' + approveResult.emailError + ').\n\nCustomer can visit ' + (approveResult.email || 'the site') + ' and click \"Forgot password\" to get a fresh link, or you can trigger a reset from their profile.');
     } else {
         showToast('Approved');
     }
