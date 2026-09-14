@@ -94,24 +94,21 @@ async function packingSlipPdfAttachment(orderNum: string, o: Record<string, unkn
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     const serif = await doc.embedFont(StandardFonts.TimesRoman);
 
-    const brandBlue = rgb(45 / 255, 63 / 255, 130 / 255);
-    const cream = rgb(245 / 255, 242 / 255, 234 / 255);
-    const gray700 = rgb(66 / 255, 66 / 255, 66 / 255);
-    const gray500 = rgb(120 / 255, 120 / 255, 120 / 255);
-    const white = rgb(1, 1, 1);
+    // Pure black-and-white palette. No brand accent, no shading. All rules
+    // are drawn as thin black lines instead of filled bands.
+    const black = rgb(0, 0, 0);
 
     const M = 36;
 
-    // Brand bar
-    page.drawRectangle({ x: 0, y: 730, width: 612, height: 62, color: brandBlue });
-    page.drawText('NUTRITIONAL INNOVATIONS', { x: M, y: 762, size: 14, font: bold, color: white });
-    page.drawText('PACKING SLIP', { x: M, y: 740, size: 22, font: serif, color: cream });
+    // Header — thin rule under the title band; no filled background.
+    page.drawText('NUTRITIONAL INNOVATIONS', { x: M, y: 762, size: 14, font: bold, color: black });
+    page.drawText('PACKING SLIP', { x: M, y: 738, size: 22, font: serif, color: black });
     const orderLabel = `Order #${orderNum}`;
     const orderLabelWidth = bold.widthOfTextAtSize(orderLabel, 12);
-    page.drawText(orderLabel, { x: 612 - M - orderLabelWidth, y: 758, size: 12, font: bold, color: white });
+    page.drawText(orderLabel, { x: 612 - M - orderLabelWidth, y: 758, size: 12, font: bold, color: black });
+    page.drawLine({ start: { x: M, y: 728 }, end: { x: 612 - M, y: 728 }, thickness: 1.2, color: black });
 
-    // Sub bar with meta
-    page.drawRectangle({ x: 0, y: 700, width: 612, height: 30, color: cream });
+    // Meta strip — labels above values, no filled band.
     const subInfo: [string, string][] = [];
     if (o.po_number) subInfo.push(['PO #', String(o.po_number)]);
     subInfo.push(['Date', new Date(String(o.placed_at || o.shipped_at || Date.now())).toLocaleDateString('en-US')]);
@@ -119,44 +116,47 @@ async function packingSlipPdfAttachment(orderNum: string, o: Record<string, unkn
     if (loc?.location_name) subInfo.push(['Location', String(loc.location_name)]);
     let subX = M;
     for (const [label, val] of subInfo) {
-      page.drawText(label.toUpperCase(), { x: subX, y: 718, size: 7, font: bold, color: brandBlue });
-      page.drawText(val, { x: subX, y: 706, size: 10, font: font, color: gray700 });
+      page.drawText(label.toUpperCase(), { x: subX, y: 712, size: 7, font: bold, color: black });
+      page.drawText(val, { x: subX, y: 700, size: 10, font: font, color: black });
       subX += Math.max(100, bold.widthOfTextAtSize(label, 7) + font.widthOfTextAtSize(val, 10) + 24);
     }
+    page.drawLine({ start: { x: M, y: 690 }, end: { x: 612 - M, y: 690 }, thickness: 0.5, color: black });
 
-    // Addresses
-    let y = 680;
+    // Addresses — thin rules on top of each block, no shaded fill.
+    let y = 676;
     const ship = { name: String(o.ship_to_name || cust.company_name || ''), address: String(o.ship_to_address || ''), city: String(o.ship_to_city || ''), state: String(o.ship_to_state || ''), zip: String(o.ship_to_zip || ''), phone: String(o.ship_to_phone || '') };
     const bill = { name: String(o.bill_to_name || o.ship_to_name || cust.company_name || ''), address: String(o.bill_to_address || o.ship_to_address || ''), city: String(o.bill_to_city || o.ship_to_city || ''), state: String(o.bill_to_state || o.ship_to_state || ''), zip: String(o.bill_to_zip || o.ship_to_zip || '') };
 
-    page.drawRectangle({ x: M, y: y - 92, width: 260, height: 92, color: cream });
-    page.drawRectangle({ x: M, y: y - 4, width: 260, height: 3, color: brandBlue });
-    page.drawText('SHIP TO', { x: M + 10, y: y - 20, size: 9, font: bold, color: brandBlue });
-    page.drawText(ship.name, { x: M + 10, y: y - 36, size: 10, font: bold, color: gray700 });
-    if (ship.address) page.drawText(ship.address, { x: M + 10, y: y - 50, size: 10, font: font, color: gray700 });
-    page.drawText(`${[ship.city, ship.state].filter(Boolean).join(', ')} ${ship.zip}`.trim(), { x: M + 10, y: y - 64, size: 10, font: font, color: gray700 });
-    if (ship.phone) page.drawText(ship.phone, { x: M + 10, y: y - 78, size: 10, font: font, color: gray700 });
+    page.drawText('SHIP TO', { x: M, y: y, size: 9, font: bold, color: black });
+    page.drawText(bill.name && (bill.name !== ship.name || bill.address !== ship.address) ? 'BILL TO' : 'BILL TO', { x: 316, y: y, size: 9, font: bold, color: black });
+    y -= 14;
+    page.drawText(ship.name, { x: M, y: y, size: 10, font: bold, color: black });
+    page.drawText(bill.name, { x: 316, y: y, size: 10, font: bold, color: black });
+    y -= 14;
+    if (ship.address) page.drawText(ship.address, { x: M, y: y, size: 10, font: font, color: black });
+    if (bill.address) page.drawText(bill.address, { x: 316, y: y, size: 10, font: font, color: black });
+    y -= 14;
+    page.drawText(`${[ship.city, ship.state].filter(Boolean).join(', ')} ${ship.zip}`.trim(), { x: M, y: y, size: 10, font: font, color: black });
+    page.drawText(`${[bill.city, bill.state].filter(Boolean).join(', ')} ${bill.zip}`.trim(), { x: 316, y: y, size: 10, font: font, color: black });
+    y -= 14;
+    if (ship.phone) page.drawText(ship.phone, { x: M, y: y, size: 10, font: font, color: black });
+    y -= 18;
 
-    page.drawRectangle({ x: 316, y: y - 92, width: 260, height: 92, color: cream });
-    page.drawRectangle({ x: 316, y: y - 4, width: 260, height: 3, color: brandBlue });
-    page.drawText('BILL TO', { x: 326, y: y - 20, size: 9, font: bold, color: brandBlue });
-    page.drawText(bill.name, { x: 326, y: y - 36, size: 10, font: bold, color: gray700 });
-    if (bill.address) page.drawText(bill.address, { x: 326, y: y - 50, size: 10, font: font, color: gray700 });
-    page.drawText(`${[bill.city, bill.state].filter(Boolean).join(', ')} ${bill.zip}`.trim(), { x: 326, y: y - 64, size: 10, font: font, color: gray700 });
+    page.drawLine({ start: { x: M, y: y }, end: { x: 612 - M, y: y }, thickness: 0.5, color: black });
+    y -= 14;
 
-    // Items table
-    y = 570;
-    page.drawRectangle({ x: M, y: y - 22, width: 540, height: 22, color: brandBlue });
-    page.drawText('QTY', { x: M + 10, y: y - 15, size: 9, font: bold, color: white });
-    page.drawText('SKU', { x: M + 60, y: y - 15, size: 9, font: bold, color: white });
-    page.drawText('ITEM', { x: M + 180, y: y - 15, size: 9, font: bold, color: white });
-    page.drawText('UNIT', { x: 440, y: y - 15, size: 9, font: bold, color: white });
-    page.drawText('LINE', { x: 500, y: y - 15, size: 9, font: bold, color: white });
-    y -= 26;
+    // Items table — column headers, thin rule under, thin rule under each row.
+    page.drawText('QTY', { x: M + 4, y: y, size: 9, font: bold, color: black });
+    page.drawText('SKU', { x: M + 60, y: y, size: 9, font: bold, color: black });
+    page.drawText('ITEM', { x: M + 180, y: y, size: 9, font: bold, color: black });
+    page.drawText('UNIT', { x: 440, y: y, size: 9, font: bold, color: black });
+    page.drawText('LINE', { x: 500, y: y, size: 9, font: bold, color: black });
+    y -= 6;
+    page.drawLine({ start: { x: M, y: y }, end: { x: 612 - M, y: y }, thickness: 0.8, color: black });
+    y -= 12;
 
     let totalUnits = 0;
     let subtotal = 0;
-    let rowIdx = 0;
     for (const it of items) {
       if (y < 140) break;
       const qty = Number(it.qty || 0);
@@ -164,57 +164,58 @@ async function packingSlipPdfAttachment(orderNum: string, o: Record<string, unkn
       const lineTotal = Number(it.line_total || qty * unitPrice);
       totalUnits += qty;
       subtotal += lineTotal;
-      if (rowIdx % 2 === 1) page.drawRectangle({ x: M, y: y - 4, width: 540, height: 18, color: cream });
-      page.drawText(String(qty), { x: M + 10, y: y, size: 10, font: bold, color: brandBlue });
-      page.drawText(String(it.sku || '').slice(0, 20), { x: M + 60, y: y, size: 9, font: font, color: gray700 });
+      page.drawText(String(qty), { x: M + 4, y: y, size: 10, font: bold, color: black });
+      page.drawText(String(it.sku || '').slice(0, 20), { x: M + 60, y: y, size: 9, font: font, color: black });
       const name = String(it.product_name || it.sku || '').slice(0, 42);
-      page.drawText(name, { x: M + 180, y: y, size: 10, font: font, color: gray700 });
-      page.drawText(`$${unitPrice.toFixed(2)}`, { x: 440, y: y, size: 10, font: font, color: gray700 });
-      page.drawText(`$${lineTotal.toFixed(2)}`, { x: 500, y: y, size: 10, font: font, color: gray700 });
-      y -= 18;
-      rowIdx++;
+      page.drawText(name, { x: M + 180, y: y, size: 10, font: font, color: black });
+      page.drawText(`$${unitPrice.toFixed(2)}`, { x: 440, y: y, size: 10, font: font, color: black });
+      page.drawText(`$${lineTotal.toFixed(2)}`, { x: 500, y: y, size: 10, font: font, color: black });
+      y -= 8;
+      page.drawLine({ start: { x: M, y: y }, end: { x: 612 - M, y: y }, thickness: 0.3, color: black });
+      y -= 10;
     }
 
-    // Totals block
+    // Totals — plain text, rule under the grand total.
     const shipping = Number(o.shipping || 0);
     const tax = Number(o.tax || 0);
     const grand = Number(o.total || subtotal + shipping + tax);
+    y -= 8;
+    page.drawText('Total Units', { x: 380, y: y, size: 10, font: bold, color: black });
+    page.drawText(String(totalUnits), { x: 540, y: y, size: 10, font: bold, color: black });
     y -= 14;
-    page.drawText('Total Units', { x: 380, y: y, size: 10, font: bold, color: gray700 });
-    page.drawText(String(totalUnits), { x: 540, y: y, size: 10, font: bold, color: gray700 });
-    y -= 14;
-    page.drawText('Subtotal', { x: 380, y: y, size: 10, font: font, color: gray700 });
-    page.drawText(`$${subtotal.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: gray700 });
+    page.drawText('Subtotal', { x: 380, y: y, size: 10, font: font, color: black });
+    page.drawText(`$${subtotal.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: black });
     y -= 14;
     if (shipping > 0) {
-      page.drawText('Shipping', { x: 380, y: y, size: 10, font: font, color: gray700 });
-      page.drawText(`$${shipping.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: gray700 });
+      page.drawText('Shipping', { x: 380, y: y, size: 10, font: font, color: black });
+      page.drawText(`$${shipping.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: black });
       y -= 14;
     }
     if (tax > 0) {
-      page.drawText('Tax', { x: 380, y: y, size: 10, font: font, color: gray700 });
-      page.drawText(`$${tax.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: gray700 });
+      page.drawText('Tax', { x: 380, y: y, size: 10, font: font, color: black });
+      page.drawText(`$${tax.toFixed(2)}`, { x: 520, y: y, size: 10, font: font, color: black });
       y -= 14;
     }
-    y -= 4;
-    page.drawRectangle({ x: 370, y: y - 6, width: 206, height: 24, color: brandBlue });
-    page.drawText('TOTAL', { x: 380, y: y + 2, size: 12, font: bold, color: white });
-    page.drawText(`$${grand.toFixed(2)}`, { x: 510, y: y + 2, size: 12, font: bold, color: white });
+    page.drawLine({ start: { x: 370, y: y + 4 }, end: { x: 576, y: y + 4 }, thickness: 1, color: black });
+    y -= 10;
+    page.drawText('TOTAL', { x: 380, y: y, size: 12, font: bold, color: black });
+    page.drawText(`$${grand.toFixed(2)}`, { x: 510, y: y, size: 12, font: bold, color: black });
 
     // Customer note (truncated to first 4 lines of 80 chars)
     if (o.notes) {
       y -= 42;
-      page.drawText('Customer Note', { x: M, y: y, size: 9, font: bold, color: brandBlue });
+      page.drawText('Customer Note', { x: M, y: y, size: 9, font: bold, color: black });
       y -= 14;
       const notesLines = String(o.notes).match(/.{1,80}/g) || [];
       for (const line of notesLines.slice(0, 4)) {
-        page.drawText(line, { x: M, y: y, size: 9, font: font, color: gray700 });
+        page.drawText(line, { x: M, y: y, size: 9, font: font, color: black });
         y -= 12;
       }
     }
 
-    page.drawText('Nutritional Innovations · nutritionalinnovations.net', { x: M, y: 40, size: 8, font: font, color: gray500 });
-    page.drawText('Attached to Accounting email · print with shipment', { x: 340, y: 40, size: 8, font: font, color: gray500 });
+    page.drawLine({ start: { x: M, y: 52 }, end: { x: 612 - M, y: 52 }, thickness: 0.3, color: black });
+    page.drawText('Nutritional Innovations · nutritionalinnovations.net', { x: M, y: 40, size: 8, font: font, color: black });
+    page.drawText('Attached to Accounting email · print with shipment', { x: 340, y: 40, size: 8, font: font, color: black });
 
     const bytes = await doc.save();
     return { filename: `packing-slip-${orderNum}.pdf`, content: bytesToB64(bytes), content_type: 'application/pdf' };
