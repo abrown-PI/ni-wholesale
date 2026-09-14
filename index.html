@@ -6596,7 +6596,39 @@ function switchEmailQueueTab(status) {
     renderEmailQueueTable();
 }
 
-function renderEmailQueuePage() {
+async function renderEmailQueuePage() {
+    // Pull the authoritative log from Supabase's email_queue table so we see
+    // every real send (approvals, order confirmations, ship notifications,
+    // NetSuite CSV emails, etc.) — the local queue is only for manually-drafted
+    // emails that never get automatically fired.
+    if (IS_SUPA_ADMIN) {
+        try {
+            var r = await supa.from('email_queue').select('*').order('created_at', { ascending: false }).limit(500);
+            if (!r.error && Array.isArray(r.data)) {
+                DATA.emailQueue = r.data.map(function(row) {
+                    return {
+                        id: row.id,
+                        toEmail: row.to_email || '',
+                        toName: row.to_name || '',
+                        subject: row.subject || '',
+                        body: row.body || '',
+                        templateKey: row.template_key || '',
+                        status: (row.last_event === 'bounced' || row.last_event === 'complained') ? 'failed'
+                              : (row.last_event === 'delivered') ? 'sent'
+                              : (row.status || 'pending'),
+                        lastEvent: row.last_event || null,
+                        lastEventAt: row.last_event_at || null,
+                        errorMessage: row.error_message || null,
+                        resendId: row.resend_id || null,
+                        relatedCustomerId: row.related_customer_id || null,
+                        relatedOrderId: row.related_order_id || null,
+                        createdAt: row.created_at || '',
+                        sentAt: row.sent_at || null
+                    };
+                });
+            }
+        } catch (e) { console.warn('[email-queue] Supabase fetch failed:', e); }
+    }
     renderEmailQueueStats();
     renderEmailQueueTable();
 }

@@ -30,7 +30,47 @@ function bytesToB64(bytes: Uint8Array): string { let bin = ''; for (let i = 0; i
 let LOGO_DATA_URI: string | null = null;
 async function preloadLogoDataUri(): Promise<void> { if (LOGO_DATA_URI !== null) return; try { const res = await fetch(LOGO_URL); if (!res.ok) { LOGO_DATA_URI = ''; return; } const buf = await res.arrayBuffer(); LOGO_DATA_URI = `data:image/png;base64,${bytesToB64(new Uint8Array(buf))}`; } catch { LOGO_DATA_URI = ''; } }
 function logoHeader(): string { const src = LOGO_DATA_URI || LOGO_URL; return `<div style="text-align:center;padding:16px 0 20px;border-bottom:1px solid #eee;margin-bottom:20px"><a href="${SITE_URL}" style="text-decoration:none;color:${BRAND_BLUE};font-family:Georgia,serif;font-size:20px;font-weight:700"><img src="${src}" alt="Nutritional Innovations" width="220" style="display:block;border:0;max-width:220px;height:auto;margin:0 auto"></a></div>`; }
-async function resendSend(payload: Record<string, unknown>): Promise<{ ok: boolean; id?: string; error?: string }> { if (!RESEND_API_KEY) return { ok: false, error: 'RESEND_API_KEY not set' }; try { const res = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const data = await res.json().catch(() => ({})); if (!res.ok) return { ok: false, error: (data as { message?: string }).message || `HTTP ${res.status}` }; return { ok: true, id: (data as { id?: string }).id }; } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; } }
+async function resendSend(payload: Record<string, unknown>, log?: { templateKey?: string; relatedCustomerId?: string; relatedOrderId?: string }): Promise<{ ok: boolean; id?: string; error?: string }> {
+    // Insert a queued row into email_queue first so we log the attempt even if
+    // Resend throws. Best-effort — a failed log write never blocks the send.
+    let logId: string | null = null;
+    try {
+        const supaAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const to = payload.to;
+        const toEmail = Array.isArray(to) ? String(to[0] || '') : String(to || '');
+        const attempt = await supaAdmin.from('email_queue').insert({
+            to_email: toEmail,
+            subject: String(payload.subject || ''),
+            body: String(payload.html || payload.text || ''),
+            template_key: log?.templateKey || null,
+            status: 'queued',
+            related_customer_id: log?.relatedCustomerId || null,
+            related_order_id: log?.relatedOrderId || null,
+        }).select('id').single();
+        if (attempt.data && (attempt.data as { id?: string }).id) logId = (attempt.data as { id: string }).id;
+    } catch (logErr) { console.warn('[email-log] queue insert failed:', logErr); }
+
+    if (!RESEND_API_KEY) {
+        if (logId) { try { const supaAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY); await supaAdmin.from('email_queue').update({ status: 'failed', error_message: 'RESEND_API_KEY not set', attempted_at: new Date().toISOString() }).eq('id', logId); } catch {} }
+        return { ok: false, error: 'RESEND_API_KEY not set' };
+    }
+    try {
+        const res = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const errMsg = (data as { message?: string }).message || `HTTP ${res.status}`;
+            if (logId) { try { const supaAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY); await supaAdmin.from('email_queue').update({ status: 'failed', error_message: errMsg, attempted_at: new Date().toISOString() }).eq('id', logId); } catch {} }
+            return { ok: false, error: errMsg };
+        }
+        const resendId = (data as { id?: string }).id;
+        if (logId) { try { const supaAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY); await supaAdmin.from('email_queue').update({ status: 'sent', sent_at: new Date().toISOString(), attempted_at: new Date().toISOString(), resend_id: resendId || null }).eq('id', logId); } catch {} }
+        return { ok: true, id: resendId };
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (logId) { try { const supaAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY); await supaAdmin.from('email_queue').update({ status: 'failed', error_message: msg, attempted_at: new Date().toISOString() }).eq('id', logId); } catch {} }
+        return { ok: false, error: msg };
+    }
+}
 
 function manageOrderCta(orderNum: string, orderId: string): string {
   const url = `${SITE_URL}/admin?order=${encodeURIComponent(orderId)}`;
