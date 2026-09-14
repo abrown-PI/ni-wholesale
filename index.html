@@ -1253,10 +1253,8 @@
                     </div>
                     <div class="form-group"><label>Payment Terms</label>
                         <select class="form-control" id="custPaymentTerms">
-                            <option value="Net-30">Net-30</option>
-                            <option value="Net-60">Net-60</option>
                             <option value="Prepay">Prepay</option>
-                            <option value="Credit Card">Credit Card</option>
+                            <option value="Net-15">Net-15</option>
                         </select>
                     </div>
                 </div>
@@ -2099,7 +2097,7 @@
             <p>Orders are considered placed when submitted via the Site. Confirmation is sent by email. Ownership passes when goods are handed to the carrier; risk of loss transfers per the carrier's policy.</p>
 
             <h3 style="font-family:var(--serif);font-size:20px;color:var(--ni-navy);margin:24px 0 10px">3. Payment terms</h3>
-            <p>Approved accounts may qualify for Net-30 or Net-60 terms at our discretion. Otherwise, prepay or credit-card payment is required at time of order. Late payments accrue interest at 1.5% per month, or the maximum permitted by law, whichever is lower.</p>
+            <p>All new accounts start on prepay or credit-card payment at time of order. Approved accounts may qualify for Net-15 terms at our discretion. Late payments on approved terms accrue interest at 1.5% per month, or the maximum permitted by law, whichever is lower.</p>
 
             <h3 style="font-family:var(--serif);font-size:20px;color:var(--ni-navy);margin:24px 0 10px">4. Product use and resale</h3>
             <p>All products sold via the Site are intended for resale by licensed pharmacies to their patients, or for professional use in clinical settings. You may not repackage, relabel, or misrepresent products.</p>
@@ -2434,14 +2432,6 @@
             <div class="form-row">
                 <div class="form-group"><label>Website</label><input type="text" class="form-control" id="regWebsite" placeholder="https://"></div>
                 <div class="form-group"><label>Expected Monthly Order Volume</label><input type="text" class="form-control" id="regExpectedVolume" placeholder="e.g. $5,000/month"></div>
-                <div class="form-group"><label>Payment Terms Requested</label>
-                    <select class="form-control" id="regPaymentTerms">
-                        <option value="Net-30" selected>Net-30</option>
-                        <option value="Net-60">Net-60</option>
-                        <option value="Prepay">Prepay</option>
-                        <option value="Credit Card">Credit Card</option>
-                    </select>
-                </div>
             </div>
 
             <!-- ── Primary Contact ── -->
@@ -4422,7 +4412,7 @@ async function supaFetchAdminCustomers() {
             netsuiteEntityId: c.netsuite_entity_id || '',
             isIntercompany: !!c.is_intercompany,
             pricingTier: c.pricing_tier || 'standard',
-            paymentTerms: c.payment_terms || 'Net-30',
+            paymentTerms: c.payment_terms || 'Prepay',
             status: c.status || 'active',
             notes: c.notes || '',
             createdAt: c.created_at || '', updatedAt: c.updated_at || ''
@@ -4619,7 +4609,7 @@ async function supaSaveCustomer(cust, locations) {
         netsuite_entity_id: cust.netsuiteEntityId || null,
         is_intercompany: !!cust.isIntercompany,
         pricing_tier: (cust.pricingTier === 'insider') ? 'insider' : 'standard',
-        payment_terms: cust.paymentTerms || 'Net-30',
+        payment_terms: cust.paymentTerms || 'Prepay',
         status: cust.status || 'active',
         notes: cust.notes || ''
     };
@@ -5278,7 +5268,7 @@ function migrateLegacyData() {
         if (c.licenseNumber == null) c.licenseNumber = '';
         if (c.deaNumber == null) c.deaNumber = '';
         if (c.npiNumber == null) c.npiNumber = '';
-        if (c.paymentTerms == null) c.paymentTerms = 'Net-30';
+        if (c.paymentTerms == null) c.paymentTerms = 'Prepay';
         if (c.status == null) c.status = 'active';
         if (c.notes == null) c.notes = '';
         if (!c.createdAt) c.createdAt = new Date().toISOString();
@@ -5608,7 +5598,7 @@ function resetApplyForm() {
         'regContactName','regContactTitle','regNotes','regPassword','regPasswordConfirm'
     ].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
     var pt = document.getElementById('regPharmacyType'); if (pt) pt.selectedIndex = 0;
-    var py = document.getElementById('regPaymentTerms'); if (py) py.value = 'Net-30';
+    // regPaymentTerms field is no longer in the signup form — legacy safety no-op.
     APPLY_LOCATIONS = [{ name:'Main', address:'', city:'', state:'', zip:'', contactName:'', phone:'', email:'' }];
     renderApplyLocations();
 }
@@ -5618,7 +5608,9 @@ async function doRegister() {
     const pharmacyType = document.getElementById('regPharmacyType').value;
     const website = document.getElementById('regWebsite').value.trim();
     const expectedVolume = document.getElementById('regExpectedVolume').value.trim();
-    const requestedPaymentTerms = document.getElementById('regPaymentTerms').value;
+    // Customers no longer choose terms during signup — everyone starts on Prepay.
+    // NI admins upgrade approved accounts to Net-15 manually as needed.
+    const requestedPaymentTerms = 'Prepay';
     const licenseNumber = document.getElementById('regLicenseNumber').value.trim();
     const licenseState = document.getElementById('regLicenseState').value.trim().toUpperCase();
     const dea = document.getElementById('regDEA').value.trim();
@@ -6067,7 +6059,7 @@ async function confirmApproveApplication() {
             licenseNumber: a.licenseNumber || '',
             deaNumber: a.dea || '',
             npiNumber: a.npi || '',
-            paymentTerms: a.requestedPaymentTerms || 'Net-30',
+            paymentTerms: a.requestedPaymentTerms || 'Prepay',
             status: 'active',
             notes: a.notes || '',
             createdAt: now,
@@ -8941,7 +8933,7 @@ function onCheckoutPaymentChange(method) {
 function renderCheckoutPaymentDetails() {
     var box = document.getElementById('coPaymentDetails');
     var ctx = getCheckoutContext();
-    var terms = (ctx.customer && ctx.customer.paymentTerms) || (ctx.account && ctx.account.requestedPaymentTerms) || 'Net-30';
+    var terms = (ctx.customer && ctx.customer.paymentTerms) || (ctx.account && ctx.account.requestedPaymentTerms) || 'Prepay';
     var g = (DATA.settings && DATA.settings.general) || {};
     if (CHECKOUT_STATE.paymentMethod === 'card') {
         box.innerHTML =
@@ -9404,7 +9396,7 @@ function renderCheckoutConfirmation(order) {
         nextCopy = 'Our team will confirm payment and ship your order shortly. You will receive an email update when your order ships.';
     } else if (order.paymentMethod === 'invoice') {
         var ctx = getCheckoutContext();
-        var terms = (ctx.customer && ctx.customer.paymentTerms) || 'Net-30';
+        var terms = (ctx.customer && ctx.customer.paymentTerms) || 'Prepay';
         nextCopy = 'An invoice for ' + esc(terms) + ' payment will be sent to ' + esc(order.email || 'your email on file') + '. Your order will be processed and shipped per your standard schedule.';
     } else if (order.paymentMethod === 'check') {
         var checkAddr = [g.storeName, g.storeAddress, (g.storeCity || '') + ', ' + (g.storeState || '') + ' ' + (g.storeZip || '')].filter(Boolean).join('<br>');
@@ -14081,7 +14073,7 @@ function renderCustomerDetailPage() {
 
     var fields = {
         custCompanyName:'', custAccountCode:'', custPharmacyType:'',
-        custStatus:'active', custPaymentTerms:'Net-30',
+        custStatus:'active', custPaymentTerms:'Prepay',
         custContactName:'', custEmail:'', custPhone:'',
         custBillingAddress:'', custBillingCity:'', custBillingState:'', custBillingZip:'',
         custLicenseNumber:'', custDeaNumber:'', custNpiNumber:'',
@@ -14097,7 +14089,7 @@ function renderCustomerDetailPage() {
         fields.custAccountCode      = c.accountCode        || '';
         fields.custPharmacyType     = c.pharmacyType       || '';
         fields.custStatus           = c.status             || 'active';
-        fields.custPaymentTerms     = c.paymentTerms       || 'Net-30';
+        fields.custPaymentTerms     = c.paymentTerms       || 'Prepay';
         fields.custContactName      = c.contactName        || '';
         fields.custEmail            = c.email              || '';
         fields.custPhone            = c.phone              || '';
@@ -14121,7 +14113,7 @@ function renderCustomerDetailPage() {
             var subBits = [];
             subBits.push(customerStatusBadge(c.status));
             if (c.accountCode) subBits.push('<code style="background:var(--gray-100);padding:2px 6px;border-radius:3px">' + esc(c.accountCode) + '</code>');
-            subBits.push('<span>' + esc(c.paymentTerms || 'Net-30') + '</span>');
+            subBits.push('<span>' + esc(c.paymentTerms || 'Prepay') + '</span>');
             subBits.push('<span>' + currentEditLocations.length + ' location' + (currentEditLocations.length === 1 ? '' : 's') + '</span>');
             if (c.netsuiteEntityId) subBits.push('<span>NetSuite: <code>' + esc(c.netsuiteEntityId) + '</code></span>');
             subEl.innerHTML = subBits.join(' &nbsp;·&nbsp; ');
@@ -14379,7 +14371,7 @@ async function saveCustomer() {
     customer.accountCode    = document.getElementById('custAccountCode').value.trim();
     customer.pharmacyType   = document.getElementById('custPharmacyType').value;
     customer.status         = document.getElementById('custStatus').value || 'active';
-    customer.paymentTerms   = document.getElementById('custPaymentTerms').value || 'Net-30';
+    customer.paymentTerms   = document.getElementById('custPaymentTerms').value || 'Prepay';
     customer.contactName    = document.getElementById('custContactName').value.trim();
     customer.email          = document.getElementById('custEmail').value.trim();
     customer.phone          = document.getElementById('custPhone').value.trim();
