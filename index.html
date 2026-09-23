@@ -9097,32 +9097,48 @@ function checkoutRemoveItem(i) {
     renderCheckoutShippingMethods();
 }
 
-// ─── Stripe stub ───
+// ─── Stripe (real) ───
+// Creates a Stripe hosted checkout session via the stripe-checkout edge
+// function. Returns { url } on success (client redirects to it) or
+// { error } on failure. The order was already persisted to Supabase before
+// this ran, so if the customer cancels payment the order stays as `unpaid`
+// and the admin can follow up. The stripe-webhook edge function is what
+// flips it to paid + decrements stock — client never needs to hear back.
 function newPaymentLogId() { return 'pay_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
 
-function stubStripeCharge(order) {
-    var rawCard = (document.getElementById('coCardNumber') || {}).value || '';
-    var digits = rawCard.replace(/\D/g, '');
-    var last4 = digits.length >= 4 ? digits.slice(-4) : '';
-    // Never persist the full PAN or CVC — only last 4.
-    var entry = {
-        id: newPaymentLogId(),
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        amount: Number(order.total) || 0,
-        currency: 'USD',
-        method: 'card',
-        status: 'would_charge', // when real Stripe lands: 'succeeded' | 'failed'
-        cardLast4: last4,
-        customerEmail: order.email || '',
-        customerName: order.customerName || '',
-        createdAt: new Date().toISOString(),
-        note: 'Stub charge — no real card was processed.'
-    };
-    if (!Array.isArray(DATA.paymentLog)) DATA.paymentLog = [];
-    DATA.paymentLog.push(entry);
-    saveData();
-    return { stubbed: true, paymentLogId: entry.id, cardLast4: last4 };
+async function createStripeCheckoutSession(order, supabaseOrderId) {
+    try {
+        var res = await fetch(SUPABASE_URL + '/functions/v1/stripe-checkout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_PUBLISHABLE_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({
+                orderId: supabaseOrderId,
+                orderNumber: order.orderNumber,
+                customerEmail: order.email || '',
+                customerName: order.customerName || '',
+                shipping: Number(order.shipping) || 0,
+                discountAmount: Number(order.discountAmount) || 0,
+                items: (order.items || []).map(function(i) {
+                    return {
+                        name: i.productName || i.name || 'Item',
+                        sku: i.sku || '',
+                        quantity: Number(i.qty) || 1,
+                        unitPrice: Number(i.unitPrice) || 0,
+                    };
+                }),
+            }),
+        });
+        var data = await res.json();
+        if (!res.ok || !data.url) return { error: data.error || 'Failed to create Stripe session' };
+        return { url: data.url };
+    } catch (err) {
+        console.error('stripe-checkout call failed:', err);
+        return { error: err && err.message ? err.message : 'Network error creating Stripe session' };
+    }
 }
 
 function validateCheckoutForm() {
@@ -9258,13 +9274,9 @@ async function placeCheckoutOrder() {
             paymentLogId: null
         };
 
-        // Card stub charge — runs BEFORE persisting so we can attach the log id
-        var chargeResult = null;
-        if (CHECKOUT_STATE.paymentMethod === 'card') {
-            chargeResult = stubStripeCharge(order);
-            order.paymentLogId = chargeResult.paymentLogId;
-            // payment_status stays 'Unpaid' — admin will mark paid via Payments page
-        }
+        // Real Stripe checkout runs AFTER the Supabase order is persisted
+        // (see below) so we have the DB order id to pass as metadata and the
+        // webhook can find the right row to flip paid. Nothing charged here.
 
         // Decrement stock locally so the UI reflects immediately. The
         // authoritative decrement + inventory_transactions ledger row are
@@ -9348,6 +9360,24 @@ async function placeCheckoutOrder() {
                 if (!r || !r.ok) console.warn('[notify-order placed] failed:', r && r.error);
                 else console.log('[notify-order placed]', r.results);
             });
+
+            // Card payment: create a Stripe hosted checkout session and
+            // redirect the customer to it. The stripe-webhook edge function
+            // will flip payment_status to paid and decrement stock when they
+            // complete payment. If they cancel, they land back on the site
+            // and the order stays as unpaid — admin can follow up or delete.
+            if (CHECKOUT_STATE.paymentMethod === 'card') {
+                var stripeResult = await createStripeCheckoutSession(order, saved.id);
+                if (stripeResult.url) {
+                    window.location.href = stripeResult.url;
+                    return; // stop before the confirmation render — we're leaving the page
+                } else {
+                    console.error('Stripe session failed:', stripeResult.error);
+                    showToast('Payment setup failed: ' + (stripeResult.error || 'unknown') + ' — please contact us.', 'error');
+                    // Fall through to render the confirmation page anyway so the
+                    // customer sees their order was recorded.
+                }
+            }
         } catch (supaErr) {
             console.warn('[supabase] order write failed (kept locally):', supaErr && supaErr.message);
             showToast('Order placed but sync to server failed — admin has been notified', 'error');
