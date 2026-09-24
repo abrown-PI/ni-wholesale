@@ -1163,7 +1163,7 @@
         </div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th style="width:30px"><input type="checkbox" id="orderSelectAll" onchange="toggleAllOrderSelection(this.checked)" title="Select all visible" style="cursor:pointer"></th><th>Order #</th><th>Invoice #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th style="white-space:nowrap">Actions</th></tr></thead>
+                <thead><tr><th style="width:30px"><input type="checkbox" id="orderSelectAll" onchange="toggleAllOrderSelection(this.checked)" title="Select all visible" style="cursor:pointer"></th><th class="sortable" data-sort="orderNumber">Order #</th><th class="sortable" data-sort="orderNumber">Invoice #</th><th class="sortable" data-sort="date">Date</th><th class="sortable" data-sort="customer">Customer</th><th class="sortable" data-sort="items">Items</th><th class="sortable" data-sort="total">Total</th><th class="sortable" data-sort="payment">Payment</th><th class="sortable" data-sort="status">Status</th><th style="white-space:nowrap">Actions</th></tr></thead>
                 <tbody id="orderTableBody"></tbody>
             </table>
         </div>
@@ -11101,6 +11101,40 @@ function switchOrderTab(status) {
 
 function searchOrders() { renderOrders(); }
 
+// ── Sort state for the orders table ──
+// Click a column header to sort by it; click again to flip direction.
+// Default is date DESC (newest first) — matches the pre-sort behavior.
+var orderSort = { key: 'date', dir: 'desc' };
+
+function setOrderSort(key) {
+    if (!key) return;
+    if (orderSort.key === key) {
+        orderSort.dir = orderSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        orderSort.key = key;
+        // First click gets a sensible default: text ASC, numeric/date DESC
+        orderSort.dir = (key === 'customer' || key === 'payment' || key === 'status') ? 'asc' : 'desc';
+    }
+    renderOrders();
+}
+
+function _orderSortValue(o, key) {
+    switch (key) {
+        case 'orderNumber': {
+            var n = o.orderNumber;
+            if (typeof n === 'string' && /^\d+$/.test(n)) n = parseInt(n, 10);
+            return (typeof n === 'number' && isFinite(n)) ? n : -1;
+        }
+        case 'date':     return o.date ? new Date(o.date).getTime() : 0;
+        case 'customer': return (o.customerName || '').toLowerCase();
+        case 'items':    return (typeof getOrderItems === 'function') ? getOrderItems(o.id).length : 0;
+        case 'total':    return (typeof orderTotal === 'function') ? orderTotal(o) : Number(o.total || 0);
+        case 'payment':  return (o.paymentMethod || '').toLowerCase();
+        case 'status':   return (o.status || '').toLowerCase();
+        default:         return '';
+    }
+}
+
 // ── Bulk order selection (for NetSuite CSV bulk export) ──
 // A Set of order.id values currently ticked in the orders table. Lives
 // outside renderOrders() so re-renders (filter/search) don't drop the
@@ -11367,7 +11401,26 @@ function renderOrders() {
             if (hay.indexOf(q) === -1) return false;
         }
         return true;
-    }).reverse();
+    });
+
+    var sortKey = orderSort.key, sortDir = orderSort.dir === 'asc' ? 1 : -1;
+    rows.sort(function(a, b) {
+        var av = _orderSortValue(a.o, sortKey);
+        var bv = _orderSortValue(b.o, sortKey);
+        if (av < bv) return -1 * sortDir;
+        if (av > bv) return  1 * sortDir;
+        return 0;
+    });
+
+    // Paint sort indicators + wire click handlers on headers
+    var headers = document.querySelectorAll('#page-admin-orders th.sortable');
+    headers.forEach(function(th) {
+        var key = th.dataset.sort;
+        th.style.cursor = 'pointer';
+        th.onclick = function() { setOrderSort(key); };
+        var base = (th.textContent || '').replace(/\s*[▲▼]\s*$/, '').trim();
+        th.textContent = base + (key === sortKey ? (sortDir === 1 ? ' ▲' : ' ▼') : '');
+    });
 
     var lbl = document.getElementById('orderCountLabel');
     if (lbl) lbl.textContent = rows.length + ' order' + (rows.length === 1 ? '' : 's');
