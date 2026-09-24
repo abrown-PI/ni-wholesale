@@ -11438,6 +11438,7 @@ function renderOrders() {
             actions += ' <button class="btn btn-sm btn-accent" onclick="openOrderEditModal(' + i + ')">Edit</button>';
             actions += ' <button class="btn btn-sm btn-success" onclick="markShipped(' + i + ')">Ship</button>';
         } else if (o.status === 'shipped') {
+            actions += ' <button class="btn btn-sm btn-outline" onclick="editTracking(' + i + ')" title="Update carrier or tracking #">Edit Tracking</button>';
             actions += ' <button class="btn btn-sm btn-success" onclick="markDelivered(' + i + ')">Delivered</button>';
         }
         var dateStr = o.date ? new Date(o.date).toLocaleDateString() : '';
@@ -12299,32 +12300,66 @@ async function confirmMarkShipped() {
     var dateVal = document.getElementById('msShipDate').value;
     var shippedAt = dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
     var notes = document.getElementById('msNotes').value.trim();
-    o.carrier = document.getElementById('msCarrier').value;
-    o.trackingNumber = document.getElementById('msTracking').value.trim();
-    o.shippedAt = shippedAt;
-    o.status = 'shipped';
-    // Auto-generate NetSuite invoice number if none exists yet.
-    if (!o.invoiceNumber) {
-        o.invoiceNumber = 'NI-' + String(o.orderNumber || 0).padStart(5, '0');
-    }
-    if (notes) o.internalNotes = ('[' + shippedAt.slice(0,10) + ' shipped] ' + notes + (o.internalNotes ? '\n' + o.internalNotes : ''));
-    saveData();
+    var newCarrier = document.getElementById('msCarrier').value;
+    var newTracking = document.getElementById('msTracking').value.trim();
 
-    // Push status to Supabase (source of truth) so cross-device admin + notify-order see it.
+    // Auto-generate NetSuite invoice number if none exists yet — use the
+    // current invoice mapping's prefix (falls back to NIINV) so this doesn't
+    // stamp the stale 'NI-' prefix onto new orders.
+    var newInvoiceNumber = o.invoiceNumber;
+    if (!newInvoiceNumber) {
+        var _invMap = (CSV_MAPPING_CACHES && CSV_MAPPING_CACHES.invoice) || {};
+        var _prefix = _invMap.external_id_prefix || 'NIINV';
+        var _pad = Number(_invMap.external_id_pad_digits) || 5;
+        newInvoiceNumber = _prefix + String(parseInt(o.orderNumber, 10) || 0).padStart(_pad, '0');
+    }
+    var newInternalNotes = notes
+        ? ('[' + shippedAt.slice(0,10) + ' shipped] ' + notes + (o.internalNotes ? '\n' + o.internalNotes : ''))
+        : (o.internalNotes || '');
+
+    // Push status to Supabase FIRST and confirm rows updated. If the DB save
+    // fails (RLS blocks a stale session, network hiccup, etc.), Supabase JS
+    // returns {data:[], error:null} — no thrown error — so we have to check
+    // the row count explicitly. Otherwise the modal closes with a "shipped"
+    // toast, the next fetch overwrites the local copy, and Lyndsey's entry
+    // silently disappears (this is what was happening).
     var dbOrderId = o.supabaseOrderId || o.id;
     if (dbOrderId && /^[0-9a-f-]{36}$/i.test(dbOrderId)) {
+        var upd;
         try {
-            var upd = await supa.from('orders').update({
+            upd = await supa.from('orders').update({
                 status: 'shipped',
                 shipped_at: shippedAt,
-                tracking_number: o.trackingNumber || null,
-                carrier: o.carrier || null,
-                invoice_number: o.invoiceNumber || null,
-                internal_notes: o.internalNotes || ''
-            }).eq('id', dbOrderId);
-            if (upd.error) console.warn('[supabase] order status update failed:', upd.error.message);
-        } catch (e) { console.warn('[supabase] order status update error:', e); }
+                tracking_number: newTracking || null,
+                carrier: newCarrier || null,
+                invoice_number: newInvoiceNumber || null,
+                internal_notes: newInternalNotes || ''
+            }).eq('id', dbOrderId).select('id');
+        } catch (e) {
+            console.warn('[supabase] order status update error:', e);
+            showToast('Save failed: ' + (e.message || 'network error') + ' — try again', 'error');
+            return; // keep modal open with her input intact
+        }
+        if (upd.error) {
+            console.warn('[supabase] order status update failed:', upd.error.message);
+            showToast('Save failed: ' + upd.error.message, 'error');
+            return;
+        }
+        if (!upd.data || upd.data.length === 0) {
+            // Silent RLS block or stale JWT — the request succeeded but changed 0 rows.
+            showToast('Save was rejected (session may be expired). Refresh the page and try again.', 'error');
+            return;
+        }
     }
+
+    // DB save confirmed — mirror to local state + persist to localStorage.
+    o.carrier = newCarrier;
+    o.trackingNumber = newTracking;
+    o.shippedAt = shippedAt;
+    o.status = 'shipped';
+    o.invoiceNumber = newInvoiceNumber;
+    o.internalNotes = newInternalNotes;
+    saveData();
 
     // Kick off notify-order emails (customer tracking + NetSuite CSV if invoice payment).
     if (dbOrderId && /^[0-9a-f-]{36}$/i.test(dbOrderId)) {
@@ -12337,6 +12372,21 @@ async function confirmMarkShipped() {
     closeModal('markShippedModal');
     renderOrders();
     showToast('Order #' + o.orderNumber + ' marked shipped');
+}
+
+// Reopen the Mark-Shipped modal on an already-shipped order so an admin can
+// correct the carrier / tracking # / ship date without unshipping first.
+// Same modal, same save path — confirmMarkShipped is idempotent on already-
+// shipped rows.
+function editTracking(idx) {
+    var o = DATA.orders[idx];
+    if (!o) return;
+    document.getElementById('markShippedIndex').value = idx;
+    document.getElementById('msCarrier').value = o.carrier || 'USPS';
+    document.getElementById('msTracking').value = o.trackingNumber || '';
+    document.getElementById('msShipDate').value = (o.shippedAt ? o.shippedAt.slice(0,10) : new Date().toISOString().slice(0,10));
+    document.getElementById('msNotes').value = '';
+    openModal('markShippedModal');
 }
 
 function markDelivered(idx) {
