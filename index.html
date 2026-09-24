@@ -465,7 +465,6 @@
         /* Print rules */
         @page { size: letter; margin: 0.4in; }
         @media print {
-            -webkit-print-color-adjust: exact; print-color-adjust: exact;
             html, body { background: #fff !important; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .no-print, .navbar, .site-footer, .toast-container, .cart-sidebar, .cart-overlay { display: none !important; }
             .page { max-width: none !important; padding: 0 !important; margin: 0 !important; }
@@ -489,7 +488,11 @@
             /* Packing slip — show only the slip when printing while its modal is open */
             #packingSlipModal.active { background: #fff !important; position: static !important; display: block !important; }
             #packingSlipModal.active .modal { box-shadow: none !important; border: none !important; max-width: none !important; max-height: none !important; }
-            #packingSlipModal.active .modal-header { display: none !important; }
+            #packingSlipModal .modal-header,
+            #packingSlipModal .modal-header *,
+            #packingSlipModal .no-print,
+            #packingSlipModal .btn,
+            #packingSlipModal .modal-close { display: none !important; visibility: hidden !important; }
             .packing-slip-page { font-family: var(--sans); color: #000; padding: 0; }
             .packing-slip-page table { width: 100%; border-collapse: collapse; font-size: 11px; }
             .packing-slip-page th { background: #f1f1f1 !important; color: #000 !important; border: 1px solid #999; padding: 6px 8px; text-align: left; text-transform: none; letter-spacing: 0; font-size: 11px; }
