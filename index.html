@@ -1163,7 +1163,7 @@
         </div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th style="width:30px"><input type="checkbox" id="orderSelectAll" onchange="toggleAllOrderSelection(this.checked)" title="Select all visible" style="cursor:pointer"></th><th>Order #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th style="white-space:nowrap">Actions</th></tr></thead>
+                <thead><tr><th style="width:30px"><input type="checkbox" id="orderSelectAll" onchange="toggleAllOrderSelection(this.checked)" title="Select all visible" style="cursor:pointer"></th><th>Order #</th><th>Invoice #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th style="white-space:nowrap">Actions</th></tr></thead>
                 <tbody id="orderTableBody"></tbody>
             </table>
         </div>
@@ -11049,10 +11049,22 @@ function orderTotal(o) {
 }
 
 function orderNumberDisplay(o) {
-    if (typeof o.orderNumber === 'number' && isFinite(o.orderNumber)) {
-        return '#' + String(o.orderNumber).padStart(5, '0');
+    var n = o.orderNumber;
+    if (typeof n === 'string' && /^\d+$/.test(n)) n = parseInt(n, 10);
+    if (typeof n === 'number' && isFinite(n)) {
+        return '#' + String(n).padStart(5, '0');
     }
     return esc(o.id || '');
+}
+
+function invoiceNumberDisplay(o) {
+    var n = o.orderNumber;
+    if (typeof n === 'string' && /^\d+$/.test(n)) n = parseInt(n, 10);
+    if (typeof n !== 'number' || !isFinite(n)) return '';
+    var invMap = (CSV_MAPPING_CACHES && CSV_MAPPING_CACHES.invoice) || null;
+    var prefix = (invMap && invMap.external_id_prefix) || 'NIINV';
+    var pad = Number(invMap && invMap.external_id_pad_digits) || 5;
+    return prefix + String(n).padStart(pad, '0');
 }
 
 function renderOrderStats() {
@@ -11326,6 +11338,11 @@ function _orderMatchesDateRange(o, range) {
 }
 
 function renderOrders() {
+    // Fire-and-forget: warm the invoice mapping cache so the Invoice # column
+    // reflects the live prefix (falls back to 'NIINV' until it lands).
+    if (!(CSV_MAPPING_CACHES && CSV_MAPPING_CACHES.invoice) && typeof loadCsvMappingKind === 'function') {
+        loadCsvMappingKind('invoice').catch(function() { /* silent */ });
+    }
     renderOrderStats();
     // Update tab counts
     var counts = { all: DATA.orders.length, pending:0, processing:0, shipped:0, delivered:0, cancelled:0 };
@@ -11369,9 +11386,11 @@ function renderOrders() {
         }
         var dateStr = o.date ? new Date(o.date).toLocaleDateString() : '';
         var checked = bulkSelectedOrderIds.has(o.id) ? ' checked' : '';
+        var invNum = invoiceNumberDisplay(o);
         return '<tr>' +
             '<td><input type="checkbox" id="orderRowCb-' + esc(o.id) + '" data-order-id="' + esc(o.id) + '" onchange="toggleOrderSelection(\'' + esc(o.id) + '\', this.checked)" style="cursor:pointer"' + checked + '></td>' +
             '<td><strong>' + orderNumberDisplay(o) + '</strong></td>' +
+            '<td style="font-family:var(--mono, monospace);font-size:12px;color:var(--gray-700)">' + esc(invNum) + '</td>' +
             '<td>' + dateStr + '</td>' +
             '<td>' + esc(o.customerName || '--') + (o.email ? '<br><span style="font-size:11px;color:var(--gray-500)">' + esc(o.email) + '</span>' : '') + '</td>' +
             '<td>' + lineCount + '</td>' +
@@ -11380,7 +11399,7 @@ function renderOrders() {
             '<td>' + orderStatusBadge(o.status) + '</td>' +
             '<td style="white-space:nowrap">' + actions + '</td>' +
         '</tr>';
-    }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No orders yet</td></tr>';
+    }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--gray-400);padding:40px;font-family:var(--sans)">No orders yet</td></tr>';
     refreshBulkExportToolbar();
     // Sync header select-all after re-render.
     var master = document.getElementById('orderSelectAll');
