@@ -1060,6 +1060,15 @@
                 </table>
             </div>
         </div>
+        <div class="card" style="grid-column:1 / -1">
+            <div class="card-header">
+                <h2 style="font-size:16px">Data Integrity Checks</h2>
+                <a href="#" onclick="event.preventDefault();runCsvDriftCheck(true)" style="font-family:var(--sans);font-size:12px;color:var(--ni-blue);text-decoration:none">Re-run &#8635;</a>
+            </div>
+            <div id="dashboardDriftBody" style="padding:12px 16px;font-size:13px;color:var(--gray-600)">
+                Checking&hellip;
+            </div>
+        </div>
     </div>
 </div>
 
@@ -7991,6 +8000,58 @@ function renderAdminDashboard() {
             return '<tr><td>' + esc(a.pharmacyName || '') + '</td><td>' + esc(a.contactName || '') + '</td><td>' + esc(a.state || '') + '</td><td>' + esc(dt) + '</td><td>' + esc(a.status || '') + '</td></tr>';
         }).join('');
     }
+
+    // CSV Drift check — kicks off on load so admin sees data-integrity status.
+    runCsvDriftCheck(false);
+}
+
+// Detects orders where header subtotal doesn't match the sum of line_totals
+// in the DB. That's the signature of an Edit Items save that dropped a line
+// (the exact drift that hit Order #13). Runs against Supabase directly so
+// it catches drift regardless of local DATA state. Cheap query — safe to
+// re-run whenever admin visits the dashboard.
+async function runCsvDriftCheck(userTriggered) {
+    var body = document.getElementById('dashboardDriftBody');
+    if (!body) return;
+    body.innerHTML = 'Checking&hellip;';
+    try {
+        var res = await supa
+            .from('orders')
+            .select('id, order_number, subtotal, status, order_items(line_total)');
+        if (res.error) throw res.error;
+        var rows = (res.data || []).filter(function(o) {
+            var sum = (o.order_items || []).reduce(function(s, i) { return s + (Number(i.line_total) || 0); }, 0);
+            var sub = Number(o.subtotal) || 0;
+            return Math.abs(sum - sub) > 0.01;
+        });
+        if (rows.length === 0) {
+            body.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;color:var(--success)">' +
+                '<span style="font-size:20px">&#10003;</span>' +
+                '<div><strong>All orders check out.</strong> Every order\'s header subtotal matches the sum of its line items. No CSVs are drifting from what shipped.</div></div>';
+            return;
+        }
+        var list = rows.map(function(o) {
+            var sum = (o.order_items || []).reduce(function(s, i) { return s + (Number(i.line_total) || 0); }, 0);
+            var sub = Number(o.subtotal) || 0;
+            var diff = (sub - sum).toFixed(2);
+            return '<tr>' +
+                '<td style="padding:6px 10px">#' + esc(String(o.order_number || '')) + '</td>' +
+                '<td style="padding:6px 10px">' + esc(o.status || '') + '</td>' +
+                '<td style="padding:6px 10px;text-align:right">$' + sub.toFixed(2) + '</td>' +
+                '<td style="padding:6px 10px;text-align:right">$' + sum.toFixed(2) + '</td>' +
+                '<td style="padding:6px 10px;text-align:right;color:var(--danger);font-weight:600">' + (diff > 0 ? '+' : '') + '$' + diff + '</td>' +
+            '</tr>';
+        }).join('');
+        body.innerHTML = '<div style="padding:10px 12px;background:#fef2f2;border-left:4px solid var(--danger);margin-bottom:12px;color:var(--danger);font-weight:600">' +
+                '&#9888; ' + rows.length + ' order' + (rows.length === 1 ? '' : 's') + ' with subtotal &ne; sum of line items. Likely dropped/duplicate lines from Edit Items — investigate before re-sending CSVs to accounting.' +
+            '</div>' +
+            '<table style="width:100%;font-size:12px;border-collapse:collapse">' +
+                '<thead><tr style="background:var(--gray-100);text-align:left"><th style="padding:6px 10px">Order</th><th style="padding:6px 10px">Status</th><th style="padding:6px 10px;text-align:right">Header Sub</th><th style="padding:6px 10px;text-align:right">Items Sum</th><th style="padding:6px 10px;text-align:right">Drift</th></tr></thead>' +
+                '<tbody>' + list + '</tbody>' +
+            '</table>';
+    } catch (e) {
+        body.innerHTML = '<div style="color:var(--danger)">Check failed: ' + esc(e.message || e) + '</div>';
+    }
 }
 
 function populateVendorDropdowns() {
@@ -11631,12 +11692,14 @@ function openOrderItemsEditModal(idx) {
     var items = getOrderItems(o.id);
     currentEditItemsLines = items.map(function(it) {
         var q = Number(it.qty) || 0;
+        var p = Number(it.unitPrice) || 0;
         return {
             srcId: it.id || '',
             productId: it.productId || '',
             sku: it.sku || '',
             productName: it.productName || '',
-            unitPrice: Number(it.unitPrice) || 0,
+            unitPrice: p,
+            origUnitPrice: p,
             origQty: q,
             qty: q,
             removed: false
@@ -11734,24 +11797,95 @@ async function saveOrderItemsEdit() {
     var dbOrderId = o.supabaseOrderId || o.id;
     var isSupaOrder = dbOrderId && /^[0-9a-f-]{36}$/i.test(dbOrderId);
 
-    // Push to Supabase first (source of truth). If it fails, bail before touching local state.
-    if (isSupaOrder) {
-        try {
-            var del = await supa.from('order_items').delete().eq('order_id', dbOrderId);
-            if (del.error) throw del.error;
-            var rows = keptLines.map(function(ln) {
-                return {
+    // Compute a targeted diff instead of DELETE-all-INSERT-all. The old
+    // approach silently dropped lines whenever the client-side edit state
+    // was incomplete — that's how NI Order #13 lost OsteoPlus. Here we
+    // only touch the specific rows that changed. Unchanged lines stay put.
+    var toDeleteIds = [];   // {srcId, productName, sku, qty} for each row being removed
+    var toInsertRows = [];  // full insert objects for new rows + qty-changed replacements
+    var priceOnlyUpdates = []; // {srcId, unit_price, line_total} for price-only edits
+    currentEditItemsLines.forEach(function(ln) {
+        var srcId = ln.srcId || '';
+        var qtyNow = ln.removed ? 0 : (Number(ln.qty) || 0);
+        var qtyOrig = Number(ln.origQty) || 0;
+        var priceNow = Number(ln.unitPrice) || 0;
+        var priceOrig = Number(ln.origUnitPrice != null ? ln.origUnitPrice : ln.unitPrice) || 0;
+
+        if (srcId) {
+            if (qtyNow === 0) {
+                toDeleteIds.push({ srcId: srcId, productName: ln.productName, sku: ln.sku, qty: qtyOrig });
+            } else if (qtyNow !== qtyOrig) {
+                // Qty changed — replace so the DB trigger fires proper IN+OUT stock movements.
+                toDeleteIds.push({ srcId: srcId, productName: ln.productName, sku: ln.sku, qty: qtyOrig });
+                toInsertRows.push({
                     order_id: dbOrderId,
                     product_id: (ln.productId && /^[0-9a-f-]{36}$/i.test(ln.productId)) ? ln.productId : null,
                     product_name: ln.productName,
                     sku: ln.sku || null,
-                    qty: ln.qty,
-                    unit_price: ln.unitPrice,
-                    line_total: ln.qty * ln.unitPrice
-                };
+                    qty: qtyNow,
+                    unit_price: priceNow,
+                    line_total: qtyNow * priceNow
+                });
+            } else if (priceNow !== priceOrig) {
+                // Price change only — no stock impact, safe to UPDATE in place.
+                priceOnlyUpdates.push({
+                    srcId: srcId,
+                    unit_price: priceNow,
+                    line_total: qtyNow * priceNow
+                });
+            }
+        } else if (qtyNow > 0) {
+            // New line added during edit (no existing DB row).
+            toInsertRows.push({
+                order_id: dbOrderId,
+                product_id: (ln.productId && /^[0-9a-f-]{36}$/i.test(ln.productId)) ? ln.productId : null,
+                product_name: ln.productName,
+                sku: ln.sku || null,
+                qty: qtyNow,
+                unit_price: priceNow,
+                line_total: qtyNow * priceNow
             });
-            var ins = await supa.from('order_items').insert(rows);
-            if (ins.error) throw ins.error;
+        }
+    });
+
+    // Safety confirm on shipped/delivered orders when any line is being
+    // removed or reduced. This is the second net that would have caught
+    // Order #13 even if the diff logic itself had a bug.
+    var isPostShipDestructive = toDeleteIds.length > 0 && (o.status === 'shipped' || o.status === 'delivered');
+    if (isPostShipDestructive) {
+        var confirmMsg = 'This order is already ' + o.status + '. You are about to remove or reduce:\n';
+        toDeleteIds.forEach(function(d) {
+            confirmMsg += '\n  • ' + (d.productName || d.sku || '(unnamed)');
+        });
+        confirmMsg += '\n\nThis affects the invoice sent to accounting and what the customer is billed. Continue?';
+        if (!confirm(confirmMsg)) return;
+    }
+
+    if (toDeleteIds.length === 0 && toInsertRows.length === 0 && priceOnlyUpdates.length === 0) {
+        showToast('No changes to save');
+        closeModal('orderItemsEditModal');
+        return;
+    }
+
+    // Push to Supabase first (source of truth). If it fails, bail before touching local state.
+    if (isSupaOrder) {
+        try {
+            for (var di = 0; di < toDeleteIds.length; di++) {
+                var d = toDeleteIds[di];
+                var delRes = await supa.from('order_items').delete().eq('id', d.srcId);
+                if (delRes.error) throw new Error('Deleting ' + (d.productName || d.sku) + ': ' + delRes.error.message);
+            }
+            for (var pi = 0; pi < priceOnlyUpdates.length; pi++) {
+                var u = priceOnlyUpdates[pi];
+                var updRes = await supa.from('order_items').update({
+                    unit_price: u.unit_price, line_total: u.line_total
+                }).eq('id', u.srcId);
+                if (updRes.error) throw new Error('Updating price: ' + updRes.error.message);
+            }
+            if (toInsertRows.length > 0) {
+                var ins = await supa.from('order_items').insert(toInsertRows);
+                if (ins.error) throw new Error('Inserting new lines: ' + ins.error.message);
+            }
             var upd = await supa.from('orders').update({
                 subtotal: sub, tax: tax, total: total,
                 items: keptLines.map(function(ln) {
